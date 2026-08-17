@@ -27,17 +27,18 @@ local function findKit()
 	end
 end
 
-local function fixture(target)
-	local kind, number = target:match("^(.+):(%d+)$")
+local function fixtures(target)
+	local kind, selector = target:match("^(.+):([^:]+)$")
 	local kit = findKit()
 	local main = kit and kit:FindFirstChild("fixtures") and kit.fixtures:FindFirstChild("main")
 	local folder = main and main:FindFirstChild(kind)
-	if not folder then return end
+	if not folder then return {} end
 	local matches = {}
 	for _, child in folder:GetChildren() do
-		if child:IsA("Model") and child.Name == number then table.insert(matches, child) end
+		if child:IsA("Model") and (selector == "all" or child.Name == selector) then table.insert(matches, child) end
 	end
-	return matches[1]
+	table.sort(matches, function(a, b) return (tonumber(a.Name) or 0) < (tonumber(b.Name) or 0) end)
+	return matches
 end
 
 local function tween(object, duration, goal)
@@ -98,14 +99,14 @@ local function apply(event, token)
 		end
 		return
 	end
-	local model = fixture(event.target)
-	if not model then return end
 	local action, value, duration = event.action, event.value, tonumber(event.duration) or 0
+	for _, model in fixtures(event.target) do
 	if action == "level" or action == "intensity" then setLevel(model, value, duration)
+	elseif action == "reset" then setLevel(model, 0, duration); move(model, "pan", 0, duration); move(model, "tilt", 0, duration)
 	elseif action == "color" then setColor(model, value, duration)
 	elseif action == "pan" or action == "tilt" or action == "spin" or action == "pitch" then move(model, action, value, duration)
-	elseif action == "beam intensity" then setLevel(model, value, duration, function(d) return d:FindFirstAncestor("beam") ~= nil end)
-	elseif action == "gobo intensity" then setLevel(model, value, duration, function(d) return d:FindFirstAncestor("gobo") ~= nil end)
+	elseif action == "beam intensity" then setLevel(model, value, duration, function(d) return d:GetFullName():lower():find(".beam", 1, true) ~= nil end)
+	elseif action == "gobo intensity" then setLevel(model, value, duration, function(d) return d:GetFullName():lower():find(".gobo", 1, true) ~= nil end)
 	elseif action == "iris" or action == "width" then
 		local n = math.clamp(tonumber(value) or 0, 0, 1)
 		eachEmitter(model, function(d)
@@ -121,6 +122,7 @@ local function apply(event, token)
 			while activeToken == token and os.clock() < untilTime do on = not on; setLevel(model, on and 1 or 0, 0); task.wait(1/(hz*2)) end
 			if activeToken == token then setLevel(model, 1, 0) end
 		end)
+	end
 	end
 end
 

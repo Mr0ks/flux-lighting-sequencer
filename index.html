@@ -322,6 +322,29 @@
       .check {
         color: #d5ffd5;
       }
+      .quick-save {
+        transition:
+          background-color 180ms ease,
+          color 180ms ease,
+          border-color 180ms ease,
+          transform 180ms ease;
+      }
+      .quick-save.dirty {
+        color: #ffb4ab;
+        border-color: #8c1d18;
+        background: #4a1515;
+      }
+      .quick-save.saved {
+        color: var(--text);
+        border-color: var(--line);
+        background: var(--panel3);
+      }
+      .quick-save.success {
+        color: #b7f7d2;
+        border-color: #0d7a47;
+        background: #073b25;
+        transform: scale(1.04);
+      }
       .body {
         display: grid;
         grid-template-columns: 280px minmax(420px, 1fr) 300px;
@@ -705,6 +728,16 @@
         border: 1px solid var(--line);
         padding: 9px;
         border-radius: 9px;
+      }
+      .auto-grid {
+        width: auto;
+        min-width: 112px;
+        height: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        white-space: nowrap;
+        font-size: 11px;
       }
       .range {
         accent-color: white;
@@ -1415,8 +1448,7 @@
         <div class="launch-title">
           <h1>What would you like to open?</h1>
           <p>
-            Flux Sequencer · create a show, restore your autosave, or import
-            JSON.
+            Flux Sequencer · create a show, open a browser save, or import JSON.
           </p>
         </div>
         <div class="launch-actions">
@@ -1435,7 +1467,6 @@
             >
           </button>
         </div>
-        <div id="autosaveSection"></div>
         <div class="project-section">Saved in this browser</div>
         <div class="launch-list" id="launchProjects"></div>
         <div class="launch-footer">
@@ -1498,6 +1529,12 @@
           ?</button
         ><button class="pill" id="blocksMenu">Blocks</button
         ><button class="pill check" id="checks">● All checks pass</button
+        ><button
+          class="icon quick-save dirty"
+          id="quickSave"
+          title="Save project in this browser"
+          aria-label="Save project in this browser"
+        ></button
         ><button class="pill primary" id="projectMenu">Project</button
         ><input type="file" id="file" hidden accept="audio/*" /><input
           type="file"
@@ -1573,15 +1610,8 @@
           min="20"
           max="400"
           value="128"
-        /><label>Snap</label
-        ><select class="small" id="snap">
-          <option value="0">Free</option>
-          <option value="0.0625">1/16 beat</option>
-          <option value="0.125">1/8 beat</option>
-          <option value="0.25">¼ beat</option>
-          <option value="0.5">½ beat</option>
-          <option value="1" selected>Beat</option>
-          <option value="4">Bar</option></select
+        /><label>Grid</label
+        ><span class="small auto-grid" id="snapReadout">Auto · ½ beat</span
         ><label>Zoom</label
         ><input
           class="range"
@@ -1678,14 +1708,6 @@
           >
             On
           </button>
-        </div>
-        <div class="project-row">
-          <div class="project-icon">●</div>
-          <div class="project-copy">
-            <b>Save in this browser</b
-            ><small>Stored locally on this device for quick access</small>
-          </div>
-          <button class="project-action" id="cacheShow">Save</button>
         </div>
         <div class="saved-list" id="savedShows"></div>
         <div class="project-section">Storage</div>
@@ -1988,6 +2010,9 @@
         projectOpen = false,
         autosaveEnabled =
           localStorage.getItem("fluxlineAutosaveEnabled") !== "false",
+        activeSavedProjectId = null,
+        lastNamedSaveSignature = null,
+        saveFlashTimer = 0,
         pendingRenameProjectId = null,
         pendingProjectImport = "project";
       const APP_CACHE_KEYS = [
@@ -2024,6 +2049,8 @@
                 "'": "&#39;",
               })[c],
           );
+      const SAVE_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4Zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm3-10H5V5h10v4Z"/></svg>`,
+        SAVED_CHECK_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="m9 16.17-4.17-4.17-1.41 1.41L9 19 21 7l-1.41-1.41L9 16.17Z"/></svg>`;
       function fixtureCount(groups, type) {
         let highest = 0;
         const visit = (v) => {
@@ -2153,9 +2180,53 @@
         $("#undo").disabled = !history.length;
         $("#redo").disabled = !future.length;
       }
+      function autoSnapUnit() {
+        const beatSeconds = 60 / (+$("#bpm").value || 128),
+          units = [
+            1 / 64,
+            1 / 32,
+            1 / 16,
+            1 / 8,
+            1 / 4,
+            1 / 2,
+            1,
+            2,
+            4,
+            8,
+            16,
+            32,
+            64,
+          ];
+        return (
+          units.find((unit) => unit * beatSeconds * px >= 14) ||
+          units[units.length - 1]
+        );
+      }
+      function autoSnapLabel(unit) {
+        const labels = new Map([
+          [1 / 64, "1/64 beat"],
+          [1 / 32, "1/32 beat"],
+          [1 / 16, "1/16 beat"],
+          [1 / 8, "⅛ beat"],
+          [1 / 4, "¼ beat"],
+          [1 / 2, "½ beat"],
+          [1, "1 beat"],
+          [2, "2 beats"],
+          [4, "1 bar"],
+          [8, "2 bars"],
+          [16, "4 bars"],
+          [32, "8 bars"],
+          [64, "16 bars"],
+        ]);
+        return labels.get(unit) || `${unit} beats`;
+      }
+      function updateAutoSnapReadout() {
+        const readout = $("#snapReadout");
+        if (readout)
+          readout.textContent = `Auto · ${autoSnapLabel(autoSnapUnit())}`;
+      }
       function snapTime(t) {
-        const unit = +$("#snap").value;
-        if (!unit) return clamp(t, 0, state.duration);
+        const unit = autoSnapUnit();
         const sec = (60 / (+$("#bpm").value || 128)) * unit;
         return clamp(Math.round(t / sec) * sec, 0, state.duration);
       }
@@ -2527,16 +2598,15 @@
           ruler.style.transform = `translate3d(${-scroller.scrollLeft}px,0,0)`;
       }
       function gridMetrics() {
-        const snapUnit = +$("#snap").value,
-          snapSeconds = snapUnit
-            ? (60 / (+$("#bpm").value || 128)) * snapUnit
-            : 1;
+        const snapUnit = autoSnapUnit(),
+          snapSeconds = (60 / (+$("#bpm").value || 128)) * snapUnit;
         return { snapSeconds, majorSeconds: snapSeconds * 4 };
       }
       function applyGridStyles(element) {
         const { snapSeconds, majorSeconds } = gridMetrics();
         element.style.setProperty("--snap-grid", snapSeconds * px + "px");
         element.style.setProperty("--major-grid", majorSeconds * px + "px");
+        updateAutoSnapReadout();
       }
       function renderRuler() {
         const r = $("#ruler"),
@@ -3761,7 +3831,41 @@
           customBlocks: CUSTOM_BLOCKS,
         };
       }
-      function loadProject(bundle) {
+      function namedSaveSignature() {
+        return JSON.stringify({ state, fluxData, customBlocks: CUSTOM_BLOCKS });
+      }
+      function updateQuickSaveButton() {
+        const button = $("#quickSave");
+        if (!button || button.classList.contains("success")) return;
+        const dirty =
+          !activeSavedProjectId ||
+          lastNamedSaveSignature !== namedSaveSignature();
+        button.disabled = !projectOpen;
+        button.classList.toggle("dirty", projectOpen && dirty);
+        button.classList.toggle("saved", projectOpen && !dirty);
+        button.innerHTML = SAVE_ICON;
+        const label = !projectOpen
+          ? "Open a project to save"
+          : dirty
+            ? "Save project in this browser"
+            : "Project saved in this browser";
+        button.title = label;
+        button.setAttribute("aria-label", label);
+      }
+      function flashQuickSave() {
+        const button = $("#quickSave");
+        clearTimeout(saveFlashTimer);
+        button.classList.remove("dirty", "saved");
+        button.classList.add("success");
+        button.innerHTML = SAVED_CHECK_ICON;
+        button.title = "Saved in this browser";
+        button.setAttribute("aria-label", "Saved in this browser");
+        saveFlashTimer = setTimeout(() => {
+          button.classList.remove("success");
+          updateQuickSaveButton();
+        }, 1100);
+      }
+      function loadProject(bundle, savedProjectId = null) {
         if (bundle?.format === "fluxline-project") {
           state = bundle.state;
           fluxData = bundle.fluxData || null;
@@ -3778,6 +3882,8 @@
         selectedEvent = null;
         selectedEvents.clear();
         selectedLane = state.patch?.[0]?.type + ":all";
+        activeSavedProjectId = savedProjectId;
+        lastNamedSaveSignature = savedProjectId ? namedSaveSignature() : null;
         projectOpen = true;
         $("#launchGate").classList.add("hidden");
         $("#importGate").classList.add("hidden");
@@ -3826,6 +3932,12 @@
         else if (item.project) item.project.name = name;
         item.savedAt = new Date().toISOString();
         localStorage.setItem("fluxlineSavedShows", JSON.stringify(items));
+        if (activeSavedProjectId === id) {
+          state.name = name;
+          lastNamedSaveSignature = namedSaveSignature();
+          patchSummary();
+          autosave();
+        }
         $("#renameProjectModal").classList.remove("open");
         pendingRenameProjectId = null;
         renderSavedShows();
@@ -3842,6 +3954,12 @@
         else if (item.project) item.project.name = name;
         item.savedAt = new Date().toISOString();
         localStorage.setItem("fluxlineSavedShows", JSON.stringify(items));
+        if (activeSavedProjectId === id) {
+          state.name = name;
+          lastNamedSaveSignature = namedSaveSignature();
+          patchSummary();
+          autosave();
+        }
       }
       function renderSavedShows() {
         const root = $("#savedShows"),
@@ -3857,7 +3975,7 @@
             (b.onclick = () => {
               const item = savedProjects().find((x) => x.id === b.dataset.load);
               if (item) {
-                loadProject(item.project);
+                loadProject(item.project, item.id);
                 $("#projectModal").classList.remove("open");
               }
             }),
@@ -3869,6 +3987,10 @@
         $$("[data-delete]").forEach(
           (b) =>
             (b.onclick = () => {
+              if (activeSavedProjectId === b.dataset.delete) {
+                activeSavedProjectId = null;
+                lastNamedSaveSignature = null;
+              }
               localStorage.setItem(
                 "fluxlineSavedShows",
                 JSON.stringify(
@@ -3877,12 +3999,15 @@
               );
               renderSavedShows();
               renderLauncher();
+              updateQuickSaveButton();
             }),
         );
       }
       function cacheProject() {
         const items = savedProjects(),
-          existing = items.find((x) => x.name === state.name),
+          existing =
+            items.find((x) => x.id === activeSavedProjectId) ||
+            items.find((x) => x.name === state.name),
           entry = {
             id: existing?.id || uid(),
             name: state.name || "Untitled show",
@@ -3894,11 +4019,15 @@
           20,
         );
         localStorage.setItem("fluxlineSavedShows", JSON.stringify(next));
+        activeSavedProjectId = entry.id;
+        lastNamedSaveSignature = namedSaveSignature();
         renderSavedShows();
         renderLauncher();
+        flashQuickSave();
         toast("Saved in this browser");
       }
       function autosave() {
+        updateQuickSaveButton();
         if (!projectOpen || !autosaveEnabled) return;
         try {
           localStorage.setItem(
@@ -3947,50 +4076,13 @@
         return `${count} event${count === 1 ? "" : "s"} · ${projectState?.bpm || 128} BPM`;
       }
       function renderLauncher() {
-        const recovery = autosavedProject(),
-          section = $("#autosaveSection"),
-          projects = savedProjects();
-        section.innerHTML = recovery?.state
-          ? `<div class="project-section">Continue editing</div><div class="launch-project"><div><input class="launch-project-name" id="autosaveProjectName" aria-label="Rename autosaved project" value="${esc(recovery.state.name || "Untitled show")}"><small>Autosave · ${esc(projectSummary(recovery))} · ${new Date(recovery.savedAt || Date.now()).toLocaleString()}</small></div><button class="project-action primary" id="resumeAutosave">Open</button></div>`
-          : "";
+        const projects = savedProjects();
         $("#launchProjects").innerHTML = projects
           .map(
             (item) =>
               `<div class="launch-project"><div><input class="launch-project-name" data-launch-name="${esc(item.id)}" aria-label="Rename ${esc(item.name)}" value="${esc(item.name)}"><small>${esc(projectSummary(item.project))} · ${new Date(item.savedAt).toLocaleString()}</small></div><button class="project-action" data-launch-load="${esc(item.id)}">Open</button><button class="project-action" data-launch-delete="${esc(item.id)}">Delete</button></div>`,
           )
           .join("");
-        $("#resumeAutosave")?.addEventListener("click", () => {
-          try {
-            loadProject(recovery);
-          } catch (error) {
-            $("#launchError").textContent = error.message;
-          }
-        });
-        const autosaveNameInput = $("#autosaveProjectName");
-        if (autosaveNameInput) {
-          autosaveNameInput.oninput = (event) => {
-            const name = event.target.value;
-            recovery.state.name = name;
-            if (projectOpen) {
-              state.name = name;
-              patchSummary();
-              autosave();
-            } else
-              localStorage.setItem(
-                "fluxlineAutosave",
-                JSON.stringify(recovery),
-              );
-          };
-          autosaveNameInput.onblur = () => {
-            if (!autosaveNameInput.value.trim()) {
-              autosaveNameInput.value = "Untitled show";
-              autosaveNameInput.oninput({ target: autosaveNameInput });
-            }
-          };
-          autosaveNameInput.onkeydown = (event) => {
-            if (event.key === "Enter") autosaveNameInput.blur();
-          };
-        }
         $$("[data-launch-name]").forEach((input) => {
           input.oninput = () =>
             persistSavedProjectName(input.dataset.launchName, input.value);
@@ -4010,12 +4102,16 @@
               const item = savedProjects().find(
                 (saved) => saved.id === button.dataset.launchLoad,
               );
-              if (item) loadProject(item.project);
+              if (item) loadProject(item.project, item.id);
             }),
         );
         $$("[data-launch-delete]").forEach(
           (button) =>
             (button.onclick = () => {
+              if (activeSavedProjectId === button.dataset.launchDelete) {
+                activeSavedProjectId = null;
+                lastNamedSaveSignature = null;
+              }
               localStorage.setItem(
                 "fluxlineSavedShows",
                 JSON.stringify(
@@ -4025,10 +4121,13 @@
                 ),
               );
               renderLauncher();
+              renderSavedShows();
+              updateQuickSaveButton();
             }),
         );
         $("#returnToEditor").style.display = projectOpen ? "" : "none";
         renderAutosaveStatus();
+        updateQuickSaveButton();
       }
       function openProjectLibrary() {
         autosave();
@@ -4043,6 +4142,8 @@
         selectedEvents.clear();
         selectedEvent = null;
         position = 0;
+        activeSavedProjectId = null;
+        lastNamedSaveSignature = null;
         state = freshState();
         fluxData = null;
         DEFINITIONS = structuredClone(BASE_DEFINITIONS);
@@ -4071,6 +4172,8 @@
         stop();
         autosaveEnabled = true;
         projectOpen = false;
+        activeSavedProjectId = null;
+        lastNamedSaveSignature = null;
         state = freshState();
         fluxData = null;
         CUSTOM_BLOCKS = [];
@@ -4086,6 +4189,7 @@
         $("#importGate").classList.add("hidden");
         $("#launchGate").classList.remove("hidden");
         renderLauncher();
+        updateQuickSaveButton();
         toast("Browser data deleted");
       }
       function readCustomBlocks() {
@@ -4262,11 +4366,6 @@
         renderTimeline();
         autosave();
       };
-      $("#snap").onchange = () => {
-        seek(snapTime(position));
-        renderRuler();
-        renderTimeline();
-      };
       $("#zoom").oninput = (e) => {
         px = +e.target.value;
         document.documentElement.style.setProperty("--pps", px + "px");
@@ -4420,7 +4519,7 @@
         e.target.value = "";
       };
       $("#downloadShow").onclick = downloadProject;
-      $("#cacheShow").onclick = cacheProject;
+      $("#quickSave").onclick = cacheProject;
       $("#autosaveToggle").onclick = toggleAutosave;
       $("#close").onclick = () => $("#modal").classList.remove("open");
       $("#copy").onclick = () =>
@@ -4570,7 +4669,7 @@
             (e.key === "ArrowRight" ? 1 : -1) *
             (e.shiftKey
               ? (60 / state.bpm) * 4
-              : ((+$("#snap").value || 1) * 60) / state.bpm);
+              : (autoSnapUnit() * 60) / state.bpm);
           selectedList().forEach((x) => (x.time = snapTime(x.time + amount)));
           renderAll();
         }

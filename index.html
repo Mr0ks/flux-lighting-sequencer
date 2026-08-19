@@ -580,6 +580,32 @@
         text-transform: uppercase;
         margin-bottom: 6px;
       }
+      .field-hint {
+        display: block;
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .field input[type="range"] {
+        height: 28px;
+        margin: 0 0 7px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+      }
+      .inspector-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 18px;
+      }
+      .inspector-actions .pill {
+        width: 100%;
+        padding-inline: 12px;
+      }
+      .inspector-actions .danger {
+        grid-column: 1 / -1;
+      }
       .field input,
       .field select {
         width: 100%;
@@ -715,6 +741,10 @@
         transform: translateX(-50%);
       }
       @media (max-width: 1000px) {
+        .topbar {
+          gap: 7px;
+          padding: 10px 12px;
+        }
         .body {
           grid-template-columns: 230px 1fr;
         }
@@ -723,6 +753,39 @@
         }
         .brand {
           min-width: 190px;
+        }
+        .transport {
+          gap: 8px;
+          padding-inline: 12px;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+        .transport::-webkit-scrollbar {
+          display: none;
+        }
+        .transport label,
+        .event-count {
+          display: none;
+        }
+        .transport .range {
+          width: 110px;
+        }
+      }
+      @media (max-width: 800px) {
+        .brand {
+          min-width: 120px;
+        }
+        .brand p {
+          display: none;
+        }
+        #checks {
+          width: 44px;
+          padding: 0;
+          font-size: 0;
+        }
+        #checks::before {
+          content: "●";
+          font-size: 14px;
         }
       }
       .import-gate {
@@ -2401,11 +2464,78 @@
             renderInspector();
           });
       }
+      const VALUE_INFO = {
+        level: {
+          label: "Brightness (0–1)",
+          hint: "0 = off · 0.5 = half · 1 = full",
+          range: [0, 1, 0.01],
+        },
+        intensity: {
+          label: "Light intensity (0–1)",
+          hint: "0 = off · 0.5 = half · 1 = full",
+          range: [0, 1, 0.01],
+        },
+        "beam intensity": {
+          label: "Beam intensity (0–1)",
+          hint: "0 = off · 0.5 = half · 1 = full",
+          range: [0, 1, 0.01],
+        },
+        "gobo intensity": {
+          label: "Gobo intensity (0–1)",
+          hint: "0 = hidden · 1 = fully visible",
+          range: [0, 1, 0.01],
+        },
+        pan: {
+          label: "Pan angle (degrees)",
+          hint: "Horizontal fixture position",
+          range: [-180, 180, 1],
+        },
+        tilt: {
+          label: "Tilt angle (degrees)",
+          hint: "Vertical fixture position",
+          range: [-180, 180, 1],
+        },
+        spin: {
+          label: "Spin speed (degrees/second)",
+          hint: "Negative values reverse direction",
+          range: [-360, 360, 1],
+        },
+        pitch: {
+          label: "Pitch angle (degrees)",
+          hint: "Laser pitch position",
+          range: [-180, 180, 1],
+        },
+        strobe: {
+          label: "Strobe speed (flashes/second)",
+          hint: "0 = stopped · 30 = fastest",
+          range: [0, 30, 0.25],
+        },
+        iris: {
+          label: "Iris opening (0–1)",
+          hint: "0 = closed · 1 = fully open",
+          range: [0, 1, 0.01],
+        },
+        width: {
+          label: "Beam width (0–1)",
+          hint: "0 = narrow · 1 = widest",
+          range: [0, 1, 0.01],
+        },
+      };
+      function isFixedCueValue(event) {
+        return (
+          event.action === "reset" ||
+          event.action === "shutter" ||
+          (event.action === "level" &&
+            ["on", "off", "fade on", "fade off"].includes(
+              String(event.label).toLowerCase(),
+            ))
+        );
+      }
       function renderInspector() {
         const root = $("#inspector");
         if (selectedEvents.size > 1) {
           const list = selectedList();
-          root.innerHTML = `<h2>${list.length} events selected</h2><p class="sub">Drag any selected event to move the group together.</p><div class="field"><label>Move by beats</label><input id="multiShift" type="number" step=".25" value="0"></div><div class="field"><label>Set duration</label><input id="multiDuration" type="number" step=".05" min="0" placeholder="Leave unchanged"></div><button class="pill" id="copyMany">Copy</button> <button class="pill" id="duplicateMany">Duplicate</button> <button class="pill danger" id="deleteMany">Delete</button>`;
+          root.innerHTML = `<h2>${list.length} events selected</h2><p class="sub">Drag any selected event to move the group together.</p><div class="field"><label>Move by beats</label><input id="multiShift" type="number" step=".25" value="0"></div><div class="field"><label>Set duration</label><input id="multiDuration" type="number" step=".05" min="0" placeholder="Leave unchanged"></div><div class="inspector-actions"><button class="pill" id="copyMany">Copy</button><button class="pill" id="duplicateMany">Duplicate</button><button class="pill danger" id="deleteMany">Delete</button></div>`;
           $("#multiShift").onchange = (x) => {
             const amount = ((+x.target.value || 0) * 60) / state.bpm;
             if (!amount) return;
@@ -2449,17 +2579,13 @@
           isPyro = e.action === "pyro",
           isNative = e.action.startsWith("flux-"),
           isBlock = e.action === "block",
-          range = {
-            level: [0, 1, 0.01],
-            intensity: [0, 1, 0.01],
-            pan: [-180, 180, 1],
-            tilt: [-180, 180, 1],
-            spin: [-360, 360, 1],
-            pitch: [-180, 180, 1],
-            strobe: [0, 30, 0.25],
-            iris: [0, 1, 0.01],
-            width: [0, 1, 0.01],
-          }[e.action];
+          valueInfo = VALUE_INFO[e.action] || {
+            label: `${e.action.replace(/^flux-/, "")} value`,
+            hint: "Value sent to Flux",
+          },
+          range = valueInfo.range,
+          showValue =
+            !isPyro && !isNative && !isBlock && !isFixedCueValue(e);
         const targets = laneList()
           .map(
             (l) =>
@@ -2469,9 +2595,9 @@
         const valueEditor = isColor
           ? `<div class="field"><label>Colour</label><div class="row"><input id="evValue" type="color" value="${e.value}"><input id="evHex" value="${e.value}"></div></div>`
           : range
-            ? `<div class="field"><label>Value</label><input id="evRange" type="range" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"><input id="evValue" type="number" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"></div>`
-            : `<div class="field"><label>Value</label><input id="evValue" type="number" step=".01" value="${e.value}"></div>`;
-        root.innerHTML = `<h2>${e.label}</h2><p class="sub">${isBlock ? `${e.actions?.length || 0} actions fire together` : e.native ? e.native.fixture + " · " + e.native.scope : e.target + " · " + e.action}</p><div class="row"><div class="field"><label>Time</label><input id="evTime" type="number" step=".001" value="${e.time}"></div><div class="field"><label>Duration</label><input id="evDuration" type="number" step=".05" min="0" value="${e.duration || 0}"></div></div>${isPyro || isNative || isBlock ? "" : valueEditor}${isBlock ? `<div class="section-title">Block actions</div>${e.actions.map((a) => `<p class="sub">${esc(a.label)} · ${esc(a.action)} · ${esc(a.value)}${a.duration ? ` · ${a.duration}s` : ""}</p>`).join("")}` : ""}<div class="field"><label>Target</label><select id="evTarget">${targets}<option value="pyrotechnics" ${e.target === "pyrotechnics" ? "selected" : ""}>Pyrotechnics</option></select></div><button class="pill" id="copyOne">Copy</button> <button class="pill" id="duplicateOne">Duplicate</button> <button class="pill danger" id="delete">Delete</button>`;
+            ? `<div class="field"><label>${esc(valueInfo.label)}</label><input id="evRange" type="range" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"><input id="evValue" type="number" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"><small class="field-hint">${esc(valueInfo.hint)}</small></div>`
+            : `<div class="field"><label>${esc(valueInfo.label)}</label><input id="evValue" type="number" step=".01" value="${e.value}"><small class="field-hint">${esc(valueInfo.hint)}</small></div>`;
+        root.innerHTML = `<h2>${e.label}</h2><p class="sub">${isBlock ? `${e.actions?.length || 0} actions fire together` : e.native ? e.native.fixture + " · " + e.native.scope : e.target + " · " + e.action}</p><div class="row"><div class="field"><label>Time</label><input id="evTime" type="number" step=".001" value="${e.time}"></div><div class="field"><label>Duration</label><input id="evDuration" type="number" step=".05" min="0" value="${e.duration || 0}"></div></div>${showValue ? valueEditor : ""}${isBlock ? `<div class="section-title">Block actions</div>${e.actions.map((a) => `<p class="sub">${esc(a.label)} · ${esc(VALUE_INFO[a.action]?.label || a.action)}: ${esc(a.value)}${a.duration ? ` · ${a.duration}s` : ""}</p>`).join("")}` : ""}<div class="field"><label>Target</label><select id="evTarget">${targets}<option value="pyrotechnics" ${e.target === "pyrotechnics" ? "selected" : ""}>Pyrotechnics</option></select></div><div class="inspector-actions"><button class="pill" id="copyOne">Copy</button><button class="pill" id="duplicateOne">Duplicate</button><button class="pill danger" id="delete">Delete</button></div>`;
         const change = () => {
           commit();
           e.time = snapTime(+$("#evTime").value);

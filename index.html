@@ -318,6 +318,8 @@
       .right {
         border-left: 1px solid var(--line);
         padding: 18px;
+        position: relative;
+        z-index: 6;
       }
       .patch-summary {
         padding: 15px 16px;
@@ -398,12 +400,14 @@
         display: flex;
         flex-direction: column;
         background: #090909;
+        overflow: hidden;
+        isolation: isolate;
       }
       .wave-row,
       .ruler-row,
       .lane {
         display: grid;
-        grid-template-columns: var(--label) 1fr;
+        grid-template-columns: var(--label) minmax(0, 1fr);
       }
       .sticky-label {
         position: sticky;
@@ -430,9 +434,12 @@
       }
       .ruler-row {
         height: 34px;
+        overflow: hidden;
       }
       .ruler {
         position: relative;
+        min-width: 0;
+        will-change: transform;
         border-bottom: 1px solid var(--line);
         background: var(--panel);
         cursor: ew-resize;
@@ -581,6 +588,16 @@
         color: var(--text);
         border: 1px solid var(--line);
         border-radius: 9px;
+      }
+      input[type="number"] {
+        appearance: textfield;
+        -moz-appearance: textfield;
+      }
+      input[type="number"]::-webkit-inner-spin-button,
+      input[type="number"]::-webkit-outer-spin-button {
+        margin: 0;
+        appearance: none;
+        -webkit-appearance: none;
       }
       .row {
         display: flex;
@@ -1681,6 +1698,12 @@
         window.addEventListener("pointermove", update);
         window.addEventListener("pointerup", up);
       }
+      function syncRulerScroll() {
+        const ruler = $("#ruler"),
+          scroller = $("#scroller");
+        if (ruler && scroller)
+          ruler.style.transform = `translate3d(${-scroller.scrollLeft}px,0,0)`;
+      }
       function renderRuler() {
         const r = $("#ruler"),
           w = timelineWidth();
@@ -1691,6 +1714,7 @@
           s += `<div class="tick" style="left:${t * px}px">${format(t, false)}</div>`;
         r.innerHTML = s;
         r.onpointerdown = (e) => scrubSurface(e, r);
+        syncRulerScroll();
       }
       function laneList() {
         const lanes = [];
@@ -3104,6 +3128,9 @@
         }
       });
       window.addEventListener("resize", drawWave);
+      $("#scroller").addEventListener("scroll", syncRulerScroll, {
+        passive: true,
+      });
       readCustomBlocks();
       renderAll();
     </script>

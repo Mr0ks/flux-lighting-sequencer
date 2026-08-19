@@ -301,6 +301,53 @@
         border-radius: 13px;
         font-size: 18px;
       }
+      .topbar .expandable-icon {
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 0;
+        width: 44px;
+        padding: 0 11px;
+        overflow: hidden;
+        white-space: nowrap;
+        transition:
+          width 220ms cubic-bezier(0.2, 0, 0, 1),
+          gap 220ms cubic-bezier(0.2, 0, 0, 1),
+          background-color 180ms ease,
+          border-color 180ms ease,
+          color 180ms ease;
+      }
+      .topbar .expandable-icon:not(:disabled):is(:hover, :focus-visible) {
+        width: var(--expanded-width, 112px);
+        gap: 9px;
+      }
+      .expandable-icon .icon-symbol {
+        display: grid;
+        flex: 0 0 20px;
+        width: 20px;
+        height: 20px;
+        place-items: center;
+        line-height: 1;
+      }
+      .expandable-icon .icon-label {
+        max-width: 0;
+        overflow: hidden;
+        opacity: 0;
+        transform: translateX(-6px);
+        font-size: 13px;
+        font-weight: 680;
+        line-height: 1;
+        transition:
+          max-width 220ms cubic-bezier(0.2, 0, 0, 1),
+          opacity 140ms ease,
+          transform 220ms cubic-bezier(0.2, 0, 0, 1);
+      }
+      .expandable-icon:not(:disabled):is(:hover, :focus-visible) .icon-label {
+        max-width: 150px;
+        opacity: 1;
+        transform: none;
+      }
       .icon:hover,
       .pill:hover {
         background: var(--panel3);
@@ -1512,28 +1559,68 @@
           <h1>Flux Sequencer</h1>
           <p id="summary">Loading fixture patch…</p>
         </div>
-        <button class="icon" id="undo" title="Undo (Ctrl/⌘ Z)">↶</button
-        ><button class="icon" id="redo" title="Redo (Ctrl/⌘ Shift Z)">↷</button>
+        <button
+          class="icon expandable-icon"
+          id="undo"
+          title="Undo (Ctrl/⌘ Z)"
+          style="--expanded-width: 92px"
+        >
+          <span class="icon-symbol">↶</span
+          ><span class="icon-label">Undo</span></button
+        ><button
+          class="icon expandable-icon"
+          id="redo"
+          title="Redo (Ctrl/⌘ Shift Z)"
+          style="--expanded-width: 92px"
+        >
+          <span class="icon-symbol">↷</span><span class="icon-label">Redo</span>
+        </button>
         <div class="spacer"></div>
-        <button class="icon" id="audio" title="Load audio">♫</button
-        ><button class="icon" id="libraryMenu" title="Open project library">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <path
-              fill="currentColor"
-              d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2Z"
-            />
-          </svg></button
-        ><button class="icon" id="songIdMenu" title="Set Roblox song ID">
-          ID</button
-        ><button class="icon" id="shortcutsMenu" title="Keyboard shortcuts (?)">
-          ?</button
+        <button
+          class="icon expandable-icon"
+          id="audio"
+          title="Load audio"
+          style="--expanded-width: 122px"
+        >
+          <span class="icon-symbol">♫</span
+          ><span class="icon-label">Load audio</span></button
+        ><button
+          class="icon expandable-icon"
+          id="libraryMenu"
+          title="Open project library"
+          style="--expanded-width: 116px"
+        >
+          <span class="icon-symbol"
+            ><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2Z"
+              /></svg></span
+          ><span class="icon-label">Projects</span></button
+        ><button
+          class="icon expandable-icon"
+          id="songIdMenu"
+          title="Set Roblox song ID"
+          style="--expanded-width: 126px"
+        >
+          <span class="icon-symbol">ID</span
+          ><span class="icon-label">Roblox ID</span></button
+        ><button
+          class="icon expandable-icon"
+          id="shortcutsMenu"
+          title="Keyboard shortcuts (?)"
+          style="--expanded-width: 124px"
+        >
+          <span class="icon-symbol">?</span
+          ><span class="icon-label">Shortcuts</span></button
         ><button class="pill" id="blocksMenu">Blocks</button
         ><button class="pill check" id="checks">● All checks pass</button
         ><button
-          class="icon quick-save dirty"
+          class="icon expandable-icon quick-save dirty"
           id="quickSave"
           title="Save project in this browser"
           aria-label="Save project in this browser"
+          style="--expanded-width: 104px"
         ></button
         ><button class="pill primary" id="projectMenu">Project</button
         ><input type="file" id="file" hidden accept="audio/*" /><input
@@ -2051,6 +2138,9 @@
           );
       const SAVE_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4Zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm3-10H5V5h10v4Z"/></svg>`,
         SAVED_CHECK_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="m9 16.17-4.17-4.17-1.41 1.41L9 19 21 7l-1.41-1.41L9 16.17Z"/></svg>`;
+      function expandableIconContent(icon, label) {
+        return `<span class="icon-symbol">${icon}</span><span class="icon-label">${label}</span>`;
+      }
       function fixtureCount(groups, type) {
         let highest = 0;
         const visit = (v) => {
@@ -3843,7 +3933,7 @@
         button.disabled = !projectOpen;
         button.classList.toggle("dirty", projectOpen && dirty);
         button.classList.toggle("saved", projectOpen && !dirty);
-        button.innerHTML = SAVE_ICON;
+        button.innerHTML = expandableIconContent(SAVE_ICON, "Save");
         const label = !projectOpen
           ? "Open a project to save"
           : dirty
@@ -3857,7 +3947,7 @@
         clearTimeout(saveFlashTimer);
         button.classList.remove("dirty", "saved");
         button.classList.add("success");
-        button.innerHTML = SAVED_CHECK_ICON;
+        button.innerHTML = expandableIconContent(SAVED_CHECK_ICON, "Saved");
         button.title = "Saved in this browser";
         button.setAttribute("aria-label", "Saved in this browser");
         saveFlashTimer = setTimeout(() => {

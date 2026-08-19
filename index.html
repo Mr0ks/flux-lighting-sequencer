@@ -75,6 +75,17 @@
         box-shadow: 0 12px 35px #000a;
         transform: translate(12px, 12px);
       }
+      .dragghost.magnetic {
+        height: 36px;
+        padding: 9px 10px;
+        border: 2px solid #fff;
+        border-radius: 8px;
+        font-size: 11px;
+        white-space: nowrap;
+        overflow: hidden;
+        transform: none;
+        transition: box-shadow 80ms ease;
+      }
       .track.drop-ok {
         background-color: #1b1b1b;
         box-shadow: inset 0 0 0 2px #fff;
@@ -1519,16 +1530,60 @@
         ev.preventDefault();
         const startX = ev.clientX,
           startY = ev.clientY,
-          ghost = document.createElement("div");
+          cue = cueFromButton(b),
+          ghost = document.createElement("div"),
+          previewEvent = {
+            id: "palette-preview",
+            time: 0,
+            target: "",
+            label: cue.label,
+            action: cue.action,
+            value: cue.value,
+            duration: cue.duration,
+            kind: cue.kind,
+            native: cue.native,
+            actions: cue.actions,
+          };
         ghost.className = "dragghost";
-        ghost.textContent = b.dataset.label;
+        ghost.textContent = cue.label;
         ghost.style.display = "none";
+        ghost.style.width = eventWidth(previewEvent) + "px";
         document.body.appendChild(ghost);
         let moved = false,
-          lastTrack = null;
+          lastTrack = null,
+          dropTarget = null,
+          dropTime = 0;
         const clear = () => {
           lastTrack?.classList.remove("drop-ok", "drop-bad");
           lastTrack = null;
+        };
+        const updatePreview = (e) => {
+          clear();
+          dropTarget = null;
+          ghost.classList.remove("magnetic");
+          ghost.style.left = e.clientX + "px";
+          ghost.style.top = e.clientY + "px";
+          const track = trackAtPoint(e.clientX, e.clientY);
+          if (!track) return;
+          const target = track.dataset.lane;
+          const ok = valid(target, cue.action, cue.native);
+          track.classList.add(ok ? "drop-ok" : "drop-bad");
+          lastTrack = track;
+          if (!ok) return;
+          const rect = track.getBoundingClientRect();
+          dropTime = clamp(
+            snapTime((e.clientX - rect.left) / px),
+            0,
+            state.duration,
+          );
+          previewEvent.time = dropTime;
+          previewEvent.target = target;
+          const start = { e: previewEvent, time: dropTime };
+          const row = previewRows(target, [start], 0).get(previewEvent.id) || 0;
+          dropTarget = target;
+          ghost.classList.add("magnetic");
+          ghost.style.left = rect.left + dropTime * px + "px";
+          ghost.style.top = rect.top + 9 + row * 42 + "px";
         };
         const move = (e) => {
           if (!moved && Math.hypot(e.clientX - startX, e.clientY - startY) < 5)
@@ -1536,42 +1591,28 @@
           moved = true;
           document.body.classList.add("timeline-dragging");
           ghost.style.display = "block";
-          ghost.style.left = e.clientX + "px";
-          ghost.style.top = e.clientY + "px";
           scrollWhileDragging(e);
-          clear();
-          const track = document
-            .elementFromPoint(e.clientX, e.clientY)
-            ?.closest(".track");
-          if (track) {
-            const cue = cueFromButton(b),
-              ok = valid(track.dataset.lane, cue.action, cue.native);
-            track.classList.add(ok ? "drop-ok" : "drop-bad");
-            lastTrack = track;
-          }
+          updatePreview(e);
         };
         const up = (e) => {
           window.removeEventListener("pointermove", move);
           window.removeEventListener("pointerup", up);
           document.body.classList.remove("timeline-dragging");
+          if (moved) updatePreview(e);
           clear();
           ghost.remove();
           if (!moved) {
-            armed = cueFromButton(b);
+            armed = cue;
             $$(".block").forEach((x) => x.classList.toggle("active", x === b));
             toast(`${armed.label} armed — click a lane or press Enter`);
             return;
           }
-          const track = document
-            .elementFromPoint(e.clientX, e.clientY)
-            ?.closest(".track");
-          if (!track) {
+          if (!dropTarget) {
             toast("Drop it on a fixture lane");
             return;
           }
-          armed = cueFromButton(b);
-          const rect = track.getBoundingClientRect();
-          place(track.dataset.lane, snapTime((e.clientX - rect.left) / px));
+          armed = cue;
+          place(dropTarget, dropTime);
           armed = null;
           $$(".block").forEach((x) => x.classList.remove("active"));
         };

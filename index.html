@@ -461,7 +461,18 @@
         min-width: 0;
         will-change: transform;
         border-bottom: 1px solid var(--line);
-        background: var(--panel);
+        background-color: var(--panel);
+        background-image:
+          repeating-linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.09) 0 1px,
+            transparent 1px var(--major-grid, calc(var(--pps) * 4))
+          ),
+          repeating-linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.035) 0 1px,
+            transparent 1px var(--snap-grid, var(--pps))
+          );
         cursor: pointer;
       }
       .tick {
@@ -1453,6 +1464,13 @@
         ><button class="icon" id="redo" title="Redo (Ctrl/⌘ Shift Z)">↷</button>
         <div class="spacer"></div>
         <button class="icon" id="audio" title="Load audio">♫</button
+        ><button class="icon" id="libraryMenu" title="Open project library">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2Z"
+            />
+          </svg></button
         ><button class="icon" id="songIdMenu" title="Set Roblox song ID">
           ID</button
         ><button class="icon" id="shortcutsMenu" title="Keyboard shortcuts (?)">
@@ -1465,7 +1483,7 @@
           id="showFile"
           hidden
           accept=".json,.flux.json"
-        />
+        /><input type="file" id="luaFile" hidden accept=".lua,.txt" />
       </header>
       <main class="body">
         <aside class="side left">
@@ -1580,17 +1598,6 @@
           <div class="spacer"></div>
           <button class="pill" id="closeProject">Close</button>
         </div>
-        <div class="project-section">Project library</div>
-        <div class="project-row">
-          <div class="project-icon">←</div>
-          <div class="project-copy">
-            <b>Open another project</b
-            ><small>Return to autosave and browser projects</small>
-          </div>
-          <button class="project-action primary" id="openProjectLibrary">
-            Open
-          </button>
-        </div>
         <div class="project-section">Flux setup</div>
         <div class="project-row">
           <div class="project-icon">{ }</div>
@@ -1602,15 +1609,7 @@
             Import
           </button>
         </div>
-        <div class="project-section">Sequencer show</div>
-        <div class="project-row">
-          <div class="project-icon">↓</div>
-          <div class="project-copy">
-            <b>Export sequencer show</b
-            ><small>Generate the Flux show ModuleScript for Roblox</small>
-          </div>
-          <button class="project-action primary" id="exportShow">Export</button>
-        </div>
+        <div class="project-section">Project JSON</div>
         <div class="project-row">
           <div class="project-icon">↑</div>
           <div class="project-copy">
@@ -1620,12 +1619,29 @@
           <button class="project-action" id="importShow">Import</button>
         </div>
         <div class="project-row">
-          <div class="project-icon">⌄</div>
+          <div class="project-icon">↓</div>
           <div class="project-copy">
             <b>Export project JSON</b
             ><small>Portable editable backup; audio file is excluded</small>
           </div>
           <button class="project-action" id="downloadShow">Export</button>
+        </div>
+        <div class="project-section">Roblox Lua show</div>
+        <div class="project-row">
+          <div class="project-icon">↑</div>
+          <div class="project-copy">
+            <b>Import Flux show Lua</b
+            ><small>Open an exported ModuleScript <code>.lua</code> file</small>
+          </div>
+          <button class="project-action" id="importLua">Import</button>
+        </div>
+        <div class="project-row">
+          <div class="project-icon">↓</div>
+          <div class="project-copy">
+            <b>Export Flux show Lua</b
+            ><small>Generate the ModuleScript used by Roblox</small>
+          </div>
+          <button class="project-action primary" id="exportShow">Export</button>
         </div>
         <div class="project-section">Browser saves</div>
         <div class="project-row">
@@ -2254,7 +2270,9 @@
         document.documentElement.style.setProperty("--pps", px + "px");
         renderRuler();
         renderTimeline();
-        s.scrollLeft = Math.max(0, 210 + anchorTime * px - anchorX);
+        const desiredScroll = Math.max(0, 210 + anchorTime * px - anchorX),
+          markerBoundary = Math.max(0, position * px);
+        s.scrollLeft = Math.min(desiredScroll, markerBoundary);
         syncRulerScroll();
         updateZoomReadout();
       }
@@ -2483,21 +2501,26 @@
         if (ruler && scroller)
           ruler.style.transform = `translate3d(${-scroller.scrollLeft}px,0,0)`;
       }
+      function gridMetrics() {
+        const snapUnit = +$("#snap").value,
+          snapSeconds = snapUnit
+            ? (60 / (+$("#bpm").value || 128)) * snapUnit
+            : 1;
+        return { snapSeconds, majorSeconds: snapSeconds * 4 };
+      }
+      function applyGridStyles(element) {
+        const { snapSeconds, majorSeconds } = gridMetrics();
+        element.style.setProperty("--snap-grid", snapSeconds * px + "px");
+        element.style.setProperty("--major-grid", majorSeconds * px + "px");
+      }
       function renderRuler() {
         const r = $("#ruler"),
           w = timelineWidth();
         r.style.width = w + "px";
-        const rawStep = Math.max(1, 92 / px),
-          magnitude = 10 ** Math.floor(Math.log10(rawStep)),
-          normalized = rawStep / magnitude,
+        applyGridStyles(r);
+        const { majorSeconds } = gridMetrics(),
           step =
-            (normalized <= 1
-              ? 1
-              : normalized <= 2
-                ? 2
-                : normalized <= 5
-                  ? 5
-                  : 10) * magnitude;
+            majorSeconds * Math.max(1, Math.ceil(78 / (majorSeconds * px)));
         let s = "";
         for (let t = 0; t <= state.duration; t += step)
           s += `<div class="tick" style="left:${t * px}px">${format(t, false)}</div>`;
@@ -2622,18 +2645,7 @@
       }
       function renderTimeline() {
         const w = timelineWidth();
-        const snapUnit = +$("#snap").value,
-          snapSeconds = snapUnit
-            ? (60 / (+$("#bpm").value || 128)) * snapUnit
-            : 1;
-        $("#timeline").style.setProperty(
-          "--snap-grid",
-          snapSeconds * px + "px",
-        );
-        $("#timeline").style.setProperty(
-          "--major-grid",
-          snapSeconds * px * 4 + "px",
-        );
+        applyGridStyles($("#timeline"));
         let html = `<div class="playhead" id="head"></div><div class="marquee" id="marquee"></div>`;
         for (const lane of laneList()) {
           const caps = capabilities(lane.type);
@@ -3545,10 +3557,149 @@
           .sort((a, b) => a.time - b.time)
           .map(
             (e) =>
-              `\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration || 0}, selection = ${lua(e.selection)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`,
+              `\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration || 0}, label = ${JSON.stringify(e.label || e.action)}, kind = ${JSON.stringify(e.kind || "output")}, selection = ${lua(e.selection)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`,
           )
           .join("\n");
         return `-- Exported by Flux Sequencer\nreturn {\n\tversion = 3,\n\tname = ${JSON.stringify(state.name)},\n\tsongId = ${JSON.stringify(state.songId)},\n\tduration = ${state.duration},\n\tbpm = ${state.bpm},\n\tevents = {\n${ev}\n\t},\n}`;
+      }
+      function parseLuaShow(source) {
+        let i = source.indexOf("return");
+        if (i < 0) throw new Error("This is not an exported Flux Lua show.");
+        i += 6;
+        const skip = () => {
+          while (i < source.length) {
+            if (/\s/.test(source[i])) i++;
+            else if (source.slice(i, i + 2) === "--") {
+              while (i < source.length && source[i] !== "\n") i++;
+            } else break;
+          }
+        };
+        const identifier = () => {
+          skip();
+          const match = source.slice(i).match(/^[A-Za-z_][A-Za-z0-9_]*/);
+          if (!match) return null;
+          i += match[0].length;
+          return match[0];
+        };
+        const string = () => {
+          const start = i++;
+          while (i < source.length) {
+            if (source[i] === "\\") i += 2;
+            else if (source[i++] === '"') break;
+          }
+          try {
+            return JSON.parse(source.slice(start, i));
+          } catch {
+            throw new Error("The Lua show contains an invalid string.");
+          }
+        };
+        const value = () => {
+          skip();
+          if (source[i] === "{") return table();
+          if (source[i] === '"') return string();
+          const number = source
+            .slice(i)
+            .match(/^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/);
+          if (number) {
+            i += number[0].length;
+            return Number(number[0]);
+          }
+          const word = identifier();
+          if (word === "true") return true;
+          if (word === "false") return false;
+          if (word === "nil") return null;
+          throw new Error("Unsupported value in the Lua show.");
+        };
+        const table = () => {
+          i++;
+          const entries = [];
+          let nextIndex = 1;
+          skip();
+          while (i < source.length && source[i] !== "}") {
+            let key,
+              hasKey = false;
+            if (source[i] === "[") {
+              i++;
+              key = value();
+              skip();
+              if (source[i++] !== "]")
+                throw new Error("Invalid Lua table key.");
+              skip();
+              if (source[i++] !== "=")
+                throw new Error("Invalid Lua table assignment.");
+              hasKey = true;
+            } else {
+              const before = i,
+                name = identifier();
+              skip();
+              if (name && source[i] === "=") {
+                i++;
+                key = name;
+                hasKey = true;
+              } else i = before;
+            }
+            entries.push([hasKey ? key : nextIndex++, value()]);
+            skip();
+            if (source[i] === "," || source[i] === ";") i++;
+            skip();
+          }
+          if (source[i++] !== "}") throw new Error("Unclosed Lua table.");
+          const numeric = entries.every(([key]) => Number.isInteger(key));
+          if (numeric) {
+            const sorted = entries.sort((a, b) => a[0] - b[0]);
+            if (sorted.every(([key], index) => key === index + 1))
+              return sorted.map((entry) => entry[1]);
+          }
+          return Object.fromEntries(entries.map(([key, item]) => [key, item]));
+        };
+        const parsed = value();
+        if (!parsed || !Array.isArray(parsed.events))
+          throw new Error("This Lua file does not contain a Flux event list.");
+        const toHex = (rgb) =>
+          "#" +
+          rgb
+            .slice(0, 3)
+            .map((channel) =>
+              Math.max(0, Math.min(255, +channel || 0))
+                .toString(16)
+                .padStart(2, "0"),
+            )
+            .join("");
+        const normaliseAction = (action) => {
+          if (
+            action?.action === "color" &&
+            Array.isArray(action.value) &&
+            action.value.length >= 3
+          )
+            action.value = toHex(action.value);
+          return action;
+        };
+        const events = parsed.events.map((raw) =>
+          normaliseAction({
+            id: uid(),
+            target: String(raw.target || "profile:all"),
+            time: Math.max(0, +raw.t || 0),
+            action: String(raw.action || "reset"),
+            value: raw.value,
+            duration: Math.max(0, +raw.duration || 0),
+            label: String(raw.label || raw.action || "Cue"),
+            kind: String(raw.kind || "output"),
+            selection: raw.selection || laneSelection(raw.target),
+            native: raw.native || null,
+            actions: Array.isArray(raw.actions)
+              ? raw.actions.map(normaliseAction)
+              : null,
+          }),
+        );
+        return {
+          version: 2,
+          name: String(parsed.name || "Imported Flux Show"),
+          songId: String(parsed.songId || "").replace(/\D/g, ""),
+          duration: Math.max(5, +parsed.duration || 180),
+          bpm: Math.max(20, +parsed.bpm || 128),
+          patch: structuredClone(state.patch || DEFAULT_PATCH),
+          events,
+        };
       }
       function openModal(title, sub, text, copy = true) {
         $("#modalTitle").textContent = title;
@@ -4090,7 +4241,7 @@
         $("#projectModal").classList.add("open");
         renderSavedShows();
       };
-      $("#openProjectLibrary").onclick = openProjectLibrary;
+      $("#libraryMenu").onclick = openProjectLibrary;
       $("#returnToEditor").onclick = () =>
         $("#launchGate").classList.add("hidden");
       $("#closeProject").onclick = () =>
@@ -4129,6 +4280,23 @@
       $("#importShow").onclick = () => {
         pendingProjectImport = "project";
         $("#showFile").click();
+      };
+      $("#importLua").onclick = () => $("#luaFile").click();
+      $("#luaFile").onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            loadProject(parseLuaShow(reader.result));
+            $("#projectModal").classList.remove("open");
+            toast("Flux Lua show imported");
+          } catch (error) {
+            toast(error.message);
+          }
+        };
+        reader.readAsText(file);
+        e.target.value = "";
       };
       $("#showFile").onchange = (e) => {
         const f = e.target.files[0];

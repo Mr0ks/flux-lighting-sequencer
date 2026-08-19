@@ -1319,71 +1319,35 @@
         width: 14px;
         height: 14px;
       }
-      .colour-cue-group {
-        position: relative;
-        display: inline-grid;
-        grid-template-columns: auto 32px;
-        align-items: stretch;
-      }
-      .colour-cue-group.open {
-        flex-basis: 100%;
-      }
-      .colour-cue-group > .colour-cue {
-        border-radius: 11px 0 0 11px;
-      }
-      .colour-options {
-        width: 32px;
-        border: 1px solid #454545;
-        border-left: 0;
-        border-radius: 0 11px 11px 0;
-        background: #dedede;
-        color: #080808;
-        cursor: pointer;
-        font-weight: 800;
-      }
-      .colour-options:hover,
-      .colour-cue-group.open .colour-options {
-        background: #fff;
-      }
-      .colour-favourites {
-        position: static;
-        grid-column: 1 / -1;
-        z-index: 40;
-        display: none;
-        width: 230px;
-        max-height: 250px;
-        margin-top: 7px;
-        overflow: auto;
-        padding: 8px;
-        border: 1px solid #4a4a4a;
-        border-radius: 14px;
-        background: #171717;
-        box-shadow: 0 16px 36px #000b;
-      }
-      .colour-cue-group.open .colour-favourites {
+      .inspector-colours {
         display: grid;
-        gap: 5px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 18px;
       }
-      .colour-favourite.block {
+      .inspector-colour {
         display: grid;
-        grid-template-columns: 18px minmax(0, 1fr);
+        grid-template-columns: 20px minmax(0, 1fr);
         align-items: center;
-        gap: 9px;
+        gap: 8px;
         width: 100%;
+        min-height: 42px;
         padding: 8px 10px;
-        border: 0;
-        border-radius: 9px;
-        background: transparent;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel3);
         color: var(--text);
+        cursor: pointer;
         text-align: left;
       }
-      .colour-favourite.block:hover,
-      .colour-favourite.block.active {
+      .inspector-colour:hover,
+      .inspector-colour.active {
+        border-color: #888;
         background: #303030;
       }
-      .colour-favourite .cue-colour-dot {
-        width: 16px;
-        height: 16px;
+      .inspector-colour .cue-colour-dot {
+        width: 18px;
+        height: 18px;
       }
       .saved-list:empty:after {
         content: "No browser saves yet.";
@@ -2363,7 +2327,6 @@
         )
           ? localStorage.getItem("fluxlineActiveColour").toLowerCase()
           : "#ffffff",
-        openColourCueMenu = null,
         builderActions = [],
         editingBlockId = null;
       const DEFAULT_PATCH = [
@@ -3010,7 +2973,10 @@
               armed?.value === cue.value &&
               armed?.duration === cue.duration;
             armed = sameCue ? null : cue;
+            selectedEvents.clear();
+            selectedEvent = null;
             renderPalette();
+            renderInspector();
             toast(
               armed
                 ? `${armed.label} armed — click tracks repeatedly; Escape stops`
@@ -3061,14 +3027,7 @@
                   ? "Not supported by the selected lane"
                   : "Drag to place · click to arm for repeat placement",
                 main = `<button title="${title}" class="block ${colourCue ? "colour-cue" : ""} ${blocked ? "blocked" : ""} ${armed?.label === label && armed?.action === action && (!colourCue || armed?.value === activeColour) ? "active" : ""}" data-label="${esc(label)}" data-action="${esc(action)}" data-value="${colourCue ? activeColour : esc(value)}" data-duration="${duration || 0}" data-kind="${kind}">${colourCue ? `<span class="cue-colour-dot" style="--colour:${activeColour}"></span>` : ""}${esc(label)}</button>`;
-              if (!colourCue) return main;
-              const menuKey = `${action}:${duration || 0}`,
-                favourites = CUSTOM_COLOURS.map((colour) => {
-                  const colourValue = normaliseColour(colour.value),
-                    favouriteLabel = `${duration ? "Fade" : "Set"} ${colour.name}`;
-                  return `<button title="${title}" class="block colour-favourite ${blocked ? "blocked" : ""} ${armed?.label === favouriteLabel && armed?.value === colourValue ? "active" : ""}" data-label="${esc(favouriteLabel)}" data-action="color" data-value="${colourValue}" data-fixed-colour="1" data-duration="${duration || 0}" data-kind="output"><span class="cue-colour-dot" style="--colour:${colourValue}"></span><span>${esc(colour.name)}</span></button>`;
-                }).join("");
-              return `<div class="colour-cue-group ${openColourCueMenu === menuKey ? "open" : ""}">${main}<button class="colour-options" data-colour-options="${menuKey}" title="Choose a saved colour" aria-label="Choose a saved colour for ${esc(label)}">⌄</button><div class="colour-favourites">${favourites}</div></div>`;
+              return main;
             })
             .join("")}</div>`;
         }).join("");
@@ -3080,18 +3039,6 @@
             armed = cueFromButton(b);
             place(selectedLane, snapTime(position));
             armed = null;
-            renderPalette();
-          };
-        });
-        $$("[data-colour-options]").forEach((button) => {
-          button.onpointerdown = (event) => event.stopPropagation();
-          button.onclick = (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            openColourCueMenu =
-              openColourCueMenu === button.dataset.colourOptions
-                ? null
-                : button.dataset.colourOptions;
             renderPalette();
           };
         });
@@ -3934,8 +3881,38 @@
             ))
         );
       }
+      function inspectorColourChoices(value, dataName) {
+        const selected = normaliseColour(value);
+        return `<div class="section-title">Saved colours</div><div class="inspector-colours">${CUSTOM_COLOURS.map(
+          (colour) => {
+            const colourValue = normaliseColour(colour.value);
+            return `<button class="inspector-colour ${colourValue === selected ? "active" : ""}" data-${dataName}-colour="${colourValue}" title="Use ${esc(colour.name)}"><span class="cue-colour-dot" style="--colour:${colourValue}"></span><span>${esc(colour.name)}</span></button>`;
+          },
+        ).join("")}</div>`;
+      }
       function renderInspector() {
         const root = $("#inspector");
+        if (
+          armed?.action === "color" &&
+          !selectedEvent &&
+          selectedEvents.size === 0
+        ) {
+          root.innerHTML = `<h2>${esc(armed.label)}</h2><p class="sub">Choose a colour, then click fixture lanes repeatedly to place it.</p>${inspectorColourChoices(armed.value, "arm")}<div class="inspector-actions"><button class="pill" id="stopArmedCue">Stop placing</button></div>`;
+          $$("[data-arm-colour]").forEach((button) => {
+            button.onclick = () => {
+              setActiveColour(button.dataset.armColour, false);
+              armed.value = activeColour;
+              renderPalette();
+              renderInspector();
+            };
+          });
+          $("#stopArmedCue").onclick = () => {
+            armed = null;
+            renderPalette();
+            renderInspector();
+          };
+          return;
+        }
         if (selectedEvents.size > 1) {
           const list = selectedList();
           root.innerHTML = `<h2>${list.length} events selected</h2><p class="sub">Drag any selected event to move the group together.</p><div class="field"><label>Move by beats</label><input id="multiShift" type="number" step=".25" value="0"></div><div class="field"><label>Set duration</label><input id="multiDuration" type="number" step=".05" min="0" placeholder="Leave unchanged"></div><div class="inspector-actions"><button class="pill" id="copyMany">Copy</button><button class="pill" id="duplicateMany">Duplicate</button><button class="pill danger" id="deleteMany">Delete</button></div>`;
@@ -4006,7 +3983,7 @@
           : range
             ? `<div class="field"><label>${esc(valueInfo.label)}</label><input id="evRange" type="range" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"><input id="evValue" type="number" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"><small class="field-hint">${esc(valueInfo.hint)}</small></div>`
             : `<div class="field"><label>${esc(valueInfo.label)}</label><input id="evValue" type="number" step=".01" value="${e.value}"><small class="field-hint">${esc(valueInfo.hint)}</small></div>`;
-        root.innerHTML = `<h2>${e.label}</h2><p class="sub">${isBlock ? `${e.actions?.length || 0} actions fire together` : e.native ? e.native.fixture + " · " + e.native.scope : e.target + " · " + e.action}</p><div class="row"><div class="field"><label>Time</label><input id="evTime" type="number" step=".001" value="${e.time}"></div><div class="field"><label>Duration</label><input id="evDuration" type="number" step=".05" min="0" value="${e.duration || 0}"></div></div>${showValue ? valueEditor : ""}${isBlock ? `<div class="section-title">Block actions</div>${e.actions.map((a) => `<p class="sub">${esc(a.label)} · ${esc(VALUE_INFO[a.action]?.label || a.action)}: ${esc(a.value)}${a.duration ? ` · ${a.duration}s` : ""}</p>`).join("")}` : ""}<div class="field"><label>Target</label><select id="evTarget">${targets}<option value="pyrotechnics" ${e.target === "pyrotechnics" ? "selected" : ""}>Pyrotechnics</option></select></div><div class="inspector-actions"><button class="pill" id="copyOne">Copy</button><button class="pill" id="duplicateOne">Duplicate</button><button class="pill danger" id="delete">Delete</button></div>`;
+        root.innerHTML = `<h2>${e.label}</h2><p class="sub">${isBlock ? `${e.actions?.length || 0} actions fire together` : e.native ? e.native.fixture + " · " + e.native.scope : e.target + " · " + e.action}</p><div class="row"><div class="field"><label>Time</label><input id="evTime" type="number" step=".001" value="${e.time}"></div><div class="field"><label>Duration</label><input id="evDuration" type="number" step=".05" min="0" value="${e.duration || 0}"></div></div>${showValue ? valueEditor : ""}${isColor ? inspectorColourChoices(e.value, "event") : ""}${isBlock ? `<div class="section-title">Block actions</div>${e.actions.map((a) => `<p class="sub">${esc(a.label)} · ${esc(VALUE_INFO[a.action]?.label || a.action)}: ${esc(a.value)}${a.duration ? ` · ${a.duration}s` : ""}</p>`).join("")}` : ""}<div class="field"><label>Target</label><select id="evTarget">${targets}<option value="pyrotechnics" ${e.target === "pyrotechnics" ? "selected" : ""}>Pyrotechnics</option></select></div><div class="inspector-actions"><button class="pill" id="copyOne">Copy</button><button class="pill" id="duplicateOne">Duplicate</button><button class="pill danger" id="delete">Delete</button></div>`;
         const change = () => {
           commit();
           e.time = snapTime(+$("#evTime").value);
@@ -4039,6 +4016,17 @@
               renderTimeline();
             }
           };
+        $$("[data-event-colour]").forEach((button) => {
+          button.onclick = () => {
+            commit();
+            e.value = normaliseColour(button.dataset.eventColour);
+            setActiveColour(e.value, false);
+            renderTimeline();
+            renderPalette();
+            renderInspector();
+            autosave();
+          };
+        });
         $("#copyOne").onclick = () => {
           selectedEvents = new Set([e.id]);
           copySelection();

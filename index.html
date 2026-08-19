@@ -1848,18 +1848,64 @@
         renderTimeline();
         renderInspector();
       }
-      function trackAtPoint(x, y) {
+      function visibleTrackZones() {
+        const viewport = $("#scroller").getBoundingClientRect();
+        return $$(".track").map((track) => {
+          const rect = track.getBoundingClientRect();
+          const label = track.previousElementSibling?.getBoundingClientRect();
+          return {
+            track,
+            left: Math.max(rect.left, label?.right || viewport.left),
+            right: Math.min(rect.right, viewport.right),
+            top: rect.top,
+            bottom: rect.bottom,
+          };
+        });
+      }
+      function trackAtPoint(x, y, zones = visibleTrackZones()) {
         return (
-          $$(".track").find((track) => {
-            const rect = track.getBoundingClientRect();
-            return (
-              x >= rect.left &&
-              x <= rect.right &&
-              y >= rect.top &&
-              y <= rect.bottom
-            );
-          }) || null
+          zones.find(
+            (zone) =>
+              x >= zone.left &&
+              x <= zone.right &&
+              y >= zone.top &&
+              y <= zone.bottom,
+          )?.track || null
         );
+      }
+      function previewRows(target, starts, shift) {
+        const selected = new Set(starts.map((x) => x.e.id));
+        const occupied = [];
+        stackEvents(
+          state.events.filter(
+            (event) => event.target === target && !selected.has(event.id),
+          ),
+        ).forEach(({ event, row }) => {
+          occupied[row] ||= [];
+          const left = event.time * px;
+          occupied[row].push({
+            left,
+            right: left + eventWidth(event) + 4,
+          });
+        });
+        const rows = new Map();
+        [...starts]
+          .sort((a, b) => a.time - b.time)
+          .forEach((start) => {
+            const left = (start.time + shift) * px;
+            const right = left + eventWidth(start.e) + 4;
+            let row = 0;
+            while (
+              occupied[row]?.some(
+                (item) => right > item.left && left < item.right,
+              )
+            )
+              row++;
+            occupied[row] ||= [];
+            occupied[row].push({ left, right });
+            rows.set(start.e.id, row);
+          });
+        return rows;
       }
       function dragEvent(ev, el) {
         if (ev.button !== 0) return;
@@ -2061,7 +2107,9 @@
         interactFrame = 0;
         const s = interactSession;
         if (!s || s.resize) return;
-        const track = s.overTrash ? null : trackAtPoint(s.clientX, s.clientY);
+        const track = s.overTrash
+          ? null
+          : trackAtPoint(s.clientX, s.clientY, visibleTrackZones());
         s.highlight?.classList.remove("drop-ok", "drop-bad");
         s.highlight = track;
         s.target = null;
@@ -2087,10 +2135,13 @@
         );
         const targetTop =
           s.target && track ? track.getBoundingClientRect().top : 0;
+        const rows = s.target
+          ? previewRows(s.target, s.starts, s.shift)
+          : null;
         s.starts.forEach((x) => {
           const dy =
             s.target && x.track
-              ? targetTop - x.track.getBoundingClientRect().top
+              ? targetTop + 9 + (rows.get(x.e.id) || 0) * 42 - x.startTop
               : s.dy;
           x.node.style.transform = `translate3d(${s.shift * px}px,${dy}px,0)`;
         });
@@ -2123,6 +2174,9 @@
             track: $$(".track").find((t) => t.dataset.lane === e.target),
           }))
           .filter((x) => x.node && x.track);
+        starts.forEach(
+          (start) => (start.startTop = start.node.getBoundingClientRect().top),
+        );
         interactSession = {
           starts,
           scroller,
@@ -2148,8 +2202,8 @@
         if (!s || s.resize) return;
         s.dx += event.dx;
         s.dy += event.dy;
-        s.clientX = event.clientX;
-        s.clientY = event.clientY;
+        s.clientX = event.clientX ?? event.client?.x ?? s.clientX + event.dx;
+        s.clientY = event.clientY ?? event.client?.y ?? s.clientY + event.dy;
         const trash = $("#dragTrash").getBoundingClientRect();
         s.overTrash =
           s.clientX >= trash.left &&

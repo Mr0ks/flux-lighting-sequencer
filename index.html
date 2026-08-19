@@ -19,6 +19,7 @@
       }
       .event.dragging {
         will-change: transform;
+        transition: none !important;
       }
       .event.interact-resizing {
         will-change: width;
@@ -77,6 +78,7 @@
         opacity: 0.96;
         box-shadow: 0 12px 35px #000a;
         transform: none;
+        transition: none !important;
       }
       .event.dragghost.magnetic {
         border: 2px solid #fff;
@@ -95,6 +97,16 @@
       .block.blocked {
         opacity: 0.28;
         filter: grayscale(1);
+      }
+      .block {
+        transition:
+          opacity 220ms var(--md-standard, ease),
+          filter 220ms var(--md-standard, ease),
+          color 220ms var(--md-standard, ease),
+          background-color 220ms var(--md-standard, ease),
+          border-color 220ms var(--md-standard, ease),
+          box-shadow 220ms var(--md-standard, ease),
+          transform 220ms var(--md-spring, ease);
       }
       .drag-trash {
         position: fixed;
@@ -475,6 +487,10 @@
       }
       .lane {
         height: 56px;
+        transition: height 150ms var(--md-emphasized, ease);
+      }
+      .lane.packing-preview .track {
+        background-color: #202023;
       }
       .lane-label {
         position: sticky;
@@ -1008,6 +1024,7 @@
           border-color 160ms var(--md-standard),
           color 160ms var(--md-standard),
           opacity 160ms var(--md-standard),
+          filter 220ms var(--md-standard),
           box-shadow 220ms var(--md-standard),
           transform 220ms var(--md-spring);
       }
@@ -2040,12 +2057,15 @@
         document.body.appendChild(ghost);
         let moved = false,
           lastTrack = null,
+          previewLane = null,
           dropTarget = null,
           dropTime = 0,
           overTrash = false;
         const clear = () => {
           lastTrack?.classList.remove("drop-ok", "drop-bad");
           lastTrack = null;
+          clearPackingPreview(previewLane);
+          previewLane = null;
         };
         const updatePreview = (e) => {
           clear();
@@ -2077,7 +2097,9 @@
           previewEvent.time = dropTime;
           previewEvent.target = target;
           const start = { e: previewEvent, time: dropTime };
-          const row = previewRows(target, [start], 0).get(previewEvent.id) || 0;
+          const rows = previewRows(target, [start], 0),
+            row = rows.get(previewEvent.id) || 0;
+          previewLane = showPackingPreview(track, rows, previewLane);
           dropTarget = target;
           ghost.classList.add("magnetic");
           ghost.style.left = rect.left + dropTime * px + "px";
@@ -2147,6 +2169,20 @@
             armed = null;
             renderPalette();
           };
+        });
+      }
+      function syncPaletteAvailability() {
+        $$(".block").forEach((button) => {
+          const blocked = !valid(
+            selectedLane,
+            button.dataset.action,
+            IMPORTED[button.dataset.value] || null,
+          );
+          button.classList.toggle("blocked", blocked);
+          button.setAttribute("aria-disabled", String(blocked));
+          button.title = blocked
+            ? "Not supported by the selected lane"
+            : "Drag to place · click to arm · double-click at playhead";
         });
       }
       function patchSummary() {
@@ -2298,6 +2334,7 @@
             (e.clientX - track.getBoundingClientRect().left) / px,
           );
           selectedLane = track.dataset.lane;
+          syncPaletteAvailability();
           if (!moved) {
             if (armed) {
               place(selectedLane, at);
@@ -2350,7 +2387,7 @@
             (x.onclick = () => {
               selectedLane = x.dataset.lane;
               renderTimeline();
-              renderPalette();
+              syncPaletteAvailability();
             }),
         );
         initEventInteractions();
@@ -2471,6 +2508,30 @@
             rows.set(start.e.id, row);
           });
         return rows;
+      }
+      function clearPackingPreview(lane) {
+        if (!lane) return;
+        if (lane.dataset.dragBaseHeight)
+          lane.style.height = lane.dataset.dragBaseHeight;
+        delete lane.dataset.dragBaseHeight;
+        lane.classList.remove("packing-preview");
+      }
+      function showPackingPreview(track, rows, previousLane = null) {
+        const lane = track?.closest(".lane");
+        if (!lane) {
+          clearPackingPreview(previousLane);
+          return null;
+        }
+        if (previousLane && previousLane !== lane)
+          clearPackingPreview(previousLane);
+        if (!lane.dataset.dragBaseHeight)
+          lane.dataset.dragBaseHeight = lane.style.height || "56px";
+        const baseHeight = parseFloat(lane.dataset.dragBaseHeight) || 56,
+          maxRow = Math.max(0, ...rows.values()),
+          previewHeight = 56 + maxRow * 42;
+        lane.style.height = Math.max(baseHeight, previewHeight) + "px";
+        lane.classList.add("packing-preview");
+        return lane;
       }
       function dragEvent(ev, el) {
         if (ev.button !== 0) return;
@@ -2691,9 +2752,12 @@
           ? snapTime(s.anchorTime + rawShift) - s.anchorTime
           : rawShift;
         s.shift = clamp(alignedShift, -s.minTime, state.duration - s.maxTime);
+        const rows = s.target ? previewRows(s.target, s.starts, s.shift) : null;
+        s.previewLane = s.target
+          ? showPackingPreview(track, rows, s.previewLane)
+          : (clearPackingPreview(s.previewLane), null);
         const targetTop =
           s.target && track ? track.getBoundingClientRect().top : 0;
-        const rows = s.target ? previewRows(s.target, s.starts, s.shift) : null;
         s.starts.forEach((x) => {
           const dy =
             s.target && x.track
@@ -2750,6 +2814,7 @@
           highlight: null,
           invalid: false,
           overTrash: false,
+          previewLane: null,
         };
         starts.forEach((x) => x.node.classList.add("dragging"));
         document.body.classList.add("timeline-dragging", "event-dragging");
@@ -2792,6 +2857,7 @@
           });
         } else if (s.invalid) toast("That cue is not supported on this lane");
         s.highlight?.classList.remove("drop-ok", "drop-bad");
+        clearPackingPreview(s.previewLane);
         $("#dragTrash").classList.remove("hot");
         document.body.classList.remove("timeline-dragging", "event-dragging");
         interactSession = null;

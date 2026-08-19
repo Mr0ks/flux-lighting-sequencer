@@ -4,6 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Flux Sequencer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,400..800&family=Roboto+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <style>
       .event {
         touch-action: none;
@@ -74,7 +80,9 @@
       }
       .event.dragghost.magnetic {
         border: 2px solid #fff;
-        box-shadow: 0 12px 35px #000a, 0 0 0 2px #555;
+        box-shadow:
+          0 12px 35px #000a,
+          0 0 0 2px #555;
       }
       .track.drop-ok {
         background-color: #1b1b1b;
@@ -953,6 +961,278 @@
         padding: 7px 10px;
         cursor: pointer;
       }
+      /* Monochrome Material 3 interaction layer */
+      :root {
+        color-scheme: dark;
+        --bg: #0b0b0c;
+        --panel: #131314;
+        --panel2: #1b1b1d;
+        --panel3: #242426;
+        --line: #39393c;
+        --line2: #29292c;
+        --text: #f1f1f3;
+        --muted: #aaa8af;
+        --dim: #76747b;
+        --md-standard: cubic-bezier(0.2, 0, 0, 1);
+        --md-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
+        --md-spring: cubic-bezier(0.16, 1, 0.3, 1);
+        --md-radius-sm: 12px;
+        --md-radius-md: 16px;
+        --md-radius-lg: 28px;
+        --md-shadow-1: 0 2px 6px #0008;
+        --md-shadow-2: 0 10px 32px #0009;
+        --md-shadow-3: 0 24px 80px #000c;
+      }
+      body {
+        font-family: "Roboto Flex", Inter, system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .time,
+      .tick {
+        font-family: "Roboto Mono", ui-monospace, monospace;
+        font-variant-numeric: tabular-nums;
+      }
+      :focus-visible {
+        outline: 2px solid #fff;
+        outline-offset: 3px;
+      }
+      button,
+      input,
+      select,
+      .block,
+      .event,
+      .lane-label,
+      .project-row {
+        transition:
+          background-color 160ms var(--md-standard),
+          border-color 160ms var(--md-standard),
+          color 160ms var(--md-standard),
+          opacity 160ms var(--md-standard),
+          box-shadow 220ms var(--md-standard),
+          transform 220ms var(--md-spring);
+      }
+      button:active:not(:disabled),
+      .block:active {
+        transform: scale(0.96);
+      }
+      .icon:hover,
+      .pill:hover,
+      .project-action:hover {
+        border-color: #666;
+        box-shadow: 0 4px 16px #0007;
+      }
+      .block:hover:not(.blocked) {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px #0008;
+      }
+      .event:hover {
+        filter: brightness(1.06);
+        box-shadow: 0 5px 18px #0009;
+      }
+      .event.selected {
+        border-color: #fff;
+        box-shadow:
+          0 0 0 3px #ffffff3d,
+          0 7px 24px #000b;
+        z-index: 12;
+      }
+      .event.multi {
+        border-color: #d8d8dc;
+        box-shadow: 0 0 0 2px #ffffff80;
+        z-index: 11;
+      }
+      .lane-label.selected {
+        background: #2a2a2d;
+        box-shadow: inset 4px 0 #fff;
+      }
+      .icon,
+      .play,
+      .pill,
+      .project-action,
+      .builder-action,
+      .saved-item button {
+        min-height: 40px;
+        border-radius: 999px;
+        font:
+          650 14px "Roboto Flex",
+          Inter,
+          system-ui,
+          sans-serif;
+        letter-spacing: 0.01em;
+      }
+      .icon,
+      .play {
+        min-width: 40px;
+      }
+      .topbar,
+      .transport {
+        background: color-mix(in srgb, var(--panel) 94%, transparent);
+        backdrop-filter: blur(18px);
+      }
+      .side,
+      .sticky-label,
+      .ruler-row {
+        background: var(--panel);
+      }
+      .import-card,
+      .project-card,
+      .blocks-card,
+      .dialog {
+        background: var(--panel2);
+        border: 1px solid var(--line);
+        border-radius: var(--md-radius-lg);
+        box-shadow: var(--md-shadow-3);
+      }
+      .project-modal.open,
+      .blocks-modal.open,
+      .modal.open {
+        animation: md-scrim-in 160ms var(--md-standard) both;
+      }
+      .project-modal.open > *,
+      .blocks-modal.open > *,
+      .modal.open > * {
+        animation: md-dialog-in 240ms var(--md-emphasized) both;
+      }
+      .project-row,
+      .saved-item {
+        background: var(--panel3);
+        border: 1px solid var(--line2);
+        border-radius: var(--md-radius-md);
+      }
+      .project-row:hover {
+        border-color: #626266;
+        box-shadow: var(--md-shadow-1);
+        transform: translateY(-1px);
+      }
+      .project-icon {
+        background: var(--panel);
+        border-radius: var(--md-radius-sm);
+      }
+      .field input,
+      .field select,
+      .small,
+      .search-row input,
+      .block-name,
+      .builder-grid input,
+      .builder-grid select,
+      .import-card textarea {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: var(--md-radius-sm);
+        color: var(--text);
+      }
+      .field input:hover,
+      .field select:hover,
+      .small:hover,
+      .search-row input:hover,
+      .block-name:hover,
+      .builder-grid input:hover,
+      .builder-grid select:hover,
+      .import-card textarea:hover {
+        border-color: #68686c;
+      }
+      .dialog pre {
+        background: var(--bg);
+        border-color: var(--line);
+        border-radius: var(--md-radius-md);
+      }
+      .toast {
+        box-shadow: var(--md-shadow-2);
+      }
+      @keyframes md-dialog-in {
+        from {
+          opacity: 0;
+          transform: translateY(12px) scale(0.97);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @keyframes md-scrim-in {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+        }
+      }
+      .right h2,
+      .brand h1,
+      .project-head h2 {
+        letter-spacing: -0.025em;
+      }
+      ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #444448;
+        border: 2px solid var(--panel);
+        border-radius: 999px;
+      }
+      .shortcut-card {
+        width: min(680px, 94vw);
+      }
+      .shortcut-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px 20px;
+      }
+      .shortcut-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        min-height: 42px;
+        padding: 8px 4px;
+        border-bottom: 1px solid var(--line2);
+        color: var(--muted);
+      }
+      .shortcut-row span:first-child {
+        color: var(--text);
+      }
+      kbd {
+        display: inline-flex;
+        align-items: center;
+        min-height: 25px;
+        padding: 2px 8px;
+        border: 1px solid #555;
+        border-bottom-width: 2px;
+        border-radius: 7px;
+        background: var(--panel3);
+        color: var(--text);
+        font:
+          11px "Roboto Mono",
+          ui-monospace,
+          monospace;
+        white-space: nowrap;
+      }
+      .zoom-readout {
+        min-width: 47px;
+        color: var(--muted);
+        font:
+          11px "Roboto Mono",
+          ui-monospace,
+          monospace;
+      }
+      @media (max-width: 700px) {
+        .shortcut-grid {
+          grid-template-columns: 1fr;
+        }
+      }
     </style>
   </head>
   <body>
@@ -982,10 +1262,12 @@
           <h1>Flux Sequencer</h1>
           <p id="summary">Loading fixture patch…</p>
         </div>
-        <button class="icon" id="undo" title="Undo">↶</button
-        ><button class="icon" id="redo" title="Redo">↷</button>
+        <button class="icon" id="undo" title="Undo (Ctrl/⌘ Z)">↶</button
+        ><button class="icon" id="redo" title="Redo (Ctrl/⌘ Shift Z)">↷</button>
         <div class="spacer"></div>
         <button class="icon" id="audio" title="Load audio">♫</button
+        ><button class="icon" id="shortcutsMenu" title="Keyboard shortcuts (?)">
+          ?</button
         ><button class="pill" id="blocksMenu">Blocks</button
         ><button class="pill check" id="checks">● All checks pass</button
         ><button class="pill primary" id="projectMenu">Project</button
@@ -1077,10 +1359,11 @@
           class="range"
           id="zoom"
           type="range"
-          min="35"
-          max="180"
+          min="2"
+          max="320"
           value="70"
-        /><span class="event-count" id="count">0 events</span>
+        /><span class="zoom-readout" id="zoomReadout">70 px/s</span
+        ><span class="event-count" id="count">0 events</span>
       </footer>
     </div>
     <div class="modal" id="modal">
@@ -1156,6 +1439,66 @@
           <button class="project-action" id="cacheShow">Save</button>
         </div>
         <div class="saved-list" id="savedShows"></div>
+      </div>
+    </div>
+    <div class="project-modal" id="shortcutsModal">
+      <div class="project-card shortcut-card">
+        <div class="project-head">
+          <div>
+            <h2>Keyboard shortcuts</h2>
+            <p>Fast timeline editing, Ableton-style navigation, and zoom.</p>
+          </div>
+          <div class="spacer"></div>
+          <button class="pill" id="closeShortcuts">Close</button>
+        </div>
+        <div class="shortcut-grid">
+          <div class="shortcut-row">
+            <span>Play / pause</span><kbd>Space</kbd>
+          </div>
+          <div class="shortcut-row">
+            <span>Place armed cue</span><kbd>Enter</kbd>
+          </div>
+          <div class="shortcut-row">
+            <span>Select all events</span><kbd>⌘/Ctrl A</kbd>
+          </div>
+          <div class="shortcut-row">
+            <span>Clear selection</span><kbd>Esc</kbd>
+          </div>
+          <div class="shortcut-row"><span>Copy</span><kbd>⌘/Ctrl C</kbd></div>
+          <div class="shortcut-row"><span>Cut</span><kbd>⌘/Ctrl X</kbd></div>
+          <div class="shortcut-row">
+            <span>Paste at playhead</span><kbd>⌘/Ctrl V</kbd>
+          </div>
+          <div class="shortcut-row">
+            <span>Duplicate</span><kbd>⌘/Ctrl D</kbd>
+          </div>
+          <div class="shortcut-row"><span>Undo</span><kbd>⌘/Ctrl Z</kbd></div>
+          <div class="shortcut-row"><span>Redo</span><kbd>⌘/Ctrl ⇧ Z</kbd></div>
+          <div class="shortcut-row">
+            <span>Delete selected</span><kbd>Delete</kbd>
+          </div>
+          <div class="shortcut-row">
+            <span>Nudge by grid</span><kbd>← / →</kbd>
+          </div>
+          <div class="shortcut-row">
+            <span>Nudge by bar</span><kbd>Shift ← / →</kbd>
+          </div>
+          <div class="shortcut-row">
+            <span>Zoom at pointer</span><kbd>⌘/Ctrl Wheel</kbd>
+          </div>
+          <div class="shortcut-row">
+            <span>Zoom in / out</span><kbd>+ / −</kbd>
+          </div>
+          <div class="shortcut-row">
+            <span>Frame selection</span><kbd>F</kbd>
+          </div>
+          <div class="shortcut-row">
+            <span>Fit entire show</span><kbd>0</kbd>
+          </div>
+          <div class="shortcut-row">
+            <span>Start / end</span><kbd>Home / End</kbd>
+          </div>
+        </div>
       </div>
     </div>
     <div class="blocks-modal" id="blocksModal">
@@ -1499,15 +1842,32 @@
         renderTimeline();
         renderInspector();
       }
-      function copySelection() {
+      function copySelection(silent = false) {
         const list = selectedList();
-        if (!list.length) return toast("Nothing selected to copy");
+        if (!list.length) {
+          if (!silent) toast("Nothing selected to copy");
+          return false;
+        }
         const base = Math.min(...list.map((e) => e.time));
         eventClipboard = list.map((e) => ({
           ...structuredClone(e),
           _offset: e.time - base,
         }));
-        toast(`${list.length} event${list.length === 1 ? "" : "s"} copied`);
+        if (!silent)
+          toast(`${list.length} event${list.length === 1 ? "" : "s"} copied`);
+        return true;
+      }
+      function cutSelection() {
+        const list = selectedList();
+        if (!list.length) return toast("Nothing selected to cut");
+        if (!copySelection(true)) return;
+        commit();
+        const ids = new Set(list.map((event) => event.id));
+        state.events = state.events.filter((event) => !ids.has(event.id));
+        selectedEvents.clear();
+        selectedEvent = null;
+        renderAll();
+        toast(`${list.length} event${list.length === 1 ? "" : "s"} cut`);
       }
       function pasteSelection() {
         if (!eventClipboard.length) return toast("Clipboard is empty");
@@ -1586,14 +1946,72 @@
         if (e.clientY > r.bottom - edge) s.scrollTop += 14;
         else if (e.clientY < r.top + edge) s.scrollTop -= 14;
       }
-      function zoomTo(next) {
+      function zoomLimits() {
+        const control = $("#zoom");
+        return { min: +control.min || 2, max: +control.max || 320 };
+      }
+      function updateZoomReadout() {
+        $("#zoom").value = Math.round(px);
+        $("#zoomReadout").textContent = `${Math.round(px)} px/s`;
+      }
+      function zoomTo(next, anchorClientX = null) {
         const s = $("#scroller"),
-          anchor = 210 + position * px - s.scrollLeft;
-        px = next;
+          rect = s.getBoundingClientRect(),
+          limits = zoomLimits(),
+          nextPx = clamp(next, limits.min, limits.max),
+          anchorX =
+            anchorClientX == null
+              ? clamp(rect.width / 2, 210, rect.width)
+              : clamp(anchorClientX - rect.left, 210, rect.width),
+          anchorTime = Math.max(0, (s.scrollLeft + anchorX - 210) / px);
+        px = nextPx;
         document.documentElement.style.setProperty("--pps", px + "px");
         renderRuler();
         renderTimeline();
-        s.scrollLeft = Math.max(0, 210 + position * px - anchor);
+        s.scrollLeft = Math.max(0, 210 + anchorTime * px - anchorX);
+        syncRulerScroll();
+        updateZoomReadout();
+      }
+      function fitShow() {
+        const s = $("#scroller"),
+          limits = zoomLimits(),
+          available = Math.max(120, s.clientWidth - 210 - 24);
+        px = clamp(
+          available / Math.max(1, state.duration),
+          limits.min,
+          limits.max,
+        );
+        document.documentElement.style.setProperty("--pps", px + "px");
+        renderRuler();
+        renderTimeline();
+        s.scrollLeft = 0;
+        syncRulerScroll();
+        updateZoomReadout();
+        toast("Entire show fitted");
+      }
+      function frameSelection() {
+        const list = selectedList();
+        if (!list.length) return fitShow();
+        const s = $("#scroller"),
+          limits = zoomLimits(),
+          first = Math.min(...list.map((event) => event.time)),
+          last = Math.max(
+            ...list.map(
+              (event) => event.time + Math.max(event.duration || 0, 0.25),
+            ),
+          ),
+          span = Math.max(0.5, last - first),
+          available = Math.max(120, s.clientWidth - 210 - 64);
+        px = clamp(available / (span + 0.5), limits.min, limits.max);
+        document.documentElement.style.setProperty("--pps", px + "px");
+        renderRuler();
+        renderTimeline();
+        s.scrollLeft = Math.max(0, 210 + Math.max(0, first - 0.25) * px - 24);
+        syncRulerScroll();
+        updateZoomReadout();
+        toast(
+          `${list.length} selected event${list.length === 1 ? "" : "s"} framed`,
+        );
       }
       function paletteDrag(ev, b) {
         if (ev.button !== 0) return;
@@ -1739,7 +2157,11 @@
           `<b>${state.name}</b><br>${state.patch.map((f) => `${f.type} ${f.count}`).join(" · ")}<br><span>Drag cues from the palette onto a compatible lane.</span>`;
       }
       function timelineWidth() {
-        return Math.max(900, state.duration * px);
+        const visible = Math.max(
+          320,
+          ($("#scroller")?.clientWidth || 1110) - 210,
+        );
+        return Math.max(visible, state.duration * px);
       }
       function scrubSurface(ev, element, wave = false) {
         if (ev.button !== 0) return;
@@ -1771,7 +2193,17 @@
         const r = $("#ruler"),
           w = timelineWidth();
         r.style.width = w + "px";
-        const step = px < 55 ? 5 : px < 100 ? 2 : 1;
+        const rawStep = Math.max(1, 92 / px),
+          magnitude = 10 ** Math.floor(Math.log10(rawStep)),
+          normalized = rawStep / magnitude,
+          step =
+            (normalized <= 1
+              ? 1
+              : normalized <= 2
+                ? 2
+                : normalized <= 5
+                  ? 5
+                  : 10) * magnitude;
         let s = "";
         for (let t = 0; t <= state.duration; t += step)
           s += `<div class="tick" style="left:${t * px}px">${format(t, false)}</div>`;
@@ -2249,28 +2681,19 @@
         s.invalid = false;
         if (track) {
           const key = track.dataset.lane;
-          const ok = s.starts.every((x) =>
-            valid(key, x.e.action, x.e.native),
-          );
+          const ok = s.starts.every((x) => valid(key, x.e.action, x.e.native));
           track.classList.add(ok ? "drop-ok" : "drop-bad");
           s.target = ok ? key : null;
           s.invalid = !ok;
         }
-        const rawShift =
-          (s.dx + s.scroller.scrollLeft - s.startScroll) / px;
+        const rawShift = (s.dx + s.scroller.scrollLeft - s.startScroll) / px;
         const alignedShift = s.target
           ? snapTime(s.anchorTime + rawShift) - s.anchorTime
           : rawShift;
-        s.shift = clamp(
-          alignedShift,
-          -s.minTime,
-          state.duration - s.maxTime,
-        );
+        s.shift = clamp(alignedShift, -s.minTime, state.duration - s.maxTime);
         const targetTop =
           s.target && track ? track.getBoundingClientRect().top : 0;
-        const rows = s.target
-          ? previewRows(s.target, s.starts, s.shift)
-          : null;
+        const rows = s.target ? previewRows(s.target, s.starts, s.shift) : null;
         s.starts.forEach((x) => {
           const dy =
             s.target && x.track
@@ -2284,15 +2707,16 @@
           interactFrame = requestAnimationFrame(paintInteractSession);
       }
       function beginEventInteraction(event) {
-        const item = state.events.find(
-          (x) => x.id === event.target.dataset.id,
-        );
+        const item = state.events.find((x) => x.id === event.target.dataset.id);
         if (!item) return;
         if (!selectedEvents.has(item.id)) {
           selectedEvents = new Set([item.id]);
           selectedEvent = item;
           $$(".event").forEach((node) =>
-            node.classList.toggle("selected", selectedEvents.has(node.dataset.id)),
+            node.classList.toggle(
+              "selected",
+              selectedEvents.has(node.dataset.id),
+            ),
           );
           renderInspector();
         }
@@ -2366,8 +2790,7 @@
             x.e.target = s.target;
             x.e.selection = laneSelection(s.target);
           });
-        } else if (s.invalid)
-          toast("That cue is not supported on this lane");
+        } else if (s.invalid) toast("That cue is not supported on this lane");
         s.highlight?.classList.remove("drop-ok", "drop-bad");
         $("#dragTrash").classList.remove("hot");
         document.body.classList.remove("timeline-dragging", "event-dragging");
@@ -2377,9 +2800,7 @@
         renderInspector();
       }
       function beginResizeInteraction(event) {
-        const item = state.events.find(
-          (x) => x.id === event.target.dataset.id,
-        );
+        const item = state.events.find((x) => x.id === event.target.dataset.id);
         if (!item) return;
         selectedEvents = new Set([item.id]);
         selectedEvent = item;
@@ -2397,8 +2818,7 @@
         if (!s?.resize) return;
         const raw = Math.max(24, event.rect.width) / px;
         s.next = Math.max(0.05, snapTime(s.item.time + raw) - s.item.time);
-        s.node.style.width =
-          eventWidth({ ...s.item, duration: s.next }) + "px";
+        s.node.style.width = eventWidth({ ...s.item, duration: s.next }) + "px";
         const field = $("#evDuration");
         if (field) field.value = +s.next.toFixed(3);
       }
@@ -2584,8 +3004,7 @@
             hint: "Value sent to Flux",
           },
           range = valueInfo.range,
-          showValue =
-            !isPyro && !isNative && !isBlock && !isFixedCueValue(e);
+          showValue = !isPyro && !isNative && !isBlock && !isFixedCueValue(e);
         const targets = laneList()
           .map(
             (l) =>
@@ -3052,6 +3471,7 @@
         renderInspector();
         drawWave();
         buttons();
+        updateZoomReadout();
         autosave();
       }
       $("#loadFlux").onclick = importFlux;
@@ -3118,6 +3538,14 @@
       $("#projectModal").onclick = (e) => {
         if (e.target.id === "projectModal")
           $("#projectModal").classList.remove("open");
+      };
+      $("#shortcutsMenu").onclick = () =>
+        $("#shortcutsModal").classList.add("open");
+      $("#closeShortcuts").onclick = () =>
+        $("#shortcutsModal").classList.remove("open");
+      $("#shortcutsModal").onclick = (e) => {
+        if (e.target.id === "shortcutsModal")
+          $("#shortcutsModal").classList.remove("open");
       };
       $("#importDatastore").onclick = () => {
         $("#projectModal").classList.remove("open");
@@ -3199,6 +3627,22 @@
       $("#addBlockAction").onclick = addBuilderAction;
       $("#newBlock").onclick = resetBlockEditor;
       $("#saveBlock").onclick = saveCustomBlock;
+      const isTextControl = (target) =>
+        ["INPUT", "SELECT", "TEXTAREA"].includes(target?.tagName);
+      document.addEventListener("copy", (e) => {
+        if (isTextControl(e.target)) return;
+        if (copySelection()) e.preventDefault();
+      });
+      document.addEventListener("cut", (e) => {
+        if (isTextControl(e.target) || !selectedList().length) return;
+        e.preventDefault();
+        cutSelection();
+      });
+      document.addEventListener("paste", (e) => {
+        if (isTextControl(e.target) || !eventClipboard.length) return;
+        e.preventDefault();
+        pasteSelection();
+      });
       document.addEventListener(
         "pointerdown",
         (e) => {
@@ -3207,13 +3651,42 @@
         true,
       );
       document.addEventListener("keydown", (e) => {
-        if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) return;
+        if (isTextControl(e.target)) return;
         const mod = e.ctrlKey || e.metaKey,
           key = e.key.toLowerCase();
-        if (e.code === "Space") {
+        if (mod && key === "a") {
+          e.preventDefault();
+          setSelection(
+            state.events.map((event) => event.id),
+            state.events[0]?.id,
+          );
+          if (state.events.length)
+            toast(`${state.events.length} events selected`);
+        } else if (mod && key === "c") {
+          e.preventDefault();
+          copySelection();
+        } else if (mod && key === "x") {
+          e.preventDefault();
+          cutSelection();
+        } else if (mod && key === "v") {
+          e.preventDefault();
+          pasteSelection();
+        } else if (mod && key === "z") {
+          e.preventDefault();
+          e.shiftKey ? redo() : undo();
+        } else if (mod && key === "y") {
+          e.preventDefault();
+          redo();
+        } else if (mod && key === "d") {
+          e.preventDefault();
+          duplicateSelection();
+        } else if (e.code === "Space") {
           e.preventDefault();
           togglePlay();
         } else if (e.key === "Escape") {
+          $$(".project-modal.open,.blocks-modal.open,.modal.open").forEach(
+            (modal) => modal.classList.remove("open"),
+          );
           armed = null;
           selectedEvents.clear();
           selectedEvent = null;
@@ -3226,18 +3699,29 @@
         } else if (e.key === "Delete" || e.key === "Backspace") {
           e.preventDefault();
           deleteSelection();
-        } else if (mod && key === "c") {
+        } else if (key === "f") {
           e.preventDefault();
-          copySelection();
-        } else if (mod && key === "v") {
+          frameSelection();
+        } else if (key === "0") {
           e.preventDefault();
-          pasteSelection();
-        } else if (mod && key === "z") {
+          fitShow();
+        } else if (key === "+" || key === "=") {
           e.preventDefault();
-          e.shiftKey ? redo() : undo();
-        } else if (mod && key === "d") {
+          zoomTo(px * 1.22);
+        } else if (key === "-" || key === "_") {
           e.preventDefault();
-          duplicateSelection();
+          zoomTo(px / 1.22);
+        } else if (e.key === "Home") {
+          e.preventDefault();
+          seek(0);
+          $("#scroller").scrollLeft = 0;
+        } else if (e.key === "End") {
+          e.preventDefault();
+          seek(state.duration);
+          $("#scroller").scrollLeft = $("#scroller").scrollWidth;
+        } else if (key === "?" || (e.shiftKey && e.key === "/")) {
+          e.preventDefault();
+          $("#shortcutsModal").classList.add("open");
         } else if (
           selectedEvents.size &&
           (e.key === "ArrowLeft" || e.key === "ArrowRight")
@@ -3257,6 +3741,15 @@
       $("#scroller").addEventListener("scroll", syncRulerScroll, {
         passive: true,
       });
+      $(".workspace").addEventListener(
+        "wheel",
+        (e) => {
+          if (!(e.ctrlKey || e.metaKey)) return;
+          e.preventDefault();
+          zoomTo(px * Math.exp(-e.deltaY * 0.0025), e.clientX);
+        },
+        { passive: false },
+      );
       readCustomBlocks();
       renderAll();
     </script>

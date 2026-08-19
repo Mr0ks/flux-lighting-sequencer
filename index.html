@@ -952,7 +952,7 @@
       }
       .launch-project {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto auto auto;
+        grid-template-columns: minmax(0, 1fr) auto auto;
         align-items: center;
         gap: 10px;
         padding: 13px 14px;
@@ -963,6 +963,27 @@
       .launch-project b,
       .launch-project small {
         display: block;
+      }
+      .launch-project-name {
+        width: 100%;
+        min-width: 0;
+        padding: 4px 6px;
+        margin: -4px -6px 0;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text);
+        font: inherit;
+        font-size: 15px;
+        font-weight: 750;
+      }
+      .launch-project-name:hover {
+        border-color: var(--line);
+      }
+      .launch-project-name:focus {
+        outline: none;
+        border-color: #fff;
+        background: #111;
       }
       .launch-project small {
         margin-top: 3px;
@@ -987,7 +1008,7 @@
           grid-template-columns: 1fr;
         }
         .launch-project {
-          grid-template-columns: minmax(0, 1fr) auto auto;
+          grid-template-columns: minmax(0, 1fr) auto;
         }
         .launch-project [data-launch-delete] {
           display: none;
@@ -3811,6 +3832,17 @@
         renderLauncher();
         toast("Project renamed");
       }
+      function persistSavedProjectName(id, rawName) {
+        const items = savedProjects(),
+          item = items.find((entry) => entry.id === id);
+        if (!item) return;
+        const name = rawName || "";
+        item.name = name;
+        if (item.project?.state) item.project.state.name = name;
+        else if (item.project) item.project.name = name;
+        item.savedAt = new Date().toISOString();
+        localStorage.setItem("fluxlineSavedShows", JSON.stringify(items));
+      }
       function renderSavedShows() {
         const root = $("#savedShows"),
           items = savedProjects();
@@ -3915,24 +3947,62 @@
         return `${count} event${count === 1 ? "" : "s"} · ${projectState?.bpm || 128} BPM`;
       }
       function renderLauncher() {
-        const autosave = autosavedProject(),
+        const recovery = autosavedProject(),
           section = $("#autosaveSection"),
           projects = savedProjects();
-        section.innerHTML = autosave?.state
-          ? `<div class="project-section">Continue editing</div><button class="launch-action" id="resumeAutosave" style="width:100%"><b>${esc(autosave.state.name || "Untitled show")}</b><small>Autosave · ${esc(projectSummary(autosave))} · ${new Date(autosave.savedAt || Date.now()).toLocaleString()}</small></button>`
+        section.innerHTML = recovery?.state
+          ? `<div class="project-section">Continue editing</div><div class="launch-project"><div><input class="launch-project-name" id="autosaveProjectName" aria-label="Rename autosaved project" value="${esc(recovery.state.name || "Untitled show")}"><small>Autosave · ${esc(projectSummary(recovery))} · ${new Date(recovery.savedAt || Date.now()).toLocaleString()}</small></div><button class="project-action primary" id="resumeAutosave">Open</button></div>`
           : "";
         $("#launchProjects").innerHTML = projects
           .map(
             (item) =>
-              `<div class="launch-project"><div><b>${esc(item.name)}</b><small>${esc(projectSummary(item.project))} · ${new Date(item.savedAt).toLocaleString()}</small></div><button class="project-action" data-launch-load="${esc(item.id)}">Open</button><button class="project-action" data-launch-rename="${esc(item.id)}">Rename</button><button class="project-action" data-launch-delete="${esc(item.id)}">Delete</button></div>`,
+              `<div class="launch-project"><div><input class="launch-project-name" data-launch-name="${esc(item.id)}" aria-label="Rename ${esc(item.name)}" value="${esc(item.name)}"><small>${esc(projectSummary(item.project))} · ${new Date(item.savedAt).toLocaleString()}</small></div><button class="project-action" data-launch-load="${esc(item.id)}">Open</button><button class="project-action" data-launch-delete="${esc(item.id)}">Delete</button></div>`,
           )
           .join("");
         $("#resumeAutosave")?.addEventListener("click", () => {
           try {
-            loadProject(autosave);
+            loadProject(recovery);
           } catch (error) {
             $("#launchError").textContent = error.message;
           }
+        });
+        const autosaveNameInput = $("#autosaveProjectName");
+        if (autosaveNameInput) {
+          autosaveNameInput.oninput = (event) => {
+            const name = event.target.value;
+            recovery.state.name = name;
+            if (projectOpen) {
+              state.name = name;
+              patchSummary();
+              autosave();
+            } else
+              localStorage.setItem(
+                "fluxlineAutosave",
+                JSON.stringify(recovery),
+              );
+          };
+          autosaveNameInput.onblur = () => {
+            if (!autosaveNameInput.value.trim()) {
+              autosaveNameInput.value = "Untitled show";
+              autosaveNameInput.oninput({ target: autosaveNameInput });
+            }
+          };
+          autosaveNameInput.onkeydown = (event) => {
+            if (event.key === "Enter") autosaveNameInput.blur();
+          };
+        }
+        $$("[data-launch-name]").forEach((input) => {
+          input.oninput = () =>
+            persistSavedProjectName(input.dataset.launchName, input.value);
+          input.onblur = () => {
+            if (!input.value.trim()) {
+              input.value = "Untitled show";
+              persistSavedProjectName(input.dataset.launchName, input.value);
+            }
+          };
+          input.onkeydown = (event) => {
+            if (event.key === "Enter") input.blur();
+          };
         });
         $$("[data-launch-load]").forEach(
           (button) =>
@@ -3942,11 +4012,6 @@
               );
               if (item) loadProject(item.project);
             }),
-        );
-        $$("[data-launch-rename]").forEach(
-          (button) =>
-            (button.onclick = () =>
-              openRenameProject(button.dataset.launchRename)),
         );
         $$("[data-launch-delete]").forEach(
           (button) =>

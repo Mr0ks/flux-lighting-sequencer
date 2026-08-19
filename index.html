@@ -1850,9 +1850,15 @@
       }
       function trackAtPoint(x, y) {
         return (
-          document
-            .elementsFromPoint(x, y)
-            .find((n) => n.classList?.contains("track")) || null
+          $$(".track").find((track) => {
+            const rect = track.getBoundingClientRect();
+            return (
+              x >= rect.left &&
+              x <= rect.right &&
+              y >= rect.top &&
+              y <= rect.bottom
+            );
+          }) || null
         );
       }
       function dragEvent(ev, el) {
@@ -2055,16 +2061,6 @@
         interactFrame = 0;
         const s = interactSession;
         if (!s || s.resize) return;
-        const shift =
-          snapTime(
-            s.anchorTime +
-              (s.dx + s.scroller.scrollLeft - s.startScroll) / px,
-          ) - s.anchorTime;
-        s.shift = clamp(
-          shift,
-          -s.minTime,
-          state.duration - s.maxTime,
-        );
         const track = s.overTrash ? null : trackAtPoint(s.clientX, s.clientY);
         s.highlight?.classList.remove("drop-ok", "drop-bad");
         s.highlight = track;
@@ -2079,13 +2075,23 @@
           s.target = ok ? key : null;
           s.invalid = !ok;
         }
+        const rawShift =
+          (s.dx + s.scroller.scrollLeft - s.startScroll) / px;
+        const alignedShift = s.target
+          ? snapTime(s.anchorTime + rawShift) - s.anchorTime
+          : rawShift;
+        s.shift = clamp(
+          alignedShift,
+          -s.minTime,
+          state.duration - s.maxTime,
+        );
         const targetTop =
           s.target && track ? track.getBoundingClientRect().top : 0;
         s.starts.forEach((x) => {
           const dy =
             s.target && x.track
               ? targetTop - x.track.getBoundingClientRect().top
-              : 0;
+              : s.dy;
           x.node.style.transform = `translate3d(${s.shift * px}px,${dy}px,0)`;
         });
       }
@@ -2125,6 +2131,7 @@
           minTime: Math.min(...starts.map((x) => x.time)),
           maxTime: Math.max(...starts.map((x) => x.time)),
           dx: 0,
+          dy: 0,
           clientX: event.clientX,
           clientY: event.clientY,
           shift: 0,
@@ -2140,6 +2147,7 @@
         const s = interactSession;
         if (!s || s.resize) return;
         s.dx += event.dx;
+        s.dy += event.dy;
         s.clientX = event.clientX;
         s.clientY = event.clientY;
         const trash = $("#dragTrash").getBoundingClientRect();
@@ -2165,15 +2173,14 @@
           selectedEvents.clear();
           selectedEvent = null;
           toast(`${count} event${count === 1 ? "" : "s"} deleted`);
-        } else if (!s.invalid) {
+        } else if (s.target && !s.invalid) {
           s.starts.forEach((x) => {
             x.e.time = +(x.time + s.shift).toFixed(3);
-            if (s.target) {
-              x.e.target = s.target;
-              x.e.selection = laneSelection(s.target);
-            }
+            x.e.target = s.target;
+            x.e.selection = laneSelection(s.target);
           });
-        } else toast("That cue is not supported on this lane");
+        } else if (s.invalid)
+          toast("That cue is not supported on this lane");
         s.highlight?.classList.remove("drop-ok", "drop-bad");
         $("#dragTrash").classList.remove("hot");
         document.body.classList.remove("timeline-dragging", "event-dragging");

@@ -1409,7 +1409,7 @@
           <button class="launch-action" id="launchImportJson">
             <b>Import project JSON</b>
             <small
-              >Open a portable <code>.flux.json</code> project from any
+              >Open a portable <code>.json</code> project from any
               device.</small
             >
           </button>
@@ -1482,7 +1482,7 @@
           type="file"
           id="showFile"
           hidden
-          accept=".json,.flux.json"
+          accept=".json"
         /><input type="file" id="luaFile" hidden accept=".lua,.txt" />
       </header>
       <main class="body">
@@ -1605,16 +1605,14 @@
             <b>Import DataStore JSON</b
             ><small>Paste a fresh export from the Roblox GUI</small>
           </div>
-          <button class="project-action primary" id="importDatastore">
-            Import
-          </button>
+          <button class="project-action" id="importDatastore">Import</button>
         </div>
         <div class="project-section">Project JSON</div>
         <div class="project-row">
           <div class="project-icon">↑</div>
           <div class="project-copy">
             <b>Import project JSON</b
-            ><small>Restore an editable <code>.flux.json</code> timeline</small>
+            ><small>Restore an editable <code>.json</code> timeline</small>
           </div>
           <button class="project-action" id="importShow">Import</button>
         </div>
@@ -1624,7 +1622,9 @@
             <b>Export project JSON</b
             ><small>Portable editable backup; audio file is excluded</small>
           </div>
-          <button class="project-action" id="downloadShow">Export</button>
+          <button class="project-action primary" id="downloadShow">
+            Export
+          </button>
         </div>
         <div class="project-section">Roblox Lua show</div>
         <div class="project-row">
@@ -1650,11 +1650,13 @@
             <b>Automatic recovery</b
             ><small>Your current project is cached after every edit</small>
           </div>
-          <span
-            class="project-action"
-            style="display: grid; place-items: center"
-            >On</span
+          <button
+            class="project-action primary"
+            id="autosaveToggle"
+            aria-pressed="true"
           >
+            On
+          </button>
         </div>
         <div class="project-row">
           <div class="project-icon">●</div>
@@ -1687,8 +1689,7 @@
           <div>
             <h2>Roblox song ID</h2>
             <p>
-              Saved in browser projects, <code>.flux.json</code>, and Roblox
-              exports.
+              Saved in browser projects, <code>.json</code>, and Roblox exports.
             </p>
           </div>
         </div>
@@ -1964,10 +1965,13 @@
         audioBuffer = null,
         px = 70,
         projectOpen = false,
+        autosaveEnabled =
+          localStorage.getItem("fluxlineAutosaveEnabled") !== "false",
         pendingRenameProjectId = null,
         pendingProjectImport = "project";
       const APP_CACHE_KEYS = [
         "fluxlineAutosave",
+        "fluxlineAutosaveEnabled",
         "fluxlineSavedShows",
         "fluxlineCustomBlocks",
         "fluxDataStore",
@@ -3326,12 +3330,18 @@
         }
         if (!selectedEvent) {
           root.innerHTML = `<h2>Nothing selected</h2><p class="sub">Drag a cue onto a lane, or click one then click the timeline. Double-click places it at the playhead.</p><div class="section-title">Project</div><div class="field"><label>Show name</label><input id="showName" value="${state.name}"></div><div class="field"><label>Roblox song ID</label><input id="songId" value="${state.songId}"></div><div class="field"><label>Duration</label><input id="duration" type="number" value="${state.duration}"></div>`;
-          $("#showName").onchange = (e) => {
-            commit();
+          const showNameInput = $("#showName");
+          let editingShowName = false;
+          showNameInput.oninput = (e) => {
+            if (!editingShowName) {
+              commit();
+              editingShowName = true;
+            }
             state.name = e.target.value;
             patchSummary();
             autosave();
           };
+          showNameInput.onblur = () => (editingShowName = false);
           $("#songId").onchange = (e) => {
             setSongId(e.target.value);
             e.target.value = state.songId;
@@ -3717,7 +3727,7 @@
         );
         a.download =
           (state.name || "show").replace(/[^a-z0-9]+/gi, "-").toLowerCase() +
-          ".flux.json";
+          ".json";
         a.click();
       }
       function projectBundle() {
@@ -3762,7 +3772,7 @@
         a.download =
           (state.name || "flux-show")
             .replace(/[^a-z0-9]+/gi, "-")
-            .toLowerCase() + ".flux.json";
+            .toLowerCase() + ".json";
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -3857,20 +3867,47 @@
         toast("Saved in this browser");
       }
       function autosave() {
-        if (!projectOpen) return;
+        if (!projectOpen || !autosaveEnabled) return;
         try {
           localStorage.setItem(
             "fluxlineAutosave",
             JSON.stringify(projectBundle()),
           );
-        } catch {}
+          renderAutosaveStatus();
+        } catch {
+          const control = $("#autosaveToggle");
+          if (control) {
+            control.textContent = "Error";
+            control.classList.remove("primary");
+          }
+        }
       }
       function autosavedProject() {
+        if (!autosaveEnabled) return null;
         try {
           return JSON.parse(localStorage.getItem("fluxlineAutosave"));
         } catch {
           return null;
         }
+      }
+      function renderAutosaveStatus() {
+        const control = $("#autosaveToggle");
+        if (!control) return;
+        control.textContent = autosaveEnabled ? "On" : "Off";
+        control.classList.toggle("primary", autosaveEnabled);
+        control.setAttribute("aria-pressed", String(autosaveEnabled));
+      }
+      function toggleAutosave() {
+        autosaveEnabled = !autosaveEnabled;
+        localStorage.setItem(
+          "fluxlineAutosaveEnabled",
+          String(autosaveEnabled),
+        );
+        if (autosaveEnabled) autosave();
+        else localStorage.removeItem("fluxlineAutosave");
+        renderAutosaveStatus();
+        renderLauncher();
+        toast(`Automatic recovery ${autosaveEnabled ? "on" : "off"}`);
       }
       function projectSummary(bundle) {
         const projectState = bundle?.state || bundle,
@@ -3926,6 +3963,7 @@
             }),
         );
         $("#returnToEditor").style.display = projectOpen ? "" : "none";
+        renderAutosaveStatus();
       }
       function openProjectLibrary() {
         autosave();
@@ -3966,6 +4004,7 @@
           return;
         APP_CACHE_KEYS.forEach((key) => localStorage.removeItem(key));
         stop();
+        autosaveEnabled = true;
         projectOpen = false;
         state = freshState();
         fluxData = null;
@@ -4317,6 +4356,7 @@
       };
       $("#downloadShow").onclick = downloadProject;
       $("#cacheShow").onclick = cacheProject;
+      $("#autosaveToggle").onclick = toggleAutosave;
       $("#close").onclick = () => $("#modal").classList.remove("open");
       $("#copy").onclick = () =>
         navigator.clipboard
@@ -4471,6 +4511,10 @@
         }
       });
       window.addEventListener("resize", drawWave);
+      window.addEventListener("beforeunload", autosave);
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") autosave();
+      });
       $("#scroller").addEventListener("scroll", syncRulerScroll, {
         passive: true,
       });

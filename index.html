@@ -369,6 +369,11 @@
       .check {
         color: #d5ffd5;
       }
+      #checks.issue {
+        color: #ffb4ab;
+        border-color: #8c1d18;
+        background: #4a1515;
+      }
       .quick-save {
         transition:
           background-color 180ms ease,
@@ -893,15 +898,6 @@
         .brand p {
           display: none;
         }
-        #checks {
-          width: 44px;
-          padding: 0;
-          font-size: 0;
-        }
-        #checks::before {
-          content: "●";
-          font-size: 14px;
-        }
       }
       .import-gate {
         position: fixed;
@@ -1187,6 +1183,24 @@
         background: #fff;
         color: #000;
         border-color: #fff;
+      }
+      .project-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .project-select {
+        height: 36px;
+        padding: 0 34px 0 13px;
+        border: 1px solid #444;
+        border-radius: 999px;
+        background: #242424;
+        color: #fff;
+        cursor: pointer;
+      }
+      .project-select:disabled {
+        opacity: 0.45;
+        cursor: default;
       }
       .saved-list:empty:after {
         content: "No browser saves yet.";
@@ -1613,8 +1627,22 @@
         >
           <span class="icon-symbol">?</span
           ><span class="icon-label">Shortcuts</span></button
-        ><button class="pill" id="blocksMenu">Blocks</button
-        ><button class="pill check" id="checks">● All checks pass</button
+        ><button
+          class="icon expandable-icon"
+          id="blocksMenu"
+          title="Manage blocks"
+          style="--expanded-width: 104px"
+        >
+          <span class="icon-symbol">▦</span
+          ><span class="icon-label">Blocks</span></button
+        ><button
+          class="icon expandable-icon check"
+          id="checks"
+          title="Export checks"
+          style="--expanded-width: 164px"
+        >
+          <span class="icon-symbol">●</span
+          ><span class="icon-label">All checks pass</span></button
         ><button
           class="icon expandable-icon quick-save dirty"
           id="quickSave"
@@ -1786,15 +1814,27 @@
           <div class="project-icon">✓</div>
           <div class="project-copy">
             <b>Automatic recovery</b
-            ><small>Your current project is cached after every edit</small>
+            ><small id="autosaveSummary"
+              >Every 5 edits · replaces the previous recovery snapshot</small
+            >
           </div>
-          <button
-            class="project-action primary"
-            id="autosaveToggle"
-            aria-pressed="true"
-          >
-            On
-          </button>
+          <div class="project-controls">
+            <select
+              class="project-select"
+              id="autosaveInterval"
+              aria-label="Automatic recovery frequency"
+            >
+              <option value="1">Every edit</option>
+              <option value="5" selected>Every 5 edits</option>
+              <option value="10">Every 10 edits</option></select
+            ><button
+              class="project-action primary"
+              id="autosaveToggle"
+              aria-pressed="true"
+            >
+              On
+            </button>
+          </div>
         </div>
         <div class="saved-list" id="savedShows"></div>
         <div class="project-section">Storage</div>
@@ -2097,6 +2137,12 @@
         projectOpen = false,
         autosaveEnabled =
           localStorage.getItem("fluxlineAutosaveEnabled") !== "false",
+        autosaveInterval = [1, 5, 10].includes(
+          +localStorage.getItem("fluxlineAutosaveInterval"),
+        )
+          ? +localStorage.getItem("fluxlineAutosaveInterval")
+          : 5,
+        recoveryEditsSinceSave = 0,
         activeSavedProjectId = null,
         lastNamedSaveSignature = null,
         saveFlashTimer = 0,
@@ -2105,6 +2151,7 @@
       const APP_CACHE_KEYS = [
         "fluxlineAutosave",
         "fluxlineAutosaveEnabled",
+        "fluxlineAutosaveInterval",
         "fluxlineSavedShows",
         "fluxlineCustomBlocks",
         "fluxDataStore",
@@ -2231,7 +2278,9 @@
           projectOpen = true;
           $("#launchGate").classList.add("hidden");
           $("#importGate").classList.add("hidden");
+          recoveryEditsSinceSave = 0;
           hydrate();
+          autosave(true);
           toast("Flux library loaded");
         } catch (error) {
           $("#importError").textContent = error.message;
@@ -2244,10 +2293,16 @@
         clearTimeout(t._h);
         t._h = setTimeout(() => t.classList.remove("show"), 1400);
       }
+      function noteRecoveryEdit() {
+        recoveryEditsSinceSave += 1;
+        renderAutosaveStatus();
+        queueMicrotask(updateQuickSaveButton);
+      }
       function commit() {
         history.push(JSON.stringify(state));
         if (history.length > 80) history.shift();
         future = [];
+        noteRecoveryEdit();
         buttons();
       }
       function undo() {
@@ -2256,6 +2311,7 @@
         state = JSON.parse(history.pop());
         selectedEvent = null;
         selectedEvents.clear();
+        noteRecoveryEdit();
         hydrate();
       }
       function redo() {
@@ -2264,6 +2320,7 @@
         state = JSON.parse(future.pop());
         selectedEvent = null;
         selectedEvents.clear();
+        noteRecoveryEdit();
         hydrate();
       }
       function buttons() {
@@ -3715,10 +3772,15 @@
           (e) => !valid(e.target, e.action, e.native),
         );
         const b = $("#checks");
-        b.textContent = bad.length
-          ? `● ${bad.length} export issue${bad.length > 1 ? "s" : ""}`
-          : "● All checks pass";
+        const label = bad.length
+          ? `${bad.length} export issue${bad.length > 1 ? "s" : ""}`
+          : "All checks pass";
+        b.innerHTML = expandableIconContent("●", label);
+        b.style.setProperty("--expanded-width", bad.length ? "174px" : "164px");
+        b.title = label;
+        b.setAttribute("aria-label", label);
         b.classList.toggle("check", !bad.length);
+        b.classList.toggle("issue", !!bad.length);
         return bad;
       }
       function lua(v) {
@@ -3974,10 +4036,12 @@
         selectedLane = state.patch?.[0]?.type + ":all";
         activeSavedProjectId = savedProjectId;
         lastNamedSaveSignature = savedProjectId ? namedSaveSignature() : null;
+        recoveryEditsSinceSave = 0;
         projectOpen = true;
         $("#launchGate").classList.add("hidden");
         $("#importGate").classList.add("hidden");
         hydrate();
+        autosave(true);
         toast("Show loaded");
       }
       function downloadProject() {
@@ -4116,14 +4180,17 @@
         flashQuickSave();
         toast("Saved in this browser");
       }
-      function autosave() {
+      function autosave(force = false) {
         updateQuickSaveButton();
         if (!projectOpen || !autosaveEnabled) return;
+        renderAutosaveStatus();
+        if (!force && recoveryEditsSinceSave < autosaveInterval) return;
         try {
           localStorage.setItem(
             "fluxlineAutosave",
             JSON.stringify(projectBundle()),
           );
+          recoveryEditsSinceSave = 0;
           renderAutosaveStatus();
         } catch {
           const control = $("#autosaveToggle");
@@ -4142,11 +4209,21 @@
         }
       }
       function renderAutosaveStatus() {
-        const control = $("#autosaveToggle");
+        const control = $("#autosaveToggle"),
+          interval = $("#autosaveInterval"),
+          summary = $("#autosaveSummary");
         if (!control) return;
         control.textContent = autosaveEnabled ? "On" : "Off";
         control.classList.toggle("primary", autosaveEnabled);
         control.setAttribute("aria-pressed", String(autosaveEnabled));
+        if (interval) {
+          interval.value = String(autosaveInterval);
+          interval.disabled = !autosaveEnabled;
+        }
+        if (summary)
+          summary.textContent = autosaveEnabled
+            ? `${autosaveInterval === 1 ? "Every edit" : `Every ${autosaveInterval} edits`} · next in ${Math.max(1, autosaveInterval - recoveryEditsSinceSave)} · replaces the previous snapshot`
+            : "Recovery is off; no recovery snapshot is stored";
       }
       function toggleAutosave() {
         autosaveEnabled = !autosaveEnabled;
@@ -4154,11 +4231,26 @@
           "fluxlineAutosaveEnabled",
           String(autosaveEnabled),
         );
-        if (autosaveEnabled) autosave();
+        recoveryEditsSinceSave = 0;
+        if (autosaveEnabled) autosave(true);
         else localStorage.removeItem("fluxlineAutosave");
         renderAutosaveStatus();
         renderLauncher();
         toast(`Automatic recovery ${autosaveEnabled ? "on" : "off"}`);
+      }
+      function setAutosaveInterval(rawInterval) {
+        const next = +rawInterval;
+        autosaveInterval = [1, 5, 10].includes(next) ? next : 5;
+        recoveryEditsSinceSave = 0;
+        localStorage.setItem(
+          "fluxlineAutosaveInterval",
+          String(autosaveInterval),
+        );
+        if (autosaveEnabled) autosave(true);
+        renderAutosaveStatus();
+        toast(
+          `Recovery saved ${autosaveInterval === 1 ? "after every edit" : `every ${autosaveInterval} edits`}`,
+        );
       }
       function projectSummary(bundle) {
         const projectState = bundle?.state || bundle,
@@ -4247,9 +4339,12 @@
             localStorage.removeItem("fluxDataStore");
           }
         projectOpen = true;
+        recoveryEditsSinceSave = 0;
         $("#launchGate").classList.add("hidden");
-        if (fluxData) hydrate();
-        else $("#importGate").classList.remove("hidden");
+        if (fluxData) {
+          hydrate();
+          autosave(true);
+        } else $("#importGate").classList.remove("hidden");
       }
       function clearAllBrowserData() {
         if (
@@ -4261,6 +4356,8 @@
         APP_CACHE_KEYS.forEach((key) => localStorage.removeItem(key));
         stop();
         autosaveEnabled = true;
+        autosaveInterval = 5;
+        recoveryEditsSinceSave = 0;
         projectOpen = false;
         activeSavedProjectId = null;
         lastNamedSaveSignature = null;
@@ -4420,9 +4517,11 @@
       $("#loadFlux").onclick = importFlux;
       $("#demoFlux").onclick = () => {
         projectOpen = true;
+        recoveryEditsSinceSave = 0;
         $("#launchGate").classList.add("hidden");
         $("#importGate").classList.add("hidden");
         hydrate();
+        autosave(true);
       };
       $("#newShow").onclick = createNewProject;
       $("#launchImportJson").onclick = () => {
@@ -4611,6 +4710,8 @@
       $("#downloadShow").onclick = downloadProject;
       $("#quickSave").onclick = cacheProject;
       $("#autosaveToggle").onclick = toggleAutosave;
+      $("#autosaveInterval").onchange = (event) =>
+        setAutosaveInterval(event.target.value);
       $("#close").onclick = () => $("#modal").classList.remove("open");
       $("#copy").onclick = () =>
         navigator.clipboard
@@ -4765,9 +4866,9 @@
         }
       });
       window.addEventListener("resize", drawWave);
-      window.addEventListener("beforeunload", autosave);
+      window.addEventListener("beforeunload", () => autosave(true));
       document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "hidden") autosave();
+        if (document.visibilityState === "hidden") autosave(true);
       });
       $("#scroller").addEventListener("scroll", syncRulerScroll, {
         passive: true,

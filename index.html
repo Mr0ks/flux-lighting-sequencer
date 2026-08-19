@@ -63,28 +63,18 @@
         background: #ffffff20;
         border-radius: 4px;
       }
-      .dragghost {
+      .event.dragghost {
         position: fixed;
         z-index: 120;
         pointer-events: none;
-        padding: 9px 13px;
-        border-radius: 11px;
-        background: #fff;
-        color: #080808;
-        font-weight: 700;
+        margin: 0;
+        opacity: 0.96;
         box-shadow: 0 12px 35px #000a;
-        transform: translate(12px, 12px);
-      }
-      .dragghost.magnetic {
-        height: 36px;
-        padding: 9px 10px;
-        border: 2px solid #fff;
-        border-radius: 8px;
-        font-size: 11px;
-        white-space: nowrap;
-        overflow: hidden;
         transform: none;
-        transition: box-shadow 80ms ease;
+      }
+      .event.dragghost.magnetic {
+        border: 2px solid #fff;
+        box-shadow: 0 12px 35px #000a, 0 0 0 2px #555;
       }
       .track.drop-ok {
         background-color: #1b1b1b;
@@ -1544,7 +1534,8 @@
             native: cue.native,
             actions: cue.actions,
           };
-        ghost.className = "dragghost";
+        ghost.className = "event dragghost";
+        ghost.dataset.kind = cue.kind;
         ghost.textContent = cue.label;
         ghost.style.display = "none";
         ghost.style.width = eventWidth(previewEvent) + "px";
@@ -1552,7 +1543,8 @@
         let moved = false,
           lastTrack = null,
           dropTarget = null,
-          dropTime = 0;
+          dropTime = 0,
+          overTrash = false;
         const clear = () => {
           lastTrack?.classList.remove("drop-ok", "drop-bad");
           lastTrack = null;
@@ -1561,8 +1553,16 @@
           clear();
           dropTarget = null;
           ghost.classList.remove("magnetic");
-          ghost.style.left = e.clientX + "px";
-          ghost.style.top = e.clientY + "px";
+          ghost.style.left = e.clientX + 12 + "px";
+          ghost.style.top = e.clientY + 12 + "px";
+          const trash = $("#dragTrash").getBoundingClientRect();
+          overTrash =
+            e.clientX >= trash.left &&
+            e.clientX <= trash.right &&
+            e.clientY >= trash.top &&
+            e.clientY <= trash.bottom;
+          $("#dragTrash").classList.toggle("hot", overTrash);
+          if (overTrash) return;
           const track = trackAtPoint(e.clientX, e.clientY);
           if (!track) return;
           const target = track.dataset.lane;
@@ -1589,7 +1589,7 @@
           if (!moved && Math.hypot(e.clientX - startX, e.clientY - startY) < 5)
             return;
           moved = true;
-          document.body.classList.add("timeline-dragging");
+          document.body.classList.add("timeline-dragging", "event-dragging");
           ghost.style.display = "block";
           scrollWhileDragging(e);
           updatePreview(e);
@@ -1597,14 +1597,19 @@
         const up = (e) => {
           window.removeEventListener("pointermove", move);
           window.removeEventListener("pointerup", up);
-          document.body.classList.remove("timeline-dragging");
           if (moved) updatePreview(e);
           clear();
+          $("#dragTrash").classList.remove("hot");
+          document.body.classList.remove("timeline-dragging", "event-dragging");
           ghost.remove();
           if (!moved) {
             armed = cue;
             $$(".block").forEach((x) => x.classList.toggle("active", x === b));
             toast(`${armed.label} armed — click a lane or press Enter`);
+            return;
+          }
+          if (overTrash) {
+            toast("New cue cancelled");
             return;
           }
           if (!dropTarget) {

@@ -439,59 +439,13 @@
         padding: 12px 14px;
       }
       .wave-row {
-        height: 78px;
-      }
-      .audio-label {
-        padding-block: 9px;
-      }
-      .audio-label .section-title {
-        margin: 0 0 6px;
-      }
-      .audio-controls {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-      .audio-controls button {
-        flex: 0 0 auto;
-        min-height: 30px;
-        padding: 5px 9px;
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        background: var(--panel3);
-        color: var(--text);
-        cursor: pointer;
-        font-size: 11px;
-        font-weight: 700;
-      }
-      .audio-controls input {
-        min-width: 0;
-        width: 100%;
-        height: 30px;
-        padding: 5px 8px;
-        border: 1px solid var(--line);
-        border-radius: 9px;
-        background: var(--bg);
-        color: var(--text);
-        font:
-          11px "Roboto Mono",
-          ui-monospace,
-          monospace;
-      }
-      .audio-name {
-        display: block;
-        margin-top: 4px;
-        color: var(--muted);
-        font-size: 10px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        height: 64px;
       }
       .wave-wrap {
         position: relative;
         background: #0c0c0c;
         border-bottom: 1px solid var(--line);
-        cursor: ew-resize;
+        cursor: pointer;
       }
       .wave-wrap canvas {
         width: 100%;
@@ -508,7 +462,7 @@
         will-change: transform;
         border-bottom: 1px solid var(--line);
         background: var(--panel);
-        cursor: ew-resize;
+        cursor: pointer;
       }
       .tick {
         position: absolute;
@@ -569,15 +523,15 @@
         background-image:
           repeating-linear-gradient(
             90deg,
-            rgba(255, 255, 255, 0.06) 0 1px,
-            transparent 1px calc(var(--pps) * 4)
+            rgba(255, 255, 255, 0.09) 0 1px,
+            transparent 1px var(--major-grid, calc(var(--pps) * 4))
           ),
           repeating-linear-gradient(
             90deg,
-            rgba(255, 255, 255, 0.025) 0 1px,
-            transparent 1px var(--pps)
+            rgba(255, 255, 255, 0.035) 0 1px,
+            transparent 1px var(--snap-grid, var(--pps))
           );
-        cursor: crosshair;
+        cursor: pointer;
       }
       .event {
         position: absolute;
@@ -987,7 +941,7 @@
       }
       .launch-project {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto auto;
+        grid-template-columns: minmax(0, 1fr) auto auto auto;
         align-items: center;
         gap: 10px;
         padding: 13px 14px;
@@ -1022,7 +976,7 @@
           grid-template-columns: 1fr;
         }
         .launch-project {
-          grid-template-columns: minmax(0, 1fr) auto;
+          grid-template-columns: minmax(0, 1fr) auto auto;
         }
         .launch-project [data-launch-delete] {
           display: none;
@@ -1459,10 +1413,13 @@
             </button>
             <div class="launch-error" id="launchError"></div>
           </div>
-          <small style="color: var(--muted)"
-            >Cache stays on this browser. Export JSON for a permanent
-            copy.</small
-          >
+          <div style="display: flex; align-items: center; gap: 10px">
+            <small style="color: var(--muted)"
+              >Cache stays on this browser. Export JSON for a permanent
+              copy.</small
+            >
+            <button class="pill" id="returnToEditor">Back to editor</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1496,6 +1453,8 @@
         ><button class="icon" id="redo" title="Redo (Ctrl/⌘ Shift Z)">↷</button>
         <div class="spacer"></div>
         <button class="icon" id="audio" title="Load audio">♫</button
+        ><button class="icon" id="songIdMenu" title="Set Roblox song ID">
+          ID</button
         ><button class="icon" id="shortcutsMenu" title="Keyboard shortcuts (?)">
           ?</button
         ><button class="pill" id="blocksMenu">Blocks</button
@@ -1524,20 +1483,11 @@
         </aside>
         <section class="workspace">
           <div class="wave-row">
-            <div class="sticky-label audio-label">
-              <div class="section-title">Audio & Roblox</div>
-              <div class="audio-controls">
-                <button id="audioInline" title="Load a local MP3 reference">
-                  Load MP3
-                </button>
-                <input
-                  id="songIdTop"
-                  inputmode="numeric"
-                  placeholder="Roblox song ID"
-                  aria-label="Roblox song ID"
-                />
-              </div>
-              <small class="audio-name" id="audioName">No MP3 loaded</small>
+            <div class="sticky-label">
+              <div class="section-title">Audio reference</div>
+              <small id="audioName" style="color: var(--muted)"
+                >Load a track</small
+              >
             </div>
             <div class="wave-wrap" id="waveWrap">
               <canvas id="wave"></canvas>
@@ -1630,6 +1580,17 @@
           <div class="spacer"></div>
           <button class="pill" id="closeProject">Close</button>
         </div>
+        <div class="project-section">Project library</div>
+        <div class="project-row">
+          <div class="project-icon">←</div>
+          <div class="project-copy">
+            <b>Open another project</b
+            ><small>Return to autosave and browser projects</small>
+          </div>
+          <button class="project-action primary" id="openProjectLibrary">
+            Open
+          </button>
+        </div>
         <div class="project-section">Flux setup</div>
         <div class="project-row">
           <div class="project-icon">{ }</div>
@@ -1701,6 +1662,49 @@
           <button class="project-action" id="clearBrowserDataProject">
             Delete all
           </button>
+        </div>
+      </div>
+    </div>
+    <div class="project-modal" id="songIdModal">
+      <div class="project-card" style="width: min(480px, 94vw)">
+        <div class="project-head">
+          <div>
+            <h2>Roblox song ID</h2>
+            <p>
+              Saved in browser projects, <code>.flux.json</code>, and Roblox
+              exports.
+            </p>
+          </div>
+        </div>
+        <div class="field">
+          <label for="songIdDialog">Audio asset ID</label>
+          <input
+            id="songIdDialog"
+            inputmode="numeric"
+            placeholder="Example: 1843529608"
+          />
+        </div>
+        <div class="inspector-actions" style="margin-top: 20px">
+          <button class="pill" id="cancelSongId">Cancel</button>
+          <button class="pill primary" id="saveSongId">Save ID</button>
+        </div>
+      </div>
+    </div>
+    <div class="project-modal" id="renameProjectModal">
+      <div class="project-card" style="width: min(480px, 94vw)">
+        <div class="project-head">
+          <div>
+            <h2>Rename project</h2>
+            <p>Update the name shown in this browser's project library.</p>
+          </div>
+        </div>
+        <div class="field">
+          <label for="renameProjectInput">Project name</label>
+          <input id="renameProjectInput" placeholder="Show name" />
+        </div>
+        <div class="inspector-actions" style="margin-top: 20px">
+          <button class="pill" id="cancelRenameProject">Cancel</button>
+          <button class="pill primary" id="saveRenameProject">Rename</button>
         </div>
       </div>
     </div>
@@ -1944,6 +1948,7 @@
         audioBuffer = null,
         px = 70,
         projectOpen = false,
+        pendingRenameProjectId = null,
         pendingProjectImport = "project";
       const APP_CACHE_KEYS = [
         "fluxlineAutosave",
@@ -2466,22 +2471,11 @@
       function scrubSurface(ev, element, wave = false) {
         if (ev.button !== 0) return;
         ev.preventDefault();
-        document.body.classList.add("timeline-dragging");
-        const update = (e) => {
-          const r = element.getBoundingClientRect(),
-            time = wave
-              ? ((e.clientX - r.left) / r.width) * state.duration
-              : (e.clientX - r.left) / px;
-          seek(snapTime(time));
-        };
-        update(ev);
-        const up = () => {
-          window.removeEventListener("pointermove", update);
-          window.removeEventListener("pointerup", up);
-          document.body.classList.remove("timeline-dragging");
-        };
-        window.addEventListener("pointermove", update);
-        window.addEventListener("pointerup", up);
+        const r = element.getBoundingClientRect(),
+          time = wave
+            ? ((ev.clientX - r.left) / r.width) * state.duration
+            : (ev.clientX - r.left) / px;
+        seek(snapTime(time));
       }
       function syncRulerScroll() {
         const ruler = $("#ruler"),
@@ -2628,6 +2622,18 @@
       }
       function renderTimeline() {
         const w = timelineWidth();
+        const snapUnit = +$("#snap").value,
+          snapSeconds = snapUnit
+            ? (60 / (+$("#bpm").value || 128)) * snapUnit
+            : 1;
+        $("#timeline").style.setProperty(
+          "--snap-grid",
+          snapSeconds * px + "px",
+        );
+        $("#timeline").style.setProperty(
+          "--major-grid",
+          snapSeconds * px * 4 + "px",
+        );
         let html = `<div class="playhead" id="head"></div><div class="marquee" id="marquee"></div>`;
         for (const lane of laneList()) {
           const caps = capabilities(lane.type);
@@ -2911,7 +2917,7 @@
                 }
               });
             autosave();
-          }
+          } else seek(snapTime(item.time));
           renderTimeline();
           renderInspector();
         };
@@ -3315,10 +3321,8 @@
             autosave();
           };
           $("#songId").onchange = (e) => {
-            commit();
-            state.songId = e.target.value.replace(/\D/g, "");
-            $("#songIdTop").value = state.songId;
-            autosave();
+            setSongId(e.target.value);
+            e.target.value = state.songId;
           };
           $("#duration").onchange = (e) => {
             commit();
@@ -3621,13 +3625,38 @@
           return [];
         }
       }
+      function openRenameProject(id) {
+        const item = savedProjects().find((entry) => entry.id === id);
+        if (!item) return;
+        pendingRenameProjectId = id;
+        $("#renameProjectInput").value = item.name;
+        $("#renameProjectModal").classList.add("open");
+        setTimeout(() => $("#renameProjectInput").focus(), 0);
+      }
+      function renameSavedProject(id, name) {
+        const items = savedProjects(),
+          item = items.find((entry) => entry.id === id);
+        if (!item) return;
+        name = name.trim();
+        if (!name) return toast("Project name cannot be empty");
+        item.name = name;
+        if (item.project?.state) item.project.state.name = name;
+        else if (item.project) item.project.name = name;
+        item.savedAt = new Date().toISOString();
+        localStorage.setItem("fluxlineSavedShows", JSON.stringify(items));
+        $("#renameProjectModal").classList.remove("open");
+        pendingRenameProjectId = null;
+        renderSavedShows();
+        renderLauncher();
+        toast("Project renamed");
+      }
       function renderSavedShows() {
         const root = $("#savedShows"),
           items = savedProjects();
         root.innerHTML = items
           .map(
             (x) =>
-              `<div class="saved-item" data-id="${esc(x.id)}"><b>${esc(x.name)}</b><small>${new Date(x.savedAt).toLocaleString()}</small><button data-load="${esc(x.id)}">Load</button><button data-delete="${esc(x.id)}">Delete</button></div>`,
+              `<div class="saved-item" data-id="${esc(x.id)}"><b>${esc(x.name)}</b><small>${new Date(x.savedAt).toLocaleString()}</small><button data-load="${esc(x.id)}">Load</button><button data-rename="${esc(x.id)}">Rename</button><button data-delete="${esc(x.id)}">Delete</button></div>`,
           )
           .join("");
         $$("[data-load]").forEach(
@@ -3639,6 +3668,10 @@
                 $("#projectModal").classList.remove("open");
               }
             }),
+        );
+        $$("[data-rename]").forEach(
+          (button) =>
+            (button.onclick = () => openRenameProject(button.dataset.rename)),
         );
         $$("[data-delete]").forEach(
           (b) =>
@@ -3703,7 +3736,7 @@
         $("#launchProjects").innerHTML = projects
           .map(
             (item) =>
-              `<div class="launch-project"><div><b>${esc(item.name)}</b><small>${esc(projectSummary(item.project))} · ${new Date(item.savedAt).toLocaleString()}</small></div><button class="project-action" data-launch-load="${esc(item.id)}">Open</button><button class="project-action" data-launch-delete="${esc(item.id)}">Delete</button></div>`,
+              `<div class="launch-project"><div><b>${esc(item.name)}</b><small>${esc(projectSummary(item.project))} · ${new Date(item.savedAt).toLocaleString()}</small></div><button class="project-action" data-launch-load="${esc(item.id)}">Open</button><button class="project-action" data-launch-rename="${esc(item.id)}">Rename</button><button class="project-action" data-launch-delete="${esc(item.id)}">Delete</button></div>`,
           )
           .join("");
         $("#resumeAutosave")?.addEventListener("click", () => {
@@ -3722,6 +3755,11 @@
               if (item) loadProject(item.project);
             }),
         );
+        $$("[data-launch-rename]").forEach(
+          (button) =>
+            (button.onclick = () =>
+              openRenameProject(button.dataset.launchRename)),
+        );
         $$("[data-launch-delete]").forEach(
           (button) =>
             (button.onclick = () => {
@@ -3736,6 +3774,13 @@
               renderLauncher();
             }),
         );
+        $("#returnToEditor").style.display = projectOpen ? "" : "none";
+      }
+      function openProjectLibrary() {
+        autosave();
+        renderLauncher();
+        $("#projectModal").classList.remove("open");
+        $("#launchGate").classList.remove("hidden");
       }
       function createNewProject() {
         stop();
@@ -3913,7 +3958,6 @@
         renderAll();
       }
       function renderAll() {
-        $("#songIdTop").value = state.songId || "";
         patchSummary();
         renderPalette();
         renderRuler();
@@ -3959,6 +4003,14 @@
       $("#bpm").onchange = (e) => {
         commit();
         state.bpm = +e.target.value || 128;
+        renderRuler();
+        renderTimeline();
+        autosave();
+      };
+      $("#snap").onchange = () => {
+        seek(snapTime(position));
+        renderRuler();
+        renderTimeline();
       };
       $("#zoom").oninput = (e) => {
         px = +e.target.value;
@@ -3969,21 +4021,51 @@
       $("#waveWrap").onpointerdown = (e) =>
         scrubSurface(e, e.currentTarget, true);
       $("#audio").onclick = () => $("#file").click();
-      $("#audioInline").onclick = () => $("#file").click();
-      let editingSongId = false;
-      $("#songIdTop").onfocus = () => (editingSongId = false);
-      $("#songIdTop").oninput = (e) => {
-        if (!editingSongId) {
-          commit();
-          editingSongId = true;
-        }
-        state.songId = e.target.value.replace(/\D/g, "");
-        e.target.value = state.songId;
+      function setSongId(raw, commitChange = true) {
+        if (commitChange) commit();
+        state.songId = String(raw || "").replace(/\D/g, "");
         const inspectorSongId = $("#songId");
         if (inspectorSongId) inspectorSongId.value = state.songId;
         autosave();
+      }
+      $("#songIdMenu").onclick = () => {
+        $("#songIdDialog").value = state.songId || "";
+        $("#songIdModal").classList.add("open");
+        setTimeout(() => $("#songIdDialog").focus(), 0);
       };
-      $("#songIdTop").onblur = () => (editingSongId = false);
+      $("#cancelSongId").onclick = () =>
+        $("#songIdModal").classList.remove("open");
+      $("#saveSongId").onclick = () => {
+        setSongId($("#songIdDialog").value);
+        $("#songIdDialog").value = state.songId;
+        $("#songIdModal").classList.remove("open");
+        toast("Roblox song ID saved");
+      };
+      $("#songIdDialog").onkeydown = (e) => {
+        if (e.key === "Enter") $("#saveSongId").click();
+      };
+      $("#songIdModal").onclick = (e) => {
+        if (e.target.id === "songIdModal")
+          $("#songIdModal").classList.remove("open");
+      };
+      $("#cancelRenameProject").onclick = () => {
+        pendingRenameProjectId = null;
+        $("#renameProjectModal").classList.remove("open");
+      };
+      $("#saveRenameProject").onclick = () => {
+        if (pendingRenameProjectId)
+          renameSavedProject(
+            pendingRenameProjectId,
+            $("#renameProjectInput").value,
+          );
+      };
+      $("#renameProjectInput").onkeydown = (e) => {
+        if (e.key === "Enter") $("#saveRenameProject").click();
+      };
+      $("#renameProjectModal").onclick = (e) => {
+        if (e.target.id === "renameProjectModal")
+          $("#cancelRenameProject").click();
+      };
       $("#file").onchange = (e) => {
         const f = e.target.files[0];
         if (f) loadAudio(f);
@@ -4008,6 +4090,9 @@
         $("#projectModal").classList.add("open");
         renderSavedShows();
       };
+      $("#openProjectLibrary").onclick = openProjectLibrary;
+      $("#returnToEditor").onclick = () =>
+        $("#launchGate").classList.add("hidden");
       $("#closeProject").onclick = () =>
         $("#projectModal").classList.remove("open");
       $("#projectModal").onclick = (e) => {

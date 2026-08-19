@@ -1,95 +1,3004 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Flux Sequencer</title>
-<style>
-.playhead{pointer-events:auto!important;cursor:ew-resize}.playhead:after{content:"";position:absolute;top:0;left:-7px;width:16px;height:22px;background:#fff;border-radius:4px 4px 7px 7px}.resize-handle{position:absolute;right:-1px;top:0;width:13px;height:100%;z-index:3;cursor:ew-resize;background:linear-gradient(90deg,transparent,#777);opacity:.45}.event:hover .resize-handle{opacity:1}.event.dragging{cursor:grabbing;z-index:20;opacity:.86}.event.multi{box-shadow:0 0 0 2px #999}.marquee{position:fixed;display:none;z-index:110;pointer-events:none;border:1px solid #fff;background:#ffffff20;border-radius:4px}.dragghost{position:fixed;z-index:120;pointer-events:none;padding:9px 13px;border-radius:11px;background:#fff;color:#080808;font-weight:700;box-shadow:0 12px 35px #000a;transform:translate(12px,12px)}.track.drop-ok{background-color:#1b1b1b;box-shadow:inset 0 0 0 2px #fff}.track.drop-bad{background-color:#1b1010;box-shadow:inset 0 0 0 2px #8b4b4b}.block.blocked{opacity:.28;filter:grayscale(1)}.drag-trash{position:fixed;right:318px;bottom:92px;z-index:150;display:flex;align-items:center;gap:9px;padding:12px 17px;border:1px solid #555;border-radius:999px;background:#171717;color:#aaa;font-weight:750;opacity:0;transform:translateY(16px);pointer-events:none;transition:.16s}.event-dragging .drag-trash{opacity:1;transform:none;pointer-events:auto}.drag-trash.hot{background:#fff;color:#000;border-color:#fff;transform:scale(1.08)}body.timeline-dragging,body.timeline-dragging *{cursor:grabbing!important;user-select:none!important}.body{overflow:hidden}.right{min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain;scrollbar-gutter:stable}.right #inspector{min-height:max-content;padding-bottom:48px}.blocks-modal{position:fixed;inset:0;z-index:95;display:none;place-items:center;background:#000b;padding:24px}.blocks-modal.open{display:grid}.blocks-card{width:min(650px,94vw);max-height:88vh;overflow:auto;background:#101010;border:1px solid #444;border-radius:22px;padding:24px}.builder-grid{display:grid;grid-template-columns:1.2fr 1fr .7fr auto;gap:8px;margin:16px 0}.builder-grid input,.builder-grid select,.block-name{min-width:0;background:#191919;color:#fff;border:1px solid #3a3a3a;border-radius:9px;padding:10px}.builder-actions{margin:12px 0}.builder-action{display:flex;gap:8px;align-items:center;background:#191919;border-radius:10px;padding:10px;margin:7px 0}.builder-action b{flex:1}.builder-empty{color:#777;padding:14px 0}.blocks-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
-:root{--bg:#080808;--panel:#101010;--panel2:#171717;--panel3:#202020;--line:#303030;--line2:#242424;--text:#f5f5f5;--muted:#8c8c8c;--dim:#5d5d5d;--white:#fff;--black:#000;--label:210px;--pps:70px}*{box-sizing:border-box}html,body{height:100%;margin:0}body{background:var(--bg);color:var(--text);font:14px Inter,ui-sans-serif,system-ui,sans-serif;overflow:hidden}button,input,select{font:inherit}.app{display:grid;grid-template-rows:76px 1fr 74px;height:100%}.topbar{display:flex;align-items:center;gap:10px;padding:12px 18px;background:var(--panel);border-bottom:1px solid var(--line)}.brand{min-width:250px}.brand h1{font-size:19px;margin:0;font-weight:750;letter-spacing:-.03em}.brand p{margin:3px 0 0;color:var(--muted);font-size:12px}.spacer{flex:1}.icon,.pill,.play{border:1px solid var(--line);background:var(--panel2);color:var(--text);cursor:pointer}.icon{width:44px;height:44px;border-radius:13px;font-size:18px}.icon:hover,.pill:hover{background:var(--panel3)}.icon:disabled{opacity:.25}.pill{height:44px;border-radius:999px;padding:0 18px;font-weight:650}.pill.primary{background:var(--white);color:var(--black);border-color:var(--white)}.check{color:#d5ffd5}.body{display:grid;grid-template-columns:280px minmax(420px,1fr) 300px;min-height:0}.side{background:var(--panel);min-height:0;overflow:auto}.left{border-right:1px solid var(--line)}.right{border-left:1px solid var(--line);padding:18px}.patch-summary{padding:15px 16px;border-bottom:1px solid var(--line);color:var(--muted);font-size:12px;line-height:1.55}.patch-summary b{color:var(--text)}.search-row{display:flex;gap:8px;padding:14px;border-bottom:1px solid var(--line)}.search-row input,.input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px;color:var(--text)}.swatch{width:40px;border-radius:10px;background:#fff;border:1px solid #555}.palette{padding:8px 14px 24px}.section-title{margin:16px 2px 9px;color:var(--muted);font-size:10px;font-weight:750;letter-spacing:.15em;text-transform:uppercase}.blocks{display:flex;flex-wrap:wrap;gap:7px}.block{border:1px solid #454545;border-radius:11px;background:#e8e8e8;color:#080808;padding:9px 13px;cursor:grab;font-weight:650}.block:hover{background:#fff}.block.active{outline:2px solid white;outline-offset:2px}.block[data-kind=movement]{background:#bdbdbd}.block[data-kind=beam]{background:#d3d3d3}.block[data-kind=pyro]{background:#757575;color:#fff}.workspace{min-width:0;min-height:0;display:flex;flex-direction:column;background:#090909}.wave-row,.ruler-row,.lane{display:grid;grid-template-columns:var(--label) 1fr}.sticky-label{position:sticky;left:0;z-index:5;background:var(--panel);border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 14px}.wave-row{height:64px}.wave-wrap{position:relative;background:#0c0c0c;border-bottom:1px solid var(--line);cursor:ew-resize}.wave-wrap canvas{width:100%;height:100%;display:block}.ruler-row{height:34px}.ruler{position:relative;border-bottom:1px solid var(--line);background:var(--panel);cursor:ew-resize}.tick{position:absolute;top:0;bottom:0;border-left:1px solid var(--line);padding:8px 0 0 6px;color:var(--muted);font:11px ui-monospace,monospace}.scroller{overflow:auto;min-height:0;flex:1;position:relative}.timeline{position:relative;min-height:100%}.lane{height:56px}.lane-label{position:sticky;left:0;z-index:4;background:var(--panel);border-right:1px solid var(--line);border-bottom:1px solid var(--line2);padding:9px 12px;cursor:pointer}.lane-label.selected{background:var(--panel3);box-shadow:inset 3px 0 #fff}.lane-label b{display:block;text-transform:capitalize}.lane-label small{display:block;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.track{position:relative;border-bottom:1px solid var(--line2);background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.06) 0 1px,transparent 1px calc(var(--pps)*4)),repeating-linear-gradient(90deg,rgba(255,255,255,.025) 0 1px,transparent 1px var(--pps));cursor:crosshair}.event{position:absolute;top:9px;height:36px;min-width:24px;border-radius:8px;padding:9px 10px;background:#eee;color:#080808;font-size:11px;font-weight:750;white-space:nowrap;overflow:hidden;border:2px solid transparent;cursor:grab;user-select:none}.event.selected{border-color:#fff;box-shadow:0 0 0 2px #555}.event[data-kind=movement]{background:#aaa}.event[data-kind=pyro]{background:#666;color:white}.playhead{position:absolute;top:0;bottom:0;width:2px;background:white;z-index:8;pointer-events:none}.playhead:before{content:"";position:absolute;top:0;left:-6px;border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid white}.empty{padding:50px 28px;color:var(--muted)}.right h2{font-size:16px;margin:0 0 5px}.right .sub{color:var(--muted);font-size:12px;line-height:1.55}.field{margin:15px 0}.field label{display:block;color:var(--muted);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px}.field input,.field select{width:100%;padding:10px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:9px}.row{display:flex;gap:8px}.row>*{flex:1}.danger{color:#fff;border-color:#555}.transport{display:flex;align-items:center;gap:12px;padding:12px 18px;background:var(--panel);border-top:1px solid var(--line)}.play{width:52px;height:50px;border-radius:14px;background:white;color:black;font-size:19px}.time{font:24px ui-monospace,monospace;letter-spacing:-.04em;min-width:130px}.transport label{color:var(--muted);font-size:11px}.small{width:76px;background:var(--panel2);color:white;border:1px solid var(--line);padding:9px;border-radius:9px}.range{accent-color:white}.event-count{margin-left:auto;color:var(--muted);font:12px ui-monospace,monospace}.modal{position:fixed;inset:0;background:#000c;z-index:20;display:none;place-items:center}.modal.open{display:grid}.dialog{width:min(900px,92vw);max-height:86vh;background:#111;border:1px solid #444;border-radius:20px;padding:22px;overflow:auto}.dialog-head{display:flex;align-items:center;gap:8px}.dialog-head h2{flex:1}.dialog pre{background:#050505;border:1px solid #333;border-radius:12px;padding:16px;overflow:auto;max-height:58vh;color:#eee;font:12px/1.55 ui-monospace,monospace}.toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(12px);padding:10px 15px;border-radius:999px;background:white;color:black;font-weight:650;opacity:0;pointer-events:none;transition:.2s;z-index:30}.toast.show{opacity:1;transform:translateX(-50%)}@media(max-width:1000px){.body{grid-template-columns:230px 1fr}.right{display:none}.brand{min-width:190px}}
-.import-gate{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#000}.import-card{width:min(760px,92vw);padding:30px;background:#0d0d0d;border:1px solid #555;border-radius:18px}.import-card h1{margin:0 0 8px;font-size:28px}.import-card p{color:#aaa;line-height:1.55}.import-card textarea{width:100%;height:280px;resize:vertical;background:#050505;color:#fff;border:1px solid #444;border-radius:10px;padding:14px;font:12px/1.5 ui-monospace,monospace}.import-actions{display:flex;align-items:center;gap:12px;margin-top:14px}.import-error{color:#ffb4b4;font-size:12px}.import-gate.hidden{display:none}.project-modal{position:fixed;inset:0;z-index:90;display:none;place-items:center;background:#000b;padding:24px}.project-modal.open{display:grid}.project-card{width:min(720px,94vw);max-height:88vh;overflow:auto;background:#101010;border:1px solid #444;border-radius:22px;padding:24px}.project-head{display:flex;align-items:flex-start;gap:16px;margin-bottom:20px}.project-head h2{font-size:26px;margin:0 0 5px}.project-head p{margin:0;color:#999}.project-head .spacer{flex:1}.project-section{margin:22px 4px 10px;color:#888;font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}.project-row{display:grid;grid-template-columns:42px 1fr auto;align-items:center;gap:14px;padding:15px;margin:9px 0;background:#191919;border:1px solid #292929;border-radius:14px}.project-row:hover{border-color:#555}.project-icon{width:42px;height:42px;display:grid;place-items:center;background:#090909;border-radius:11px;font-size:18px}.project-copy b{display:block;margin-bottom:4px}.project-copy small{color:#888}.project-action{min-width:92px;height:36px;border:1px solid #444;border-radius:999px;background:#242424;color:#fff;cursor:pointer}.project-action.primary{background:#fff;color:#000;border-color:#fff}.saved-list:empty:after{content:'No browser saves yet.';display:block;color:#777;padding:12px 4px}.saved-item{display:flex;align-items:center;gap:10px;padding:10px 12px;margin-top:7px;background:#171717;border-radius:10px}.saved-item b{flex:1}.saved-item button{border:0;background:#2b2b2b;color:#fff;border-radius:8px;padding:7px 10px;cursor:pointer}
-</style></head><body><div class="import-gate" id="importGate"><div class="import-card"><h1>Connect your Flux show</h1><p>Join your Roblox game, open <b>Flux Shows</b> from the TopbarPlus icon, choose <b>Export</b>, then paste the copied JSON below. Your DataStore remains private and is processed only in this browser.</p><textarea id="fluxJson" spellcheck="false" placeholder='Paste JSON beginning with {"groups":...'></textarea><div class="import-actions"><button class="pill primary" id="loadFlux">Load Flux DataStore</button><button class="pill" id="demoFlux">Continue with demo patch</button><span class="import-error" id="importError"></span></div></div></div><div class="app">
-<header class="topbar"><div class="brand"><h1>Flux Sequencer</h1><p id="summary">Loading fixture patch…</p></div><button class="icon" id="undo" title="Undo">↶</button><button class="icon" id="redo" title="Redo">↷</button><div class="spacer"></div><button class="icon" id="audio" title="Load audio">♫</button><button class="pill" id="blocksMenu">Blocks</button><button class="pill check" id="checks">● All checks pass</button><button class="pill primary" id="projectMenu">Project</button><input type="file" id="file" hidden accept="audio/*"><input type="file" id="showFile" hidden accept=".json,.flux.json"></header>
-<main class="body"><aside class="side left"><div class="patch-summary" id="patchSummary"></div><div class="search-row"><input id="search" placeholder="Search cues…"><input id="color" class="swatch" type="color" value="#ffffff" title="Active colour"></div><div class="palette" id="palette"></div></aside>
-<section class="workspace"><div class="wave-row"><div class="sticky-label"><div class="section-title">Audio reference</div><small id="audioName" style="color:var(--muted)">Load a track</small></div><div class="wave-wrap" id="waveWrap"><canvas id="wave"></canvas></div></div><div class="ruler-row"><div class="sticky-label"></div><div class="ruler" id="ruler"></div></div><div class="scroller" id="scroller"><div class="timeline" id="timeline"></div></div></section>
-<aside class="side right"><div id="inspector"><h2>Nothing selected</h2><p class="sub">Drag a cue from the palette and drop it onto a compatible fixture lane.</p><p class="sub">Space plays · Delete removes · Ctrl/⌘+D duplicates · arrow keys nudge.</p></div></aside></main>
-<footer class="transport"><button class="icon" id="home">|◀</button><button class="play" id="play">▶</button><div class="time" id="time">00:00<span style="color:#777">.000</span></div><select class="small" id="speed" title="Playback speed"><option value=".25">¼×</option><option value=".5">½×</option><option value="1" selected>1×</option></select><button class="icon" id="loop" title="Loop playback">↻</button><label>BPM</label><input class="small" id="bpm" type="number" min="20" max="400" value="128"><label>Snap</label><select class="small" id="snap"><option value="0">Free</option><option value="0.0625">1/16 beat</option><option value="0.125">1/8 beat</option><option value="0.25">¼ beat</option><option value="0.5">½ beat</option><option value="1" selected>Beat</option><option value="4">Bar</option></select><label>Zoom</label><input class="range" id="zoom" type="range" min="35" max="180" value="70"><span class="event-count" id="count">0 events</span></footer></div>
-<div class="modal" id="modal"><div class="dialog"><div class="dialog-head"><h2 id="modalTitle">Export</h2><button class="pill" id="close">Close</button><button class="pill primary" id="copy">Copy</button></div><p id="modalSub" style="color:#999"></p><pre id="output"></pre></div></div><div class="drag-trash" id="dragTrash"><span>🗑</span><span>Drop to delete</span></div><div class="toast" id="toast"></div>
-<div class="project-modal" id="projectModal"><div class="project-card"><div class="project-head"><div><h2>Project</h2><p>Manage your Flux library and sequencer shows.</p></div><div class="spacer"></div><button class="pill" id="closeProject">Close</button></div><div class="project-section">Flux setup</div><div class="project-row"><div class="project-icon">{ }</div><div class="project-copy"><b>Import DataStore JSON</b><small>Paste a fresh export from the Roblox GUI</small></div><button class="project-action primary" id="importDatastore">Import</button></div><div class="project-section">Sequencer show</div><div class="project-row"><div class="project-icon">↓</div><div class="project-copy"><b>Export sequencer show</b><small>Generate the Flux show ModuleScript for Roblox</small></div><button class="project-action primary" id="exportShow">Export</button></div><div class="project-row"><div class="project-icon">↑</div><div class="project-copy"><b>Import sequencer show</b><small>Open a portable Fluxline project file</small></div><button class="project-action" id="importShow">Open</button></div><div class="project-row"><div class="project-icon">⌄</div><div class="project-copy"><b>Download project file</b><small>Includes the timeline and Flux library; audio is excluded</small></div><button class="project-action" id="downloadShow">Download</button></div><div class="project-section">Browser saves</div><div class="project-row"><div class="project-icon">●</div><div class="project-copy"><b>Save in this browser</b><small>Stored locally on this device for quick access</small></div><button class="project-action" id="cacheShow">Save</button></div><div class="saved-list" id="savedShows"></div></div></div>
-<div class="blocks-modal" id="blocksModal"><div class="blocks-card"><div class="project-head"><div><h2>Blocks</h2><p>Build and edit reusable groups of simultaneous Flux actions.</p></div><div class="spacer"></div><button class="pill" id="closeBlocks">Close</button></div><div id="savedBlocksEditor"></div><div class="section-title">Block editor</div><input class="block-name" id="blockName" placeholder="Block name, e.g. Blue blackout"><div class="builder-grid"><select id="blockAction"><option value="level:1">Turn on</option><option value="level:0">Turn off</option><option value="color:#ffffff">Color</option><option value="pan:0">Pan</option><option value="tilt:0">Tilt</option><option value="strobe:10">Strobe</option><option value="iris:1">Iris</option></select><input id="blockValue" value="1" placeholder="Value"><input id="blockDuration" type="number" min="0" step=".05" value="0" placeholder="Fade"><button class="pill" id="addBlockAction">Add</button></div><div class="builder-actions" id="builderActions"></div><div class="blocks-footer"><button class="pill" id="newBlock">New block</button><button class="pill primary" id="saveBlock">Save block</button></div></div></div>
-<script>
-const CAPS={profile:['intensity','color','strobe','pan','tilt','iris','shutter','spin','beam intensity','gobo intensity'],wash:['intensity','color','strobe','pan','tilt','iris','shutter'],"magic blade":['intensity','color','strobe','pan','tilt'],"magic panel":['intensity','color','strobe','pan','tilt'],jdc1:['intensity','color','strobe','tilt'],q7:['intensity','color','strobe'],laser:['intensity','color','strobe','pan','tilt','iris','width','spin','pitch','shutter'],line:['intensity','color','strobe'],par:['intensity','color','strobe','shutter'],blinder:['intensity'],atomic:['intensity','strobe'],display:['intensity','color','strobe']};
-const BASE_DEFINITIONS=[['Output',[['On','level',1],['Off','level',0],['Fade on','level',1,1],['Fade off','level',0,1],['Reset','reset',0]]],['Colour',[['Colour','color','#ffffff',.25],['Red','color','#ff0000',.25],['Blue','color','#0066ff',.25],['White','color','#ffffff',.25]]],['Movement',[['Pan','pan',0,1],['Tilt','tilt',0,1],['Spin','spin',90,1],['Pitch','pitch',0,1]]],['Beam / lens',[['Strobe','strobe',10,1],['Iris','iris',1,.5],['Shutter','shutter',1],['Beam','beam intensity',1,.5],['Gobo','gobo intensity',1,.5],['Laser width','width',1,.5]]],['Pyrotechnics',[['Sparks','pyro','sparks'],['Haze','pyro','haze'],['Fire','pyro','fire'],['CO₂','pyro','co2'],['Fireworks','pyro','fireworks'],['Bubbles','pyro','bubbles'],['Confetti','pyro','confetti']]]];
-let DEFINITIONS=structuredClone(BASE_DEFINITIONS),IMPORTED={},CUSTOM_BLOCKS=[],builderActions=[],editingBlockId=null;
-const DEFAULT_PATCH=[{type:'profile',count:12},{type:'wash',count:10},{type:'jdc1',count:12},{type:'line',count:8},{type:'blinder',count:8}];
-let fluxData=null;let state={version:2,name:'New Flux Show',songId:'',bpm:128,duration:180,patch:structuredClone(DEFAULT_PATCH),events:[]};let history=[],future=[],armed=null,selectedEvent=null,selectedEvents=new Set(),eventClipboard=[],selectedLane='profile:all',position=0,playing=false,playbackSpeed=1,looping=false,started=0,raf=0,audioEl=null,audioBuffer=null,px=70;
-const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],uid=()=>crypto.randomUUID(),clamp=(n,a,b)=>Math.max(a,Math.min(b,n)),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function fixtureCount(groups,type){let highest=0;const visit=v=>{if(Array.isArray(v)){if(v.length===2&&v.every(Number.isFinite))highest=Math.max(highest,v[0]);else v.forEach(visit)}else if(v&&typeof v==='object')Object.values(v).forEach(visit)};visit(groups?.[type]);return highest||DEFAULT_PATCH.find(x=>x.type===type)?.count||1}
-function appendCustomDefinitions(){DEFINITIONS=DEFINITIONS.filter(x=>x[0]!=='My Blocks');if(CUSTOM_BLOCKS.length)DEFINITIONS.unshift(['My Blocks',CUSTOM_BLOCKS.map(x=>[x.name,'block',x.id,Math.max(.25,...x.actions.map(a=>a.duration||0))])])}
-function buildImportedLibrary(data){DEFINITIONS=structuredClone(BASE_DEFINITIONS);IMPORTED={};for(const [scope,action,singular] of [['positions','flux-position','Position'],['macros','flux-macro','Macro'],['effects','flux-effect','Effect']])for(const [fixture,records] of Object.entries(data[scope]||{})){const items=[];for(const [name,payload] of Object.entries(records||{})){const id=scope+'|'+fixture+'|'+name;IMPORTED[id]={scope,fixture,name,payload};items.push([name,action,id,action==='flux-effect'?4:0])}if(items.length)DEFINITIONS.push([fixture+' · '+singular+(items.length===1?'':'s'),items])}appendCustomDefinitions()}
-function importFlux(){try{const parsed=JSON.parse($('#fluxJson').value.trim());if(parsed.format&&parsed.format!=='fluxline-datastore')throw new Error('Unsupported export format: '+parsed.format);if(parsed.format==='fluxline-datastore'&&parsed.version!==1)throw new Error('Unsupported Fluxline export version: '+parsed.version);const data=parsed.format==='fluxline-datastore'?parsed.data:parsed;const required=['groups','positions','macros','effects','keybinds'];const missing=required.filter(k=>!data?.[k]||typeof data[k]!=='object');if(missing.length)throw new Error('Missing Flux sections: '+missing.join(', '));fluxData=data;buildImportedLibrary(data);const names=new Set;required.forEach(k=>Object.keys(data[k]).forEach(x=>{if(x!=='pyrotechnics')names.add(x)}));state.patch=[...names].map(type=>({type,count:fixtureCount(data.groups,type)}));if(!state.patch.length)throw new Error('No Flux fixtures were found.');selectedLane=state.patch[0].type+':all';localStorage.setItem('fluxDataStore',JSON.stringify(parsed));$('#importGate').classList.add('hidden');hydrate();toast('Flux library loaded')}catch(error){$('#importError').textContent=error.message}}
-function toast(s){const t=$('#toast');t.textContent=s;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),1400)}
-function commit(){history.push(JSON.stringify(state));if(history.length>80)history.shift();future=[];buttons()}
-function undo(){if(!history.length)return;future.push(JSON.stringify(state));state=JSON.parse(history.pop());selectedEvent=null;selectedEvents.clear();hydrate()}
-function redo(){if(!future.length)return;history.push(JSON.stringify(state));state=JSON.parse(future.pop());selectedEvent=null;selectedEvents.clear();hydrate()}
-function buttons(){$('#undo').disabled=!history.length;$('#redo').disabled=!future.length}
-function snapTime(t){const unit=+$('#snap').value;if(!unit)return clamp(t,0,state.duration);const sec=60/(+$('#bpm').value||128)*unit;return clamp(Math.round(t/sec)*sec,0,state.duration)}
-function selectedList(){return state.events.filter(e=>selectedEvents.has(e.id))}
-function setSelection(ids,primary=null){selectedEvents=new Set(ids);selectedEvent=state.events.find(e=>e.id===(primary||ids[0]))||null;renderTimeline();renderInspector()}
-function copySelection(){const list=selectedList();if(!list.length)return toast('Nothing selected to copy');const base=Math.min(...list.map(e=>e.time));eventClipboard=list.map(e=>({...structuredClone(e),_offset:e.time-base}));toast(`${list.length} event${list.length===1?'':'s'} copied`)}
-function pasteSelection(){if(!eventClipboard.length)return toast('Clipboard is empty');commit();const ids=[];for(const saved of eventClipboard){const e=structuredClone(saved);delete e._offset;e.id=uid();e.time=snapTime(position+saved._offset);if(!valid(e.target,e.action,e.native))continue;state.events.push(e);ids.push(e.id)}if(!ids.length)return toast('Nothing could be pasted');setSelection(ids);toast(`${ids.length} event${ids.length===1?'':'s'} pasted at the playhead`)}
-function deleteSelection(){if(!selectedEvents.size&&selectedEvent)selectedEvents.add(selectedEvent.id);if(!selectedEvents.size)return;commit();state.events=state.events.filter(e=>!selectedEvents.has(e.id));selectedEvents.clear();selectedEvent=null;renderAll()}
-function duplicateSelection(){const list=selectedList().length?selectedList():(selectedEvent?[selectedEvent]:[]);if(!list.length)return;commit();const shift=60/state.bpm,ids=[];for(const source of list){const e={...structuredClone(source),id:uid(),time:snapTime(source.time+shift)};state.events.push(e);ids.push(e.id)}setSelection(ids);toast(`${ids.length} duplicated`)}
-function capabilities(type){return CAPS[type]||[]}
-function cueFromButton(b){const custom=CUSTOM_BLOCKS.find(x=>x.id===b.dataset.value),cue={label:b.dataset.label,action:b.dataset.action,value:b.dataset.value,duration:+b.dataset.duration,kind:b.dataset.kind,native:IMPORTED[b.dataset.value]||null,actions:custom?.actions||null};if(cue.action==='color')cue.value=$('#color').value;return cue}
-function scrollWhileDragging(e){const s=$('#scroller'),r=s.getBoundingClientRect(),edge=46;if(e.clientX>r.right-edge)s.scrollLeft+=18;else if(e.clientX<r.left+edge)s.scrollLeft-=18;if(e.clientY>r.bottom-edge)s.scrollTop+=14;else if(e.clientY<r.top+edge)s.scrollTop-=14}
-function zoomTo(next){const s=$('#scroller'),anchor=210+position*px-s.scrollLeft;px=next;document.documentElement.style.setProperty('--pps',px+'px');renderRuler();renderTimeline();s.scrollLeft=Math.max(0,210+position*px-anchor)}
-function paletteDrag(ev,b){if(ev.button!==0)return;ev.preventDefault();const startX=ev.clientX,startY=ev.clientY,ghost=document.createElement('div');ghost.className='dragghost';ghost.textContent=b.dataset.label;ghost.style.display='none';document.body.appendChild(ghost);let moved=false,lastTrack=null;const clear=()=>{lastTrack?.classList.remove('drop-ok','drop-bad');lastTrack=null};const move=e=>{if(!moved&&Math.hypot(e.clientX-startX,e.clientY-startY)<5)return;moved=true;document.body.classList.add('timeline-dragging');ghost.style.display='block';ghost.style.left=e.clientX+'px';ghost.style.top=e.clientY+'px';scrollWhileDragging(e);clear();const track=document.elementFromPoint(e.clientX,e.clientY)?.closest('.track');if(track){const cue=cueFromButton(b),ok=valid(track.dataset.lane,cue.action,cue.native);track.classList.add(ok?'drop-ok':'drop-bad');lastTrack=track}};const up=e=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);document.body.classList.remove('timeline-dragging');clear();ghost.remove();if(!moved){armed=cueFromButton(b);$$('.block').forEach(x=>x.classList.toggle('active',x===b));toast(`${armed.label} armed — click a lane or press Enter`);return}const track=document.elementFromPoint(e.clientX,e.clientY)?.closest('.track');if(!track){toast('Drop it on a fixture lane');return}armed=cueFromButton(b);const rect=track.getBoundingClientRect();place(track.dataset.lane,snapTime((e.clientX-rect.left)/px));armed=null;$$('.block').forEach(x=>x.classList.remove('active'))};window.addEventListener('pointermove',move);window.addEventListener('pointerup',up)}
-function renderPalette(){const q=$('#search').value.toLowerCase();$('#palette').innerHTML=DEFINITIONS.map(([section,items])=>{const visible=items.filter(x=>(section+' '+x[0]).toLowerCase().includes(q));if(!visible.length)return'';return `<div class="section-title">${section}</div><div class="blocks">${visible.map(([label,action,value,duration])=>{const native=IMPORTED[value]||null,blocked=!valid(selectedLane,action,native);return `<button title="${blocked?'Not supported by the selected lane':'Drag to place · click to arm · double-click at playhead'}" class="block ${blocked?'blocked':''} ${armed?.label===label&&armed?.action===action?'active':''}" data-label="${label}" data-action="${action}" data-value="${value}" data-duration="${duration||0}" data-kind="${action.startsWith('flux-')?action.slice(5):action==='block'?'block':section==='Movement'?'movement':section==='Pyrotechnics'?'pyro':section==='Beam / lens'?'beam':'output'}">${label}</button>`}).join('')}</div>`}).join('');$$('.block').forEach(b=>{b.onpointerdown=e=>paletteDrag(e,b);b.ondblclick=e=>{e.preventDefault();e.stopPropagation();armed=cueFromButton(b);place(selectedLane,snapTime(position));armed=null;renderPalette()}})}
-function patchSummary(){const total=state.patch.reduce((a,f)=>a+f.count,0);$('#summary').textContent=`Flux · ${state.patch.length} fixture types · ${total} fixtures`;$('#patchSummary').innerHTML=`<b>${state.name}</b><br>${state.patch.map(f=>`${f.type} ${f.count}`).join(' · ')}<br><span>Drag cues from the palette onto a compatible lane.</span>`}
-function timelineWidth(){return Math.max(900,state.duration*px)}
-function scrubSurface(ev,element,wave=false){if(ev.button!==0)return;ev.preventDefault();document.body.classList.add('timeline-dragging');const update=e=>{const r=element.getBoundingClientRect(),time=wave?(e.clientX-r.left)/r.width*state.duration:(e.clientX-r.left)/px;seek(snapTime(time))};update(ev);const up=()=>{window.removeEventListener('pointermove',update);window.removeEventListener('pointerup',up);document.body.classList.remove('timeline-dragging')};window.addEventListener('pointermove',update);window.addEventListener('pointerup',up)}
-function renderRuler(){const r=$('#ruler'),w=timelineWidth();r.style.width=w+'px';const step=px<55?5:px<100?2:1;let s='';for(let t=0;t<=state.duration;t+=step)s+=`<div class="tick" style="left:${t*px}px">${format(t,false)}</div>`;r.innerHTML=s;r.onpointerdown=e=>scrubSurface(e,r)}
-function laneList(){const lanes=[];for(const f of state.patch){lanes.push({key:f.type+':all',type:f.type,label:f.type,detail:f.count+' fixtures'});for(const [name,record] of Object.entries(fluxData?.groups?.[f.type]||{})){const selection=(record?.meta||[]).map(x=>Array.isArray(x)?x[0]:null).filter(Number.isFinite);lanes.push({key:f.type+':group:'+encodeURIComponent(name),type:f.type,label:name.trim(),detail:'Flux group · '+selection.length+' fixtures',selection})}}return lanes}
-function laneSelection(target){return laneList().find(x=>x.key===target)?.selection||null}
-function eventWidth(e){return Math.max(48,Math.min(170,28+String(e.label||'Cue').length*6.5),(e.duration||0)*px)}
-function stackEvents(events){const rowEnds=[];return [...events].sort((a,b)=>a.time-b.time||String(a.id).localeCompare(String(b.id))).map(event=>{const left=event.time*px,end=left+eventWidth(event)+4;let row=rowEnds.findIndex(x=>x<=left);if(row<0)row=rowEnds.length;rowEnds[row]=end;return{event,row}})}
-function laneMarkup(key,label,detail,w){const stacked=stackEvents(state.events.filter(e=>e.target===key)),rows=Math.max(1,...stacked.map(x=>x.row+1)),height=56+(rows-1)*42;return `<div class="lane" style="height:${height}px"><div class="lane-label ${selectedLane===key?'selected':''}" data-lane="${key}"><b>${label}</b><small>${detail}</small></div><div class="track" data-lane="${key}" style="width:${w}px">${stacked.map(x=>eventHtml(x.event,x.row)).join('')}</div></div>`}
-function startMarquee(ev){if(ev.button!==0||ev.target.closest('.event,.lane-label,#head'))return;const track=ev.target.closest('.track');if(!track)return;const box=$('#marquee'),x0=ev.clientX,y0=ev.clientY;let moved=false;const move=e=>{if(!moved&&Math.abs(e.clientX-x0)+Math.abs(e.clientY-y0)<5)return;moved=true;box.style.display='block';box.style.left=Math.min(x0,e.clientX)+'px';box.style.top=Math.min(y0,e.clientY)+'px';box.style.width=Math.abs(e.clientX-x0)+'px';box.style.height=Math.abs(e.clientY-y0)+'px'};const up=e=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);box.style.display='none';const at=snapTime((e.clientX-track.getBoundingClientRect().left)/px);selectedLane=track.dataset.lane;if(!moved){if(armed){place(selectedLane,at);armed=null;renderPalette()}else{setSelection([]);seek(at)}return}const l=Math.min(x0,e.clientX),r=Math.max(x0,e.clientX),t=Math.min(y0,e.clientY),b=Math.max(y0,e.clientY),ids=[];$$('.event').forEach(el=>{const q=el.getBoundingClientRect();if(q.right>=l&&q.left<=r&&q.bottom>=t&&q.top<=b)ids.push(el.dataset.id)});setSelection(ids);if(ids.length)toast(`${ids.length} selected`)};window.addEventListener('pointermove',move);window.addEventListener('pointerup',up)}
-function renderTimeline(){const w=timelineWidth();let html=`<div class="playhead" id="head"></div><div class="marquee" id="marquee"></div>`;for(const lane of laneList()){const caps=capabilities(lane.type);html+=laneMarkup(lane.key,lane.label,lane.detail+' · '+caps.join(' · '),w)}html+=laneMarkup('pyrotechnics','Pyrotechnics','sparks · haze · fire · CO₂ · fireworks · bubbles',w);$('#timeline').style.width=(210+w)+'px';$('#timeline').innerHTML=html;$$('.lane-label').forEach(x=>x.onclick=()=>{selectedLane=x.dataset.lane;renderTimeline();renderPalette()});$$('.event').forEach(el=>el.onpointerdown=e=>dragEvent(e,el));$('#timeline').onpointerdown=startMarquee;drawHead();$('#count').textContent=`${state.events.length} event${state.events.length===1?'':'s'}`;checks()}
-function eventHtml(e,row=0){return `<div class="event ${selectedEvent?.id===e.id?'selected':selectedEvents.has(e.id)?'multi':''}" data-id="${e.id}" data-kind="${e.kind}" style="top:${9+row*42}px;left:${e.time*px}px;width:${eventWidth(e)}px">${e.label}<span class="resize-handle" title="Drag to resize"></span></div>`}
-function valid(target,action,native=null){if(target==='pyrotechnics')return action==='pyro';if(action==='pyro')return false;if(action==='block')return true;const type=target.split(':')[0];if(action.startsWith('flux-'))return native?.fixture===type;return capabilities(type).includes(action==='level'?'intensity':action)||action==='reset'}
-function place(target,time){if(!armed){toast('Drag a cue or custom block onto a lane');return}if(!valid(target,armed.action,armed.native)){toast('That cue belongs to a different fixture type');return}commit();let value=armed.value;if(armed.action==='color')value=$('#color').value;else if(!armed.native&&!armed.actions&&!isNaN(Number(value))&&value!=='')value=Number(value);const e={id:uid(),target,time:+time.toFixed(3),action:armed.action,value,duration:armed.duration,label:armed.label,kind:armed.kind,selection:laneSelection(target),native:armed.native,actions:structuredClone(armed.actions)};state.events.push(e);selectedEvents=new Set([e.id]);selectedEvent=e;renderTimeline();renderInspector()}
-function trackAtPoint(x,y){return document.elementsFromPoint(x,y).find(n=>n.classList?.contains('track'))||null}
-function dragEvent(ev,el){if(ev.button!==0)return;ev.preventDefault();ev.stopPropagation();const item=state.events.find(x=>x.id===el.dataset.id);if(!item)return;const additive=ev.ctrlKey||ev.metaKey||ev.shiftKey;if(additive){selectedEvents.has(item.id)?selectedEvents.delete(item.id):selectedEvents.add(item.id);selectedEvent=selectedEvents.size?item:null;renderTimeline();renderInspector();return}if(!selectedEvents.has(item.id))selectedEvents=new Set([item.id]);selectedEvent=item;renderTimeline();renderInspector();const scroller=$('#scroller'),startScrollX=scroller.scrollLeft,startX=ev.clientX,anchorTime=item.time,moving=selectedList(),starts=moving.map(e=>({e,time:e.time,target:e.target,selection:e.selection,node:$$('.event').find(n=>n.dataset.id===e.id),track:$$('.track').find(t=>t.dataset.lane===e.target)})),minTime=Math.min(...starts.map(s=>s.time)),maxTime=Math.max(...starts.map(s=>s.time)),trash=$('#dragTrash');let moved=false,overTrash=false,shift=0,target=null,highlight=null;const clear=()=>{highlight?.classList.remove('drop-ok','drop-bad');highlight=null};const move=e=>{if(!moved&&Math.abs(e.clientX-startX)<4)return;if(!moved){moved=true;document.body.classList.add('timeline-dragging','event-dragging')}scrollWhileDragging(e);const scrollDelta=scroller.scrollLeft-startScrollX,anchorNew=snapTime(anchorTime+(e.clientX-startX+scrollDelta)/px);shift=clamp(anchorNew-anchorTime,-minTime,state.duration-maxTime);const tr=trash.getBoundingClientRect();overTrash=e.clientX>=tr.left&&e.clientX<=tr.right&&e.clientY>=tr.top&&e.clientY<=tr.bottom;trash.classList.toggle('hot',overTrash);clear();target=null;const track=overTrash?null:trackAtPoint(e.clientX,e.clientY);if(track){const key=track.dataset.lane,ok=starts.every(s=>valid(key,s.e.action,s.e.native));track.classList.add(ok?'drop-ok':'drop-bad');highlight=track;if(ok)target=key}starts.forEach(s=>{if(!s.node)return;const dy=target&&s.track?track.getBoundingClientRect().top-s.track.getBoundingClientRect().top:0;s.node.style.transform=`translate(${shift*px}px,${dy}px)`;s.node.classList.add('dragging')})};const up=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);document.body.classList.remove('timeline-dragging','event-dragging');trash.classList.remove('hot');clear();if(moved){commit();if(overTrash){const n=selectedEvents.size;state.events=state.events.filter(e=>!selectedEvents.has(e.id));selectedEvents.clear();selectedEvent=null;toast(`${n} event${n===1?'':'s'} deleted`)}else starts.forEach(s=>{s.e.time=+(s.time+shift).toFixed(3);if(target){s.e.target=target;s.e.selection=laneSelection(target)}});autosave()}renderTimeline();renderInspector()};window.addEventListener('pointermove',move);window.addEventListener('pointerup',up)}
-function dragPlayhead(ev){if(ev.button!==0)return;ev.preventDefault();ev.stopPropagation();const startX=ev.clientX,start=position;document.body.classList.add('timeline-dragging');const move=e=>{scrollWhileDragging(e);seek(snapTime(start+(e.clientX-startX)/px))};const up=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);document.body.classList.remove('timeline-dragging')};window.addEventListener('pointermove',move);window.addEventListener('pointerup',up)}
-function resizeEvent(ev,el){if(ev.button!==0)return;ev.preventDefault();ev.stopPropagation();const item=state.events.find(x=>x.id===el.dataset.id);if(!item)return;selectedEvents=new Set([item.id]);selectedEvent=item;renderTimeline();renderInspector();const node=$$(`.event`).find(n=>n.dataset.id===item.id),scroller=$('#scroller'),startScroll=scroller.scrollLeft,startX=ev.clientX,startDuration=item.duration||.35;let moved=false,next=startDuration;const move=e=>{if(!moved&&Math.abs(e.clientX-startX)<3)return;if(!moved){moved=true;document.body.classList.add('timeline-dragging')}scrollWhileDragging(e);const track=trackAtPoint(e.clientX,e.clientY),end=track?snapTime((e.clientX-track.getBoundingClientRect().left)/px):snapTime(item.time+startDuration+(e.clientX-startX+scroller.scrollLeft-startScroll)/px);next=Math.max(.05,end-item.time);if(node)node.style.width=eventWidth({...item,duration:next})+'px';const field=$('#evDuration');if(field)field.value=+next.toFixed(3)};const up=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);document.body.classList.remove('timeline-dragging');if(moved){commit();item.duration=+next.toFixed(3);autosave()}renderTimeline();renderInspector()};window.addEventListener('pointermove',move);window.addEventListener('pointerup',up)}
-function renderInspector(){const root=$('#inspector');if(selectedEvents.size>1){const list=selectedList();root.innerHTML=`<h2>${list.length} events selected</h2><p class="sub">Drag any selected event to move the group together.</p><div class="field"><label>Move by beats</label><input id="multiShift" type="number" step=".25" value="0"></div><div class="field"><label>Set duration</label><input id="multiDuration" type="number" step=".05" min="0" placeholder="Leave unchanged"></div><button class="pill" id="copyMany">Copy</button> <button class="pill" id="duplicateMany">Duplicate</button> <button class="pill danger" id="deleteMany">Delete</button>`;$('#multiShift').onchange=x=>{const amount=(+x.target.value||0)*60/state.bpm;if(!amount)return;commit();list.forEach(e=>e.time=snapTime(e.time+amount));renderAll()};$('#multiDuration').onchange=x=>{if(x.target.value==='')return;commit();list.forEach(e=>e.duration=Math.max(0,+x.target.value||0));renderAll()};$('#copyMany').onclick=copySelection;$('#duplicateMany').onclick=duplicateSelection;$('#deleteMany').onclick=deleteSelection;return}if(!selectedEvent){root.innerHTML=`<h2>Nothing selected</h2><p class="sub">Drag a cue onto a lane, or click one then click the timeline. Double-click places it at the playhead.</p><div class="section-title">Project</div><div class="field"><label>Show name</label><input id="showName" value="${state.name}"></div><div class="field"><label>Roblox song ID</label><input id="songId" value="${state.songId}"></div><div class="field"><label>Duration</label><input id="duration" type="number" value="${state.duration}"></div>`;$('#showName').onchange=e=>{commit();state.name=e.target.value;patchSummary()};$('#songId').onchange=e=>{commit();state.songId=e.target.value.replace(/\D/g,'')};$('#duration').onchange=e=>{commit();state.duration=Math.max(5,+e.target.value||180);renderAll()};return}const e=selectedEvent,isColor=e.action==='color',isPyro=e.action==='pyro',isNative=e.action.startsWith('flux-'),isBlock=e.action==='block',range={level:[0,1,.01],intensity:[0,1,.01],pan:[-180,180,1],tilt:[-180,180,1],spin:[-360,360,1],pitch:[-180,180,1],strobe:[0,30,.25],iris:[0,1,.01],width:[0,1,.01]}[e.action];const targets=laneList().map(l=>`<option value="${l.key}" ${e.target===l.key?'selected':''}>${l.label} · ${l.detail}</option>`).join('');const valueEditor=isColor?`<div class="field"><label>Colour</label><div class="row"><input id="evValue" type="color" value="${e.value}"><input id="evHex" value="${e.value}"></div></div>`:range?`<div class="field"><label>Value</label><input id="evRange" type="range" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"><input id="evValue" type="number" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"></div>`:`<div class="field"><label>Value</label><input id="evValue" type="number" step=".01" value="${e.value}"></div>`;root.innerHTML=`<h2>${e.label}</h2><p class="sub">${isBlock?`${e.actions?.length||0} actions fire together`:e.native?e.native.fixture+' · '+e.native.scope:e.target+' · '+e.action}</p><div class="row"><div class="field"><label>Time</label><input id="evTime" type="number" step=".001" value="${e.time}"></div><div class="field"><label>Duration</label><input id="evDuration" type="number" step=".05" min="0" value="${e.duration||0}"></div></div>${isPyro||isNative||isBlock?'':valueEditor}${isBlock?`<div class="section-title">Block actions</div>${e.actions.map(a=>`<p class="sub">${esc(a.label)} · ${esc(a.action)} · ${esc(a.value)}${a.duration?` · ${a.duration}s`:''}</p>`).join('')}`:''}<div class="field"><label>Target</label><select id="evTarget">${targets}<option value="pyrotechnics" ${e.target==='pyrotechnics'?'selected':''}>Pyrotechnics</option></select></div><button class="pill" id="copyOne">Copy</button> <button class="pill" id="duplicateOne">Duplicate</button> <button class="pill danger" id="delete">Delete</button>`;const change=()=>{commit();e.time=snapTime(+$('#evTime').value);e.duration=Math.max(0,+$('#evDuration').value);e.target=$('#evTarget').value;e.selection=laneSelection(e.target);if($('#evValue'))e.value=isColor?$('#evValue').value:+$('#evValue').value;renderTimeline()};['evTime','evDuration','evTarget','evValue'].forEach(id=>{const x=$('#'+id);if(x)x.onchange=change});if($('#evRange')){$('#evRange').oninput=x=>{$('#evValue').value=x.target.value;e.value=+x.target.value;renderTimeline()};$('#evValue').oninput=x=>{$('#evRange').value=x.target.value}}if($('#evHex'))$('#evHex').onchange=x=>{if(/^#[0-9a-f]{6}$/i.test(x.target.value)){e.value=x.target.value;$('#evValue').value=e.value;renderTimeline()}};$('#copyOne').onclick=()=>{selectedEvents=new Set([e.id]);copySelection()};$('#duplicateOne').onclick=()=>{selectedEvents=new Set([e.id]);duplicateSelection()};$('#delete').onclick=deleteSelection}
-function removeSelected(){deleteSelection()}
-function duplicate(){duplicateSelection()}
-function format(t,ms=true){const m=Math.floor(t/60),s=Math.floor(t%60),n=Math.floor(t%1*1000);return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}${ms?`<span style="color:#777">.${String(n).padStart(3,'0')}</span>`:''}`}
-function seek(t){position=clamp(t,0,state.duration);if(audioEl)audioEl.currentTime=position;drawHead()}function drawHead(){const h=$('#head');if(h)h.style.left=(210+position*px)+'px';$('#time').innerHTML=format(position)}function stop(){playing=false;cancelAnimationFrame(raf);if(audioEl)audioEl.pause();$('#play').textContent='▶'}function tick(){if(!playing)return;position=audioEl?audioEl.currentTime:(performance.now()-started)/1000*playbackSpeed;if(position>=state.duration){if(looping){position=0;started=performance.now();if(audioEl){audioEl.currentTime=0;audioEl.play()}}else{stop();position=state.duration}}drawHead();raf=requestAnimationFrame(tick)}function togglePlay(){if(playing){stop();return}playing=true;started=performance.now()-position/playbackSpeed*1000;if(audioEl){audioEl.currentTime=position;audioEl.playbackRate=playbackSpeed;audioEl.play()}$('#play').textContent='❚❚';tick()}
-async function loadAudio(file){audioEl=new Audio(URL.createObjectURL(file));$('#audioName').textContent=file.name;const data=await file.arrayBuffer(),ctx=new AudioContext();audioBuffer=await ctx.decodeAudioData(data.slice(0));state.duration=audioBuffer.duration;drawWave();renderAll();toast('Audio loaded')}
-function drawWave(){const c=$('#wave'),box=$('#waveWrap');c.width=Math.max(1,box.clientWidth*devicePixelRatio);c.height=Math.max(1,box.clientHeight*devicePixelRatio);const x=c.getContext('2d');x.scale(devicePixelRatio,devicePixelRatio);const w=box.clientWidth,h=box.clientHeight;x.clearRect(0,0,w,h);x.strokeStyle='#fff';x.globalAlpha=.65;x.beginPath();if(audioBuffer){const d=audioBuffer.getChannelData(0),step=Math.max(1,Math.floor(d.length/w));for(let i=0;i<w;i++){let lo=1,hi=-1;for(let j=0;j<step;j++){const v=d[i*step+j]||0;lo=Math.min(lo,v);hi=Math.max(hi,v)}x.moveTo(i,(1+lo)*h/2);x.lineTo(i,(1+hi)*h/2)}}else{for(let i=0;i<w;i+=3){const a=Math.sin(i*.11)*.08+Math.sin(i*.037)*.05;x.moveTo(i,h*(.5-a));x.lineTo(i,h*(.5+a))}}x.stroke()}
-function checks(){const bad=state.events.filter(e=>!valid(e.target,e.action,e.native));const b=$('#checks');b.textContent=bad.length?`● ${bad.length} export issue${bad.length>1?'s':''}`:'● All checks pass';b.classList.toggle('check',!bad.length);return bad}
-function lua(v){if(v===null||v===undefined)return'nil';if(typeof v==='number'||typeof v==='boolean')return String(v);if(typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v)){const n=parseInt(v.slice(1),16);return `{${n>>16},${n>>8&255},${n&255}}`}if(typeof v==='string')return JSON.stringify(v);if(Array.isArray(v))return'{'+v.map((x,i)=>`[${i+1}] = ${lua(x)}`).join(', ')+'}';if(typeof v==='object')return'{'+Object.entries(v).map(([k,x])=>`[${JSON.stringify(k)}] = ${lua(x)}`).join(', ')+'}';return'nil'}function exportLua(){const ev=[...state.events].sort((a,b)=>a.time-b.time).map(e=>`\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration||0}, selection = ${lua(e.selection)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`).join('\n');return `-- Exported by Flux Sequencer\nreturn {\n\tversion = 3,\n\tname = ${JSON.stringify(state.name)},\n\tsongId = ${JSON.stringify(state.songId)},\n\tduration = ${state.duration},\n\tbpm = ${state.bpm},\n\tevents = {\n${ev}\n\t},\n}`}
-function openModal(title,sub,text,copy=true){$('#modalTitle').textContent=title;$('#modalSub').textContent=sub;$('#output').textContent=text;$('#copy').style.display=copy?'':'none';$('#modal').classList.add('open')}
-function save(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}));a.download=(state.name||'show').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'.flux.json';a.click()}
-function projectBundle(){return{format:'fluxline-project',version:1,savedAt:new Date().toISOString(),state,fluxData,customBlocks:CUSTOM_BLOCKS}}
-function loadProject(bundle){if(bundle?.format==='fluxline-project'){state=bundle.state;fluxData=bundle.fluxData||null;CUSTOM_BLOCKS=bundle.customBlocks||CUSTOM_BLOCKS}else if(bundle?.events){state=bundle}else throw new Error('This is not a Fluxline project file.');if(fluxData)buildImportedLibrary(fluxData);else{DEFINITIONS=structuredClone(BASE_DEFINITIONS);IMPORTED={};appendCustomDefinitions()}selectedEvent=null;selectedEvents.clear();selectedLane=state.patch?.[0]?.type+':all';hydrate();toast('Show loaded')}
-function downloadProject(){const blob=new Blob([JSON.stringify(projectBundle(),null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=(state.name||'flux-show').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'.fluxline.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
-function savedProjects(){try{return JSON.parse(localStorage.getItem('fluxlineSavedShows'))||[]}catch{return[]}}
-function renderSavedShows(){const root=$('#savedShows'),items=savedProjects();root.innerHTML=items.map(x=>`<div class="saved-item" data-id="${esc(x.id)}"><b>${esc(x.name)}</b><small>${new Date(x.savedAt).toLocaleString()}</small><button data-load="${esc(x.id)}">Load</button><button data-delete="${esc(x.id)}">Delete</button></div>`).join('');$$('[data-load]').forEach(b=>b.onclick=()=>{const item=savedProjects().find(x=>x.id===b.dataset.load);if(item){loadProject(item.project);$('#projectModal').classList.remove('open')}});$$('[data-delete]').forEach(b=>b.onclick=()=>{localStorage.setItem('fluxlineSavedShows',JSON.stringify(savedProjects().filter(x=>x.id!==b.dataset.delete)));renderSavedShows()})}
-function cacheProject(){const items=savedProjects(),existing=items.find(x=>x.name===state.name),entry={id:existing?.id||uid(),name:state.name||'Untitled show',savedAt:new Date().toISOString(),project:projectBundle()};const next=[entry,...items.filter(x=>x.id!==entry.id)].slice(0,20);localStorage.setItem('fluxlineSavedShows',JSON.stringify(next));renderSavedShows();toast('Saved in this browser')}
-function autosave(){try{localStorage.setItem('fluxlineAutosave',JSON.stringify(projectBundle()))}catch{}}
-function readCustomBlocks(){try{CUSTOM_BLOCKS=JSON.parse(localStorage.getItem('fluxlineCustomBlocks'))||[]}catch{CUSTOM_BLOCKS=[]}appendCustomDefinitions()}
-function renderBuilderActions(){const root=$('#builderActions');root.innerHTML=builderActions.length?builderActions.map((a,i)=>`<div class="builder-action"><b>${esc(a.label)}</b><span>${esc(a.value)}${a.duration?` · ${a.duration}s`:''}</span><button class="project-action" data-remove-action="${i}">Remove</button></div>`).join(''):'<div class="builder-empty">Add two or more actions. They will fire at exactly the same time.</div>';$$('[data-remove-action]').forEach(b=>b.onclick=()=>{builderActions.splice(+b.dataset.removeAction,1);renderBuilderActions()})}
-function renderCustomBlockManager(){const root=$('#savedBlocksEditor');root.innerHTML=CUSTOM_BLOCKS.length?CUSTOM_BLOCKS.map(x=>`<div class="builder-action"><b>${esc(x.name)}</b><span>${x.actions.length} actions</span><button class="project-action" data-edit-block="${x.id}">Edit</button><button class="project-action" data-delete-block="${x.id}">Delete</button></div>`).join(''):'<div class="builder-empty">No custom blocks yet.</div>';$$('[data-edit-block]').forEach(b=>b.onclick=()=>{const x=CUSTOM_BLOCKS.find(y=>y.id===b.dataset.editBlock);if(!x)return;editingBlockId=x.id;$('#blockName').value=x.name;builderActions=structuredClone(x.actions);renderBuilderActions()});$$('[data-delete-block]').forEach(b=>b.onclick=()=>{CUSTOM_BLOCKS=CUSTOM_BLOCKS.filter(x=>x.id!==b.dataset.deleteBlock);localStorage.setItem('fluxlineCustomBlocks',JSON.stringify(CUSTOM_BLOCKS));appendCustomDefinitions();renderCustomBlockManager();renderPalette();toast('Block deleted')})}
-function resetBlockEditor(){editingBlockId=null;builderActions=[];$('#blockName').value='';syncBlockValue();renderBuilderActions()}
-function syncBlockValue(){const [action,value]=$('#blockAction').value.split(':');$('#blockValue').type=action==='color'?'color':'number';$('#blockValue').step=action==='color'?'':'.01';$('#blockValue').value=value}
-function addBuilderAction(){const option=$('#blockAction').selectedOptions[0],[action]=$('#blockAction').value.split(':'),raw=$('#blockValue').value,duration=Math.max(0,+$('#blockDuration').value||0),value=action==='color'?raw:+raw;builderActions.push({label:option.textContent,action,value,duration});renderBuilderActions()}
-function saveCustomBlock(){const name=$('#blockName').value.trim();if(!name)return toast('Give this block a name');if(!builderActions.length)return toast('Add at least one action');const existing=CUSTOM_BLOCKS.find(x=>x.id===editingBlockId)||CUSTOM_BLOCKS.find(x=>x.name.toLowerCase()===name.toLowerCase()),item={id:existing?.id||uid(),name,actions:structuredClone(builderActions)};CUSTOM_BLOCKS=[item,...CUSTOM_BLOCKS.filter(x=>x.id!==item.id)];localStorage.setItem('fluxlineCustomBlocks',JSON.stringify(CUSTOM_BLOCKS));appendCustomDefinitions();renderPalette();renderCustomBlockManager();resetBlockEditor();toast('Block saved — drag it from My Blocks')}
-function hydrate(){state.patch=state.patch||structuredClone(DEFAULT_PATCH);state.events=state.events||[];$('#bpm').value=state.bpm||128;renderAll()}function renderAll(){patchSummary();renderPalette();renderRuler();renderTimeline();renderInspector();drawWave();buttons();autosave()}
-$('#loadFlux').onclick=importFlux;$('#demoFlux').onclick=()=>{$('#importGate').classList.add('hidden');hydrate()};$('#fluxJson').oninput=()=>{$('#importError').textContent=''};
-$('#search').oninput=renderPalette;$('#color').oninput=e=>{if(armed?.action==='color'){armed.value=e.target.value;renderPalette()}};$('#undo').onclick=undo;$('#redo').onclick=redo;$('#play').onclick=togglePlay;$('#home').onclick=()=>{stop();seek(0)};$('#bpm').onchange=e=>{commit();state.bpm=+e.target.value||128};$('#zoom').oninput=e=>{px=+e.target.value;document.documentElement.style.setProperty('--pps',px+'px');renderRuler();renderTimeline()};$('#waveWrap').onpointerdown=e=>scrubSurface(e,e.currentTarget,true);$('#audio').onclick=()=>$('#file').click();$('#file').onchange=e=>{const f=e.target.files[0];if(f)loadAudio(f);e.target.value=''};$('#checks').onclick=()=>{const bad=checks();openModal('Export checks',bad.length?'Fix these events before export.':'Every event is supported by its target fixture.',bad.length?bad.map(e=>`${e.time}s · ${e.target} cannot use ${e.action}`).join('\n'):'No problems found.',false)};$('#projectMenu').onclick=()=>{$('#projectModal').classList.add('open');renderSavedShows()};$('#closeProject').onclick=()=>$('#projectModal').classList.remove('open');$('#projectModal').onclick=e=>{if(e.target.id==='projectModal')$('#projectModal').classList.remove('open')};$('#importDatastore').onclick=()=>{$('#projectModal').classList.remove('open');$('#fluxJson').value='';$('#importError').textContent='';$('#importGate').classList.remove('hidden')};$('#exportShow').onclick=()=>{if(checks().length){$('#projectModal').classList.remove('open');$('#checks').click();return}$('#projectModal').classList.remove('open');openModal('Export Flux show','Copy this into a ModuleScript inside Workspace.Fluxline.Shows.',exportLua())};$('#importShow').onclick=()=>$('#showFile').click();$('#showFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const reader=new FileReader();reader.onload=()=>{try{loadProject(JSON.parse(reader.result));$('#projectModal').classList.remove('open')}catch(error){toast(error.message)}};reader.readAsText(f);e.target.value=''};$('#downloadShow').onclick=downloadProject;$('#cacheShow').onclick=cacheProject;$('#close').onclick=()=>$('#modal').classList.remove('open');$('#copy').onclick=()=>navigator.clipboard.writeText($('#output').textContent).then(()=>toast('Copied'));$('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').classList.remove('open')};
-const paletteDragBase=paletteDrag;paletteDrag=function(ev,b){if(b.classList.contains('blocked')){toast('That cue is not supported by the selected lane');return}paletteDragBase(ev,b)};
-$('#zoom').oninput=e=>zoomTo(+e.target.value);$('#speed').onchange=e=>{playbackSpeed=+e.target.value||1;if(audioEl)audioEl.playbackRate=playbackSpeed;if(playing&&!audioEl)started=performance.now()-position/playbackSpeed*1000};$('#loop').onclick=e=>{looping=!looping;e.currentTarget.classList.toggle('check',looping);toast(looping?'Loop on':'Loop off')};
-$('#blocksMenu').onclick=()=>{resetBlockEditor();renderCustomBlockManager();$('#blocksModal').classList.add('open')};$('#closeBlocks').onclick=()=>$('#blocksModal').classList.remove('open');$('#blocksModal').onclick=e=>{if(e.target.id==='blocksModal')$('#blocksModal').classList.remove('open')};$('#blockAction').onchange=syncBlockValue;$('#addBlockAction').onclick=addBuilderAction;$('#newBlock').onclick=resetBlockEditor;$('#saveBlock').onclick=saveCustomBlock;
-document.addEventListener('pointerdown',e=>{const handle=e.target.closest?.('.resize-handle');if(handle)return resizeEvent(e,handle.parentElement);if(e.target.closest?.('#head'))dragPlayhead(e)},true);
-document.addEventListener('keydown',e=>{if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName))return;const mod=e.ctrlKey||e.metaKey,key=e.key.toLowerCase();if(e.code==='Space'){e.preventDefault();togglePlay()}else if(e.key==='Escape'){armed=null;selectedEvents.clear();selectedEvent=null;renderAll()}else if(e.key==='Enter'&&armed){e.preventDefault();place(selectedLane,snapTime(position));armed=null;renderPalette()}else if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();deleteSelection()}else if(mod&&key==='c'){e.preventDefault();copySelection()}else if(mod&&key==='v'){e.preventDefault();pasteSelection()}else if(mod&&key==='z'){e.preventDefault();e.shiftKey?redo():undo()}else if(mod&&key==='d'){e.preventDefault();duplicateSelection()}else if(selectedEvents.size&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){e.preventDefault();commit();const amount=(e.key==='ArrowRight'?1:-1)*(e.shiftKey?60/state.bpm*4:(+$('#snap').value||1)*60/state.bpm);selectedList().forEach(x=>x.time=snapTime(x.time+amount));renderAll()}});window.addEventListener('resize',drawWave);readCustomBlocks();renderAll();
-</script></body></html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Flux Sequencer</title>
+    <style>
+      .event {
+        touch-action: none;
+      }
+      .resize-handle {
+        touch-action: none;
+      }
+      .event.dragging {
+        will-change: transform;
+      }
+      .event.interact-resizing {
+        will-change: width;
+        z-index: 20;
+      }
+      .playhead {
+        pointer-events: auto !important;
+        cursor: ew-resize;
+      }
+      .playhead:after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -7px;
+        width: 16px;
+        height: 22px;
+        background: #fff;
+        border-radius: 4px 4px 7px 7px;
+      }
+      .resize-handle {
+        position: absolute;
+        right: -1px;
+        top: 0;
+        width: 13px;
+        height: 100%;
+        z-index: 3;
+        cursor: ew-resize;
+        background: linear-gradient(90deg, transparent, #777);
+        opacity: 0.45;
+      }
+      .event:hover .resize-handle {
+        opacity: 1;
+      }
+      .event.dragging {
+        cursor: grabbing;
+        z-index: 20;
+        opacity: 0.86;
+      }
+      .event.multi {
+        box-shadow: 0 0 0 2px #999;
+      }
+      .marquee {
+        position: fixed;
+        display: none;
+        z-index: 110;
+        pointer-events: none;
+        border: 1px solid #fff;
+        background: #ffffff20;
+        border-radius: 4px;
+      }
+      .dragghost {
+        position: fixed;
+        z-index: 120;
+        pointer-events: none;
+        padding: 9px 13px;
+        border-radius: 11px;
+        background: #fff;
+        color: #080808;
+        font-weight: 700;
+        box-shadow: 0 12px 35px #000a;
+        transform: translate(12px, 12px);
+      }
+      .track.drop-ok {
+        background-color: #1b1b1b;
+        box-shadow: inset 0 0 0 2px #fff;
+      }
+      .track.drop-bad {
+        background-color: #1b1010;
+        box-shadow: inset 0 0 0 2px #8b4b4b;
+      }
+      .block.blocked {
+        opacity: 0.28;
+        filter: grayscale(1);
+      }
+      .drag-trash {
+        position: fixed;
+        right: 318px;
+        bottom: 92px;
+        z-index: 150;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 12px 17px;
+        border: 1px solid #555;
+        border-radius: 999px;
+        background: #171717;
+        color: #aaa;
+        font-weight: 750;
+        opacity: 0;
+        transform: translateY(16px);
+        pointer-events: none;
+        transition: 0.16s;
+      }
+      .event-dragging .drag-trash {
+        opacity: 1;
+        transform: none;
+        pointer-events: auto;
+      }
+      .drag-trash.hot {
+        background: #fff;
+        color: #000;
+        border-color: #fff;
+        transform: scale(1.08);
+      }
+      body.timeline-dragging,
+      body.timeline-dragging * {
+        cursor: grabbing !important;
+        user-select: none !important;
+      }
+      .body {
+        overflow: hidden;
+      }
+      .right {
+        min-height: 0 !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+      }
+      .right #inspector {
+        min-height: max-content;
+        padding-bottom: 48px;
+      }
+      .blocks-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 95;
+        display: none;
+        place-items: center;
+        background: #000b;
+        padding: 24px;
+      }
+      .blocks-modal.open {
+        display: grid;
+      }
+      .blocks-card {
+        width: min(650px, 94vw);
+        max-height: 88vh;
+        overflow: auto;
+        background: #101010;
+        border: 1px solid #444;
+        border-radius: 22px;
+        padding: 24px;
+      }
+      .builder-grid {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr 0.7fr auto;
+        gap: 8px;
+        margin: 16px 0;
+      }
+      .builder-grid input,
+      .builder-grid select,
+      .block-name {
+        min-width: 0;
+        background: #191919;
+        color: #fff;
+        border: 1px solid #3a3a3a;
+        border-radius: 9px;
+        padding: 10px;
+      }
+      .builder-actions {
+        margin: 12px 0;
+      }
+      .builder-action {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        background: #191919;
+        border-radius: 10px;
+        padding: 10px;
+        margin: 7px 0;
+      }
+      .builder-action b {
+        flex: 1;
+      }
+      .builder-empty {
+        color: #777;
+        padding: 14px 0;
+      }
+      .blocks-footer {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        margin-top: 18px;
+      }
+      :root {
+        --bg: #080808;
+        --panel: #101010;
+        --panel2: #171717;
+        --panel3: #202020;
+        --line: #303030;
+        --line2: #242424;
+        --text: #f5f5f5;
+        --muted: #8c8c8c;
+        --dim: #5d5d5d;
+        --white: #fff;
+        --black: #000;
+        --label: 210px;
+        --pps: 70px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font:
+          14px Inter,
+          ui-sans-serif,
+          system-ui,
+          sans-serif;
+        overflow: hidden;
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      .app {
+        display: grid;
+        grid-template-rows: 76px 1fr 74px;
+        height: 100%;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 18px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+      }
+      .brand {
+        min-width: 250px;
+      }
+      .brand h1 {
+        font-size: 19px;
+        margin: 0;
+        font-weight: 750;
+        letter-spacing: -0.03em;
+      }
+      .brand p {
+        margin: 3px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .spacer {
+        flex: 1;
+      }
+      .icon,
+      .pill,
+      .play {
+        border: 1px solid var(--line);
+        background: var(--panel2);
+        color: var(--text);
+        cursor: pointer;
+      }
+      .icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 13px;
+        font-size: 18px;
+      }
+      .icon:hover,
+      .pill:hover {
+        background: var(--panel3);
+      }
+      .icon:disabled {
+        opacity: 0.25;
+      }
+      .pill {
+        height: 44px;
+        border-radius: 999px;
+        padding: 0 18px;
+        font-weight: 650;
+      }
+      .pill.primary {
+        background: var(--white);
+        color: var(--black);
+        border-color: var(--white);
+      }
+      .check {
+        color: #d5ffd5;
+      }
+      .body {
+        display: grid;
+        grid-template-columns: 280px minmax(420px, 1fr) 300px;
+        min-height: 0;
+      }
+      .side {
+        background: var(--panel);
+        min-height: 0;
+        overflow: auto;
+      }
+      .left {
+        border-right: 1px solid var(--line);
+      }
+      .right {
+        border-left: 1px solid var(--line);
+        padding: 18px;
+      }
+      .patch-summary {
+        padding: 15px 16px;
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+      .patch-summary b {
+        color: var(--text);
+      }
+      .search-row {
+        display: flex;
+        gap: 8px;
+        padding: 14px;
+        border-bottom: 1px solid var(--line);
+      }
+      .search-row input,
+      .input {
+        width: 100%;
+        background: var(--panel2);
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 10px;
+        color: var(--text);
+      }
+      .swatch {
+        width: 40px;
+        border-radius: 10px;
+        background: #fff;
+        border: 1px solid #555;
+      }
+      .palette {
+        padding: 8px 14px 24px;
+      }
+      .section-title {
+        margin: 16px 2px 9px;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 750;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+      }
+      .blocks {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+      }
+      .block {
+        border: 1px solid #454545;
+        border-radius: 11px;
+        background: #e8e8e8;
+        color: #080808;
+        padding: 9px 13px;
+        cursor: grab;
+        font-weight: 650;
+      }
+      .block:hover {
+        background: #fff;
+      }
+      .block.active {
+        outline: 2px solid white;
+        outline-offset: 2px;
+      }
+      .block[data-kind="movement"] {
+        background: #bdbdbd;
+      }
+      .block[data-kind="beam"] {
+        background: #d3d3d3;
+      }
+      .block[data-kind="pyro"] {
+        background: #757575;
+        color: #fff;
+      }
+      .workspace {
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        background: #090909;
+      }
+      .wave-row,
+      .ruler-row,
+      .lane {
+        display: grid;
+        grid-template-columns: var(--label) 1fr;
+      }
+      .sticky-label {
+        position: sticky;
+        left: 0;
+        z-index: 5;
+        background: var(--panel);
+        border-right: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        padding: 12px 14px;
+      }
+      .wave-row {
+        height: 64px;
+      }
+      .wave-wrap {
+        position: relative;
+        background: #0c0c0c;
+        border-bottom: 1px solid var(--line);
+        cursor: ew-resize;
+      }
+      .wave-wrap canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .ruler-row {
+        height: 34px;
+      }
+      .ruler {
+        position: relative;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+        cursor: ew-resize;
+      }
+      .tick {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        border-left: 1px solid var(--line);
+        padding: 8px 0 0 6px;
+        color: var(--muted);
+        font:
+          11px ui-monospace,
+          monospace;
+      }
+      .scroller {
+        overflow: auto;
+        min-height: 0;
+        flex: 1;
+        position: relative;
+      }
+      .timeline {
+        position: relative;
+        min-height: 100%;
+      }
+      .lane {
+        height: 56px;
+      }
+      .lane-label {
+        position: sticky;
+        left: 0;
+        z-index: 4;
+        background: var(--panel);
+        border-right: 1px solid var(--line);
+        border-bottom: 1px solid var(--line2);
+        padding: 9px 12px;
+        cursor: pointer;
+      }
+      .lane-label.selected {
+        background: var(--panel3);
+        box-shadow: inset 3px 0 #fff;
+      }
+      .lane-label b {
+        display: block;
+        text-transform: capitalize;
+      }
+      .lane-label small {
+        display: block;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .track {
+        position: relative;
+        border-bottom: 1px solid var(--line2);
+        background-image:
+          repeating-linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.06) 0 1px,
+            transparent 1px calc(var(--pps) * 4)
+          ),
+          repeating-linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.025) 0 1px,
+            transparent 1px var(--pps)
+          );
+        cursor: crosshair;
+      }
+      .event {
+        position: absolute;
+        top: 9px;
+        height: 36px;
+        min-width: 24px;
+        border-radius: 8px;
+        padding: 9px 10px;
+        background: #eee;
+        color: #080808;
+        font-size: 11px;
+        font-weight: 750;
+        white-space: nowrap;
+        overflow: hidden;
+        border: 2px solid transparent;
+        cursor: grab;
+        user-select: none;
+      }
+      .event.selected {
+        border-color: #fff;
+        box-shadow: 0 0 0 2px #555;
+      }
+      .event[data-kind="movement"] {
+        background: #aaa;
+      }
+      .event[data-kind="pyro"] {
+        background: #666;
+        color: white;
+      }
+      .playhead {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: white;
+        z-index: 8;
+        pointer-events: none;
+      }
+      .playhead:before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -6px;
+        border-left: 7px solid transparent;
+        border-right: 7px solid transparent;
+        border-top: 10px solid white;
+      }
+      .empty {
+        padding: 50px 28px;
+        color: var(--muted);
+      }
+      .right h2 {
+        font-size: 16px;
+        margin: 0 0 5px;
+      }
+      .right .sub {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+      .field {
+        margin: 15px 0;
+      }
+      .field label {
+        display: block;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+      }
+      .field input,
+      .field select {
+        width: 100%;
+        padding: 10px;
+        background: var(--panel2);
+        color: var(--text);
+        border: 1px solid var(--line);
+        border-radius: 9px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+      }
+      .row > * {
+        flex: 1;
+      }
+      .danger {
+        color: #fff;
+        border-color: #555;
+      }
+      .transport {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 18px;
+        background: var(--panel);
+        border-top: 1px solid var(--line);
+      }
+      .play {
+        width: 52px;
+        height: 50px;
+        border-radius: 14px;
+        background: white;
+        color: black;
+        font-size: 19px;
+      }
+      .time {
+        font:
+          24px ui-monospace,
+          monospace;
+        letter-spacing: -0.04em;
+        min-width: 130px;
+      }
+      .transport label {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .small {
+        width: 76px;
+        background: var(--panel2);
+        color: white;
+        border: 1px solid var(--line);
+        padding: 9px;
+        border-radius: 9px;
+      }
+      .range {
+        accent-color: white;
+      }
+      .event-count {
+        margin-left: auto;
+        color: var(--muted);
+        font:
+          12px ui-monospace,
+          monospace;
+      }
+      .modal {
+        position: fixed;
+        inset: 0;
+        background: #000c;
+        z-index: 20;
+        display: none;
+        place-items: center;
+      }
+      .modal.open {
+        display: grid;
+      }
+      .dialog {
+        width: min(900px, 92vw);
+        max-height: 86vh;
+        background: #111;
+        border: 1px solid #444;
+        border-radius: 20px;
+        padding: 22px;
+        overflow: auto;
+      }
+      .dialog-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .dialog-head h2 {
+        flex: 1;
+      }
+      .dialog pre {
+        background: #050505;
+        border: 1px solid #333;
+        border-radius: 12px;
+        padding: 16px;
+        overflow: auto;
+        max-height: 58vh;
+        color: #eee;
+        font:
+          12px/1.55 ui-monospace,
+          monospace;
+      }
+      .toast {
+        position: fixed;
+        left: 50%;
+        bottom: 92px;
+        transform: translateX(-50%) translateY(12px);
+        padding: 10px 15px;
+        border-radius: 999px;
+        background: white;
+        color: black;
+        font-weight: 650;
+        opacity: 0;
+        pointer-events: none;
+        transition: 0.2s;
+        z-index: 30;
+      }
+      .toast.show {
+        opacity: 1;
+        transform: translateX(-50%);
+      }
+      @media (max-width: 1000px) {
+        .body {
+          grid-template-columns: 230px 1fr;
+        }
+        .right {
+          display: none;
+        }
+        .brand {
+          min-width: 190px;
+        }
+      }
+      .import-gate {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: grid;
+        place-items: center;
+        background: #000;
+      }
+      .import-card {
+        width: min(760px, 92vw);
+        padding: 30px;
+        background: #0d0d0d;
+        border: 1px solid #555;
+        border-radius: 18px;
+      }
+      .import-card h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+      .import-card p {
+        color: #aaa;
+        line-height: 1.55;
+      }
+      .import-card textarea {
+        width: 100%;
+        height: 280px;
+        resize: vertical;
+        background: #050505;
+        color: #fff;
+        border: 1px solid #444;
+        border-radius: 10px;
+        padding: 14px;
+        font:
+          12px/1.5 ui-monospace,
+          monospace;
+      }
+      .import-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 14px;
+      }
+      .import-error {
+        color: #ffb4b4;
+        font-size: 12px;
+      }
+      .import-gate.hidden {
+        display: none;
+      }
+      .project-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 90;
+        display: none;
+        place-items: center;
+        background: #000b;
+        padding: 24px;
+      }
+      .project-modal.open {
+        display: grid;
+      }
+      .project-card {
+        width: min(720px, 94vw);
+        max-height: 88vh;
+        overflow: auto;
+        background: #101010;
+        border: 1px solid #444;
+        border-radius: 22px;
+        padding: 24px;
+      }
+      .project-head {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+      .project-head h2 {
+        font-size: 26px;
+        margin: 0 0 5px;
+      }
+      .project-head p {
+        margin: 0;
+        color: #999;
+      }
+      .project-head .spacer {
+        flex: 1;
+      }
+      .project-section {
+        margin: 22px 4px 10px;
+        color: #888;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+      .project-row {
+        display: grid;
+        grid-template-columns: 42px 1fr auto;
+        align-items: center;
+        gap: 14px;
+        padding: 15px;
+        margin: 9px 0;
+        background: #191919;
+        border: 1px solid #292929;
+        border-radius: 14px;
+      }
+      .project-row:hover {
+        border-color: #555;
+      }
+      .project-icon {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        background: #090909;
+        border-radius: 11px;
+        font-size: 18px;
+      }
+      .project-copy b {
+        display: block;
+        margin-bottom: 4px;
+      }
+      .project-copy small {
+        color: #888;
+      }
+      .project-action {
+        min-width: 92px;
+        height: 36px;
+        border: 1px solid #444;
+        border-radius: 999px;
+        background: #242424;
+        color: #fff;
+        cursor: pointer;
+      }
+      .project-action.primary {
+        background: #fff;
+        color: #000;
+        border-color: #fff;
+      }
+      .saved-list:empty:after {
+        content: "No browser saves yet.";
+        display: block;
+        color: #777;
+        padding: 12px 4px;
+      }
+      .saved-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        margin-top: 7px;
+        background: #171717;
+        border-radius: 10px;
+      }
+      .saved-item b {
+        flex: 1;
+      }
+      .saved-item button {
+        border: 0;
+        background: #2b2b2b;
+        color: #fff;
+        border-radius: 8px;
+        padding: 7px 10px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="import-gate" id="importGate">
+      <div class="import-card">
+        <h1>Connect your Flux show</h1>
+        <p>
+          Join your Roblox game, open <b>Flux Shows</b> from the TopbarPlus
+          icon, choose <b>Export</b>, then paste the copied JSON below. Your
+          DataStore remains private and is processed only in this browser.
+        </p>
+        <textarea
+          id="fluxJson"
+          spellcheck="false"
+          placeholder='Paste JSON beginning with {"groups":...'
+        ></textarea>
+        <div class="import-actions">
+          <button class="pill primary" id="loadFlux">Load Flux DataStore</button
+          ><button class="pill" id="demoFlux">Continue with demo patch</button
+          ><span class="import-error" id="importError"></span>
+        </div>
+      </div>
+    </div>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <h1>Flux Sequencer</h1>
+          <p id="summary">Loading fixture patch…</p>
+        </div>
+        <button class="icon" id="undo" title="Undo">↶</button
+        ><button class="icon" id="redo" title="Redo">↷</button>
+        <div class="spacer"></div>
+        <button class="icon" id="audio" title="Load audio">♫</button
+        ><button class="pill" id="blocksMenu">Blocks</button
+        ><button class="pill check" id="checks">● All checks pass</button
+        ><button class="pill primary" id="projectMenu">Project</button
+        ><input type="file" id="file" hidden accept="audio/*" /><input
+          type="file"
+          id="showFile"
+          hidden
+          accept=".json,.flux.json"
+        />
+      </header>
+      <main class="body">
+        <aside class="side left">
+          <div class="patch-summary" id="patchSummary"></div>
+          <div class="search-row">
+            <input id="search" placeholder="Search cues…" /><input
+              id="color"
+              class="swatch"
+              type="color"
+              value="#ffffff"
+              title="Active colour"
+            />
+          </div>
+          <div class="palette" id="palette"></div>
+        </aside>
+        <section class="workspace">
+          <div class="wave-row">
+            <div class="sticky-label">
+              <div class="section-title">Audio reference</div>
+              <small id="audioName" style="color: var(--muted)"
+                >Load a track</small
+              >
+            </div>
+            <div class="wave-wrap" id="waveWrap">
+              <canvas id="wave"></canvas>
+            </div>
+          </div>
+          <div class="ruler-row">
+            <div class="sticky-label"></div>
+            <div class="ruler" id="ruler"></div>
+          </div>
+          <div class="scroller" id="scroller">
+            <div class="timeline" id="timeline"></div>
+          </div>
+        </section>
+        <aside class="side right">
+          <div id="inspector">
+            <h2>Nothing selected</h2>
+            <p class="sub">
+              Drag a cue from the palette and drop it onto a compatible fixture
+              lane.
+            </p>
+            <p class="sub">
+              Space plays · Delete removes · Ctrl/⌘+D duplicates · arrow keys
+              nudge.
+            </p>
+          </div>
+        </aside>
+      </main>
+      <footer class="transport">
+        <button class="icon" id="home">|◀</button
+        ><button class="play" id="play">▶</button>
+        <div class="time" id="time">
+          00:00<span style="color: #777">.000</span>
+        </div>
+        <select class="small" id="speed" title="Playback speed">
+          <option value=".25">¼×</option>
+          <option value=".5">½×</option>
+          <option value="1" selected>1×</option></select
+        ><button class="icon" id="loop" title="Loop playback">↻</button
+        ><label>BPM</label
+        ><input
+          class="small"
+          id="bpm"
+          type="number"
+          min="20"
+          max="400"
+          value="128"
+        /><label>Snap</label
+        ><select class="small" id="snap">
+          <option value="0">Free</option>
+          <option value="0.0625">1/16 beat</option>
+          <option value="0.125">1/8 beat</option>
+          <option value="0.25">¼ beat</option>
+          <option value="0.5">½ beat</option>
+          <option value="1" selected>Beat</option>
+          <option value="4">Bar</option></select
+        ><label>Zoom</label
+        ><input
+          class="range"
+          id="zoom"
+          type="range"
+          min="35"
+          max="180"
+          value="70"
+        /><span class="event-count" id="count">0 events</span>
+      </footer>
+    </div>
+    <div class="modal" id="modal">
+      <div class="dialog">
+        <div class="dialog-head">
+          <h2 id="modalTitle">Export</h2>
+          <button class="pill" id="close">Close</button
+          ><button class="pill primary" id="copy">Copy</button>
+        </div>
+        <p id="modalSub" style="color: #999"></p>
+        <pre id="output"></pre>
+      </div>
+    </div>
+    <div class="drag-trash" id="dragTrash">
+      <span>🗑</span><span>Drop to delete</span>
+    </div>
+    <div class="toast" id="toast"></div>
+    <div class="project-modal" id="projectModal">
+      <div class="project-card">
+        <div class="project-head">
+          <div>
+            <h2>Project</h2>
+            <p>Manage your Flux library and sequencer shows.</p>
+          </div>
+          <div class="spacer"></div>
+          <button class="pill" id="closeProject">Close</button>
+        </div>
+        <div class="project-section">Flux setup</div>
+        <div class="project-row">
+          <div class="project-icon">{ }</div>
+          <div class="project-copy">
+            <b>Import DataStore JSON</b
+            ><small>Paste a fresh export from the Roblox GUI</small>
+          </div>
+          <button class="project-action primary" id="importDatastore">
+            Import
+          </button>
+        </div>
+        <div class="project-section">Sequencer show</div>
+        <div class="project-row">
+          <div class="project-icon">↓</div>
+          <div class="project-copy">
+            <b>Export sequencer show</b
+            ><small>Generate the Flux show ModuleScript for Roblox</small>
+          </div>
+          <button class="project-action primary" id="exportShow">Export</button>
+        </div>
+        <div class="project-row">
+          <div class="project-icon">↑</div>
+          <div class="project-copy">
+            <b>Import sequencer show</b
+            ><small>Open a portable Fluxline project file</small>
+          </div>
+          <button class="project-action" id="importShow">Open</button>
+        </div>
+        <div class="project-row">
+          <div class="project-icon">⌄</div>
+          <div class="project-copy">
+            <b>Download project file</b
+            ><small
+              >Includes the timeline and Flux library; audio is excluded</small
+            >
+          </div>
+          <button class="project-action" id="downloadShow">Download</button>
+        </div>
+        <div class="project-section">Browser saves</div>
+        <div class="project-row">
+          <div class="project-icon">●</div>
+          <div class="project-copy">
+            <b>Save in this browser</b
+            ><small>Stored locally on this device for quick access</small>
+          </div>
+          <button class="project-action" id="cacheShow">Save</button>
+        </div>
+        <div class="saved-list" id="savedShows"></div>
+      </div>
+    </div>
+    <div class="blocks-modal" id="blocksModal">
+      <div class="blocks-card">
+        <div class="project-head">
+          <div>
+            <h2>Blocks</h2>
+            <p>Build and edit reusable groups of simultaneous Flux actions.</p>
+          </div>
+          <div class="spacer"></div>
+          <button class="pill" id="closeBlocks">Close</button>
+        </div>
+        <div id="savedBlocksEditor"></div>
+        <div class="section-title">Block editor</div>
+        <input
+          class="block-name"
+          id="blockName"
+          placeholder="Block name, e.g. Blue blackout"
+        />
+        <div class="builder-grid">
+          <select id="blockAction">
+            <option value="level:1">Turn on</option>
+            <option value="level:0">Turn off</option>
+            <option value="color:#ffffff">Color</option>
+            <option value="pan:0">Pan</option>
+            <option value="tilt:0">Tilt</option>
+            <option value="strobe:10">Strobe</option>
+            <option value="iris:1">Iris</option></select
+          ><input id="blockValue" value="1" placeholder="Value" /><input
+            id="blockDuration"
+            type="number"
+            min="0"
+            step=".05"
+            value="0"
+            placeholder="Fade"
+          /><button class="pill" id="addBlockAction">Add</button>
+        </div>
+        <div class="builder-actions" id="builderActions"></div>
+        <div class="blocks-footer">
+          <button class="pill" id="newBlock">New block</button
+          ><button class="pill primary" id="saveBlock">Save block</button>
+        </div>
+      </div>
+    </div>
+    <script src="vendor/interact.min.js?v=1.10.28"></script>
+    <script>
+      const CAPS = {
+        profile: [
+          "intensity",
+          "color",
+          "strobe",
+          "pan",
+          "tilt",
+          "iris",
+          "shutter",
+          "spin",
+          "beam intensity",
+          "gobo intensity",
+        ],
+        wash: [
+          "intensity",
+          "color",
+          "strobe",
+          "pan",
+          "tilt",
+          "iris",
+          "shutter",
+        ],
+        "magic blade": ["intensity", "color", "strobe", "pan", "tilt"],
+        "magic panel": ["intensity", "color", "strobe", "pan", "tilt"],
+        jdc1: ["intensity", "color", "strobe", "tilt"],
+        q7: ["intensity", "color", "strobe"],
+        laser: [
+          "intensity",
+          "color",
+          "strobe",
+          "pan",
+          "tilt",
+          "iris",
+          "width",
+          "spin",
+          "pitch",
+          "shutter",
+        ],
+        line: ["intensity", "color", "strobe"],
+        par: ["intensity", "color", "strobe", "shutter"],
+        blinder: ["intensity"],
+        atomic: ["intensity", "strobe"],
+        display: ["intensity", "color", "strobe"],
+      };
+      const BASE_DEFINITIONS = [
+        [
+          "Output",
+          [
+            ["On", "level", 1],
+            ["Off", "level", 0],
+            ["Fade on", "level", 1, 1],
+            ["Fade off", "level", 0, 1],
+            ["Reset", "reset", 0],
+          ],
+        ],
+        [
+          "Colour",
+          [
+            ["Colour", "color", "#ffffff", 0.25],
+            ["Red", "color", "#ff0000", 0.25],
+            ["Blue", "color", "#0066ff", 0.25],
+            ["White", "color", "#ffffff", 0.25],
+          ],
+        ],
+        [
+          "Movement",
+          [
+            ["Pan", "pan", 0, 1],
+            ["Tilt", "tilt", 0, 1],
+            ["Spin", "spin", 90, 1],
+            ["Pitch", "pitch", 0, 1],
+          ],
+        ],
+        [
+          "Beam / lens",
+          [
+            ["Strobe", "strobe", 10, 1],
+            ["Iris", "iris", 1, 0.5],
+            ["Shutter", "shutter", 1],
+            ["Beam", "beam intensity", 1, 0.5],
+            ["Gobo", "gobo intensity", 1, 0.5],
+            ["Laser width", "width", 1, 0.5],
+          ],
+        ],
+        [
+          "Pyrotechnics",
+          [
+            ["Sparks", "pyro", "sparks"],
+            ["Haze", "pyro", "haze"],
+            ["Fire", "pyro", "fire"],
+            ["CO₂", "pyro", "co2"],
+            ["Fireworks", "pyro", "fireworks"],
+            ["Bubbles", "pyro", "bubbles"],
+            ["Confetti", "pyro", "confetti"],
+          ],
+        ],
+      ];
+      let DEFINITIONS = structuredClone(BASE_DEFINITIONS),
+        IMPORTED = {},
+        CUSTOM_BLOCKS = [],
+        builderActions = [],
+        editingBlockId = null;
+      const DEFAULT_PATCH = [
+        { type: "profile", count: 12 },
+        { type: "wash", count: 10 },
+        { type: "jdc1", count: 12 },
+        { type: "line", count: 8 },
+        { type: "blinder", count: 8 },
+      ];
+      let fluxData = null;
+      let state = {
+        version: 2,
+        name: "New Flux Show",
+        songId: "",
+        bpm: 128,
+        duration: 180,
+        patch: structuredClone(DEFAULT_PATCH),
+        events: [],
+      };
+      let history = [],
+        future = [],
+        armed = null,
+        selectedEvent = null,
+        selectedEvents = new Set(),
+        eventClipboard = [],
+        selectedLane = "profile:all",
+        position = 0,
+        playing = false,
+        playbackSpeed = 1,
+        looping = false,
+        started = 0,
+        raf = 0,
+        audioEl = null,
+        audioBuffer = null,
+        px = 70;
+      const $ = (s) => document.querySelector(s),
+        $$ = (s) => [...document.querySelectorAll(s)],
+        uid = () => crypto.randomUUID(),
+        clamp = (n, a, b) => Math.max(a, Math.min(b, n)),
+        esc = (s) =>
+          String(s).replace(
+            /[&<>"']/g,
+            (c) =>
+              ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#39;",
+              })[c],
+          );
+      function fixtureCount(groups, type) {
+        let highest = 0;
+        const visit = (v) => {
+          if (Array.isArray(v)) {
+            if (v.length === 2 && v.every(Number.isFinite))
+              highest = Math.max(highest, v[0]);
+            else v.forEach(visit);
+          } else if (v && typeof v === "object")
+            Object.values(v).forEach(visit);
+        };
+        visit(groups?.[type]);
+        return (
+          highest || DEFAULT_PATCH.find((x) => x.type === type)?.count || 1
+        );
+      }
+      function appendCustomDefinitions() {
+        DEFINITIONS = DEFINITIONS.filter((x) => x[0] !== "My Blocks");
+        if (CUSTOM_BLOCKS.length)
+          DEFINITIONS.unshift([
+            "My Blocks",
+            CUSTOM_BLOCKS.map((x) => [
+              x.name,
+              "block",
+              x.id,
+              Math.max(0.25, ...x.actions.map((a) => a.duration || 0)),
+            ]),
+          ]);
+      }
+      function buildImportedLibrary(data) {
+        DEFINITIONS = structuredClone(BASE_DEFINITIONS);
+        IMPORTED = {};
+        for (const [scope, action, singular] of [
+          ["positions", "flux-position", "Position"],
+          ["macros", "flux-macro", "Macro"],
+          ["effects", "flux-effect", "Effect"],
+        ])
+          for (const [fixture, records] of Object.entries(data[scope] || {})) {
+            const items = [];
+            for (const [name, payload] of Object.entries(records || {})) {
+              const id = scope + "|" + fixture + "|" + name;
+              IMPORTED[id] = { scope, fixture, name, payload };
+              items.push([name, action, id, action === "flux-effect" ? 4 : 0]);
+            }
+            if (items.length)
+              DEFINITIONS.push([
+                fixture + " · " + singular + (items.length === 1 ? "" : "s"),
+                items,
+              ]);
+          }
+        appendCustomDefinitions();
+      }
+      function importFlux() {
+        try {
+          const parsed = JSON.parse($("#fluxJson").value.trim());
+          if (parsed.format && parsed.format !== "fluxline-datastore")
+            throw new Error("Unsupported export format: " + parsed.format);
+          if (parsed.format === "fluxline-datastore" && parsed.version !== 1)
+            throw new Error(
+              "Unsupported Fluxline export version: " + parsed.version,
+            );
+          const data =
+            parsed.format === "fluxline-datastore" ? parsed.data : parsed;
+          const required = [
+            "groups",
+            "positions",
+            "macros",
+            "effects",
+            "keybinds",
+          ];
+          const missing = required.filter(
+            (k) => !data?.[k] || typeof data[k] !== "object",
+          );
+          if (missing.length)
+            throw new Error("Missing Flux sections: " + missing.join(", "));
+          fluxData = data;
+          buildImportedLibrary(data);
+          const names = new Set();
+          required.forEach((k) =>
+            Object.keys(data[k]).forEach((x) => {
+              if (x !== "pyrotechnics") names.add(x);
+            }),
+          );
+          state.patch = [...names].map((type) => ({
+            type,
+            count: fixtureCount(data.groups, type),
+          }));
+          if (!state.patch.length)
+            throw new Error("No Flux fixtures were found.");
+          selectedLane = state.patch[0].type + ":all";
+          localStorage.setItem("fluxDataStore", JSON.stringify(parsed));
+          $("#importGate").classList.add("hidden");
+          hydrate();
+          toast("Flux library loaded");
+        } catch (error) {
+          $("#importError").textContent = error.message;
+        }
+      }
+      function toast(s) {
+        const t = $("#toast");
+        t.textContent = s;
+        t.classList.add("show");
+        clearTimeout(t._h);
+        t._h = setTimeout(() => t.classList.remove("show"), 1400);
+      }
+      function commit() {
+        history.push(JSON.stringify(state));
+        if (history.length > 80) history.shift();
+        future = [];
+        buttons();
+      }
+      function undo() {
+        if (!history.length) return;
+        future.push(JSON.stringify(state));
+        state = JSON.parse(history.pop());
+        selectedEvent = null;
+        selectedEvents.clear();
+        hydrate();
+      }
+      function redo() {
+        if (!future.length) return;
+        history.push(JSON.stringify(state));
+        state = JSON.parse(future.pop());
+        selectedEvent = null;
+        selectedEvents.clear();
+        hydrate();
+      }
+      function buttons() {
+        $("#undo").disabled = !history.length;
+        $("#redo").disabled = !future.length;
+      }
+      function snapTime(t) {
+        const unit = +$("#snap").value;
+        if (!unit) return clamp(t, 0, state.duration);
+        const sec = (60 / (+$("#bpm").value || 128)) * unit;
+        return clamp(Math.round(t / sec) * sec, 0, state.duration);
+      }
+      function selectedList() {
+        return state.events.filter((e) => selectedEvents.has(e.id));
+      }
+      function setSelection(ids, primary = null) {
+        selectedEvents = new Set(ids);
+        selectedEvent =
+          state.events.find((e) => e.id === (primary || ids[0])) || null;
+        renderTimeline();
+        renderInspector();
+      }
+      function copySelection() {
+        const list = selectedList();
+        if (!list.length) return toast("Nothing selected to copy");
+        const base = Math.min(...list.map((e) => e.time));
+        eventClipboard = list.map((e) => ({
+          ...structuredClone(e),
+          _offset: e.time - base,
+        }));
+        toast(`${list.length} event${list.length === 1 ? "" : "s"} copied`);
+      }
+      function pasteSelection() {
+        if (!eventClipboard.length) return toast("Clipboard is empty");
+        commit();
+        const ids = [];
+        for (const saved of eventClipboard) {
+          const e = structuredClone(saved);
+          delete e._offset;
+          e.id = uid();
+          e.time = snapTime(position + saved._offset);
+          if (!valid(e.target, e.action, e.native)) continue;
+          state.events.push(e);
+          ids.push(e.id);
+        }
+        if (!ids.length) return toast("Nothing could be pasted");
+        setSelection(ids);
+        toast(
+          `${ids.length} event${ids.length === 1 ? "" : "s"} pasted at the playhead`,
+        );
+      }
+      function deleteSelection() {
+        if (!selectedEvents.size && selectedEvent)
+          selectedEvents.add(selectedEvent.id);
+        if (!selectedEvents.size) return;
+        commit();
+        state.events = state.events.filter((e) => !selectedEvents.has(e.id));
+        selectedEvents.clear();
+        selectedEvent = null;
+        renderAll();
+      }
+      function duplicateSelection() {
+        const list = selectedList().length
+          ? selectedList()
+          : selectedEvent
+            ? [selectedEvent]
+            : [];
+        if (!list.length) return;
+        commit();
+        const shift = 60 / state.bpm,
+          ids = [];
+        for (const source of list) {
+          const e = {
+            ...structuredClone(source),
+            id: uid(),
+            time: snapTime(source.time + shift),
+          };
+          state.events.push(e);
+          ids.push(e.id);
+        }
+        setSelection(ids);
+        toast(`${ids.length} duplicated`);
+      }
+      function capabilities(type) {
+        return CAPS[type] || [];
+      }
+      function cueFromButton(b) {
+        const custom = CUSTOM_BLOCKS.find((x) => x.id === b.dataset.value),
+          cue = {
+            label: b.dataset.label,
+            action: b.dataset.action,
+            value: b.dataset.value,
+            duration: +b.dataset.duration,
+            kind: b.dataset.kind,
+            native: IMPORTED[b.dataset.value] || null,
+            actions: custom?.actions || null,
+          };
+        if (cue.action === "color") cue.value = $("#color").value;
+        return cue;
+      }
+      function scrollWhileDragging(e) {
+        const s = $("#scroller"),
+          r = s.getBoundingClientRect(),
+          edge = 46;
+        if (e.clientX > r.right - edge) s.scrollLeft += 18;
+        else if (e.clientX < r.left + edge) s.scrollLeft -= 18;
+        if (e.clientY > r.bottom - edge) s.scrollTop += 14;
+        else if (e.clientY < r.top + edge) s.scrollTop -= 14;
+      }
+      function zoomTo(next) {
+        const s = $("#scroller"),
+          anchor = 210 + position * px - s.scrollLeft;
+        px = next;
+        document.documentElement.style.setProperty("--pps", px + "px");
+        renderRuler();
+        renderTimeline();
+        s.scrollLeft = Math.max(0, 210 + position * px - anchor);
+      }
+      function paletteDrag(ev, b) {
+        if (ev.button !== 0) return;
+        ev.preventDefault();
+        const startX = ev.clientX,
+          startY = ev.clientY,
+          ghost = document.createElement("div");
+        ghost.className = "dragghost";
+        ghost.textContent = b.dataset.label;
+        ghost.style.display = "none";
+        document.body.appendChild(ghost);
+        let moved = false,
+          lastTrack = null;
+        const clear = () => {
+          lastTrack?.classList.remove("drop-ok", "drop-bad");
+          lastTrack = null;
+        };
+        const move = (e) => {
+          if (!moved && Math.hypot(e.clientX - startX, e.clientY - startY) < 5)
+            return;
+          moved = true;
+          document.body.classList.add("timeline-dragging");
+          ghost.style.display = "block";
+          ghost.style.left = e.clientX + "px";
+          ghost.style.top = e.clientY + "px";
+          scrollWhileDragging(e);
+          clear();
+          const track = document
+            .elementFromPoint(e.clientX, e.clientY)
+            ?.closest(".track");
+          if (track) {
+            const cue = cueFromButton(b),
+              ok = valid(track.dataset.lane, cue.action, cue.native);
+            track.classList.add(ok ? "drop-ok" : "drop-bad");
+            lastTrack = track;
+          }
+        };
+        const up = (e) => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          document.body.classList.remove("timeline-dragging");
+          clear();
+          ghost.remove();
+          if (!moved) {
+            armed = cueFromButton(b);
+            $$(".block").forEach((x) => x.classList.toggle("active", x === b));
+            toast(`${armed.label} armed — click a lane or press Enter`);
+            return;
+          }
+          const track = document
+            .elementFromPoint(e.clientX, e.clientY)
+            ?.closest(".track");
+          if (!track) {
+            toast("Drop it on a fixture lane");
+            return;
+          }
+          armed = cueFromButton(b);
+          const rect = track.getBoundingClientRect();
+          place(track.dataset.lane, snapTime((e.clientX - rect.left) / px));
+          armed = null;
+          $$(".block").forEach((x) => x.classList.remove("active"));
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+      }
+      function renderPalette() {
+        const q = $("#search").value.toLowerCase();
+        $("#palette").innerHTML = DEFINITIONS.map(([section, items]) => {
+          const visible = items.filter((x) =>
+            (section + " " + x[0]).toLowerCase().includes(q),
+          );
+          if (!visible.length) return "";
+          return `<div class="section-title">${section}</div><div class="blocks">${visible
+            .map(([label, action, value, duration]) => {
+              const native = IMPORTED[value] || null,
+                blocked = !valid(selectedLane, action, native);
+              return `<button title="${blocked ? "Not supported by the selected lane" : "Drag to place · click to arm · double-click at playhead"}" class="block ${blocked ? "blocked" : ""} ${armed?.label === label && armed?.action === action ? "active" : ""}" data-label="${label}" data-action="${action}" data-value="${value}" data-duration="${duration || 0}" data-kind="${action.startsWith("flux-") ? action.slice(5) : action === "block" ? "block" : section === "Movement" ? "movement" : section === "Pyrotechnics" ? "pyro" : section === "Beam / lens" ? "beam" : "output"}">${label}</button>`;
+            })
+            .join("")}</div>`;
+        }).join("");
+        $$(".block").forEach((b) => {
+          b.onpointerdown = (e) => paletteDrag(e, b);
+          b.ondblclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            armed = cueFromButton(b);
+            place(selectedLane, snapTime(position));
+            armed = null;
+            renderPalette();
+          };
+        });
+      }
+      function patchSummary() {
+        const total = state.patch.reduce((a, f) => a + f.count, 0);
+        $("#summary").textContent =
+          `Flux · ${state.patch.length} fixture types · ${total} fixtures`;
+        $("#patchSummary").innerHTML =
+          `<b>${state.name}</b><br>${state.patch.map((f) => `${f.type} ${f.count}`).join(" · ")}<br><span>Drag cues from the palette onto a compatible lane.</span>`;
+      }
+      function timelineWidth() {
+        return Math.max(900, state.duration * px);
+      }
+      function scrubSurface(ev, element, wave = false) {
+        if (ev.button !== 0) return;
+        ev.preventDefault();
+        document.body.classList.add("timeline-dragging");
+        const update = (e) => {
+          const r = element.getBoundingClientRect(),
+            time = wave
+              ? ((e.clientX - r.left) / r.width) * state.duration
+              : (e.clientX - r.left) / px;
+          seek(snapTime(time));
+        };
+        update(ev);
+        const up = () => {
+          window.removeEventListener("pointermove", update);
+          window.removeEventListener("pointerup", up);
+          document.body.classList.remove("timeline-dragging");
+        };
+        window.addEventListener("pointermove", update);
+        window.addEventListener("pointerup", up);
+      }
+      function renderRuler() {
+        const r = $("#ruler"),
+          w = timelineWidth();
+        r.style.width = w + "px";
+        const step = px < 55 ? 5 : px < 100 ? 2 : 1;
+        let s = "";
+        for (let t = 0; t <= state.duration; t += step)
+          s += `<div class="tick" style="left:${t * px}px">${format(t, false)}</div>`;
+        r.innerHTML = s;
+        r.onpointerdown = (e) => scrubSurface(e, r);
+      }
+      function laneList() {
+        const lanes = [];
+        for (const f of state.patch) {
+          lanes.push({
+            key: f.type + ":all",
+            type: f.type,
+            label: f.type,
+            detail: f.count + " fixtures",
+          });
+          for (const [name, record] of Object.entries(
+            fluxData?.groups?.[f.type] || {},
+          )) {
+            const selection = (record?.meta || [])
+              .map((x) => (Array.isArray(x) ? x[0] : null))
+              .filter(Number.isFinite);
+            lanes.push({
+              key: f.type + ":group:" + encodeURIComponent(name),
+              type: f.type,
+              label: name.trim(),
+              detail: "Flux group · " + selection.length + " fixtures",
+              selection,
+            });
+          }
+        }
+        return lanes;
+      }
+      function laneSelection(target) {
+        return laneList().find((x) => x.key === target)?.selection || null;
+      }
+      function eventWidth(e) {
+        return Math.max(
+          48,
+          Math.min(170, 28 + String(e.label || "Cue").length * 6.5),
+          (e.duration || 0) * px,
+        );
+      }
+      function stackEvents(events) {
+        const rowEnds = [];
+        return [...events]
+          .sort(
+            (a, b) =>
+              a.time - b.time || String(a.id).localeCompare(String(b.id)),
+          )
+          .map((event) => {
+            const left = event.time * px,
+              end = left + eventWidth(event) + 4;
+            let row = rowEnds.findIndex((x) => x <= left);
+            if (row < 0) row = rowEnds.length;
+            rowEnds[row] = end;
+            return { event, row };
+          });
+      }
+      function laneMarkup(key, label, detail, w) {
+        const stacked = stackEvents(
+            state.events.filter((e) => e.target === key),
+          ),
+          rows = Math.max(1, ...stacked.map((x) => x.row + 1)),
+          height = 56 + (rows - 1) * 42;
+        return `<div class="lane" style="height:${height}px"><div class="lane-label ${selectedLane === key ? "selected" : ""}" data-lane="${key}"><b>${label}</b><small>${detail}</small></div><div class="track" data-lane="${key}" style="width:${w}px">${stacked.map((x) => eventHtml(x.event, x.row)).join("")}</div></div>`;
+      }
+      function startMarquee(ev) {
+        if (ev.button !== 0 || ev.target.closest(".event,.lane-label,#head"))
+          return;
+        const track = ev.target.closest(".track");
+        if (!track) return;
+        const box = $("#marquee"),
+          x0 = ev.clientX,
+          y0 = ev.clientY;
+        let moved = false;
+        const move = (e) => {
+          if (!moved && Math.abs(e.clientX - x0) + Math.abs(e.clientY - y0) < 5)
+            return;
+          moved = true;
+          box.style.display = "block";
+          box.style.left = Math.min(x0, e.clientX) + "px";
+          box.style.top = Math.min(y0, e.clientY) + "px";
+          box.style.width = Math.abs(e.clientX - x0) + "px";
+          box.style.height = Math.abs(e.clientY - y0) + "px";
+        };
+        const up = (e) => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          box.style.display = "none";
+          const at = snapTime(
+            (e.clientX - track.getBoundingClientRect().left) / px,
+          );
+          selectedLane = track.dataset.lane;
+          if (!moved) {
+            if (armed) {
+              place(selectedLane, at);
+              armed = null;
+              renderPalette();
+            } else {
+              setSelection([]);
+              seek(at);
+            }
+            return;
+          }
+          const l = Math.min(x0, e.clientX),
+            r = Math.max(x0, e.clientX),
+            t = Math.min(y0, e.clientY),
+            b = Math.max(y0, e.clientY),
+            ids = [];
+          $$(".event").forEach((el) => {
+            const q = el.getBoundingClientRect();
+            if (q.right >= l && q.left <= r && q.bottom >= t && q.top <= b)
+              ids.push(el.dataset.id);
+          });
+          setSelection(ids);
+          if (ids.length) toast(`${ids.length} selected`);
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+      }
+      function renderTimeline() {
+        const w = timelineWidth();
+        let html = `<div class="playhead" id="head"></div><div class="marquee" id="marquee"></div>`;
+        for (const lane of laneList()) {
+          const caps = capabilities(lane.type);
+          html += laneMarkup(
+            lane.key,
+            lane.label,
+            lane.detail + " · " + caps.join(" · "),
+            w,
+          );
+        }
+        html += laneMarkup(
+          "pyrotechnics",
+          "Pyrotechnics",
+          "sparks · haze · fire · CO₂ · fireworks · bubbles",
+          w,
+        );
+        $("#timeline").style.width = 210 + w + "px";
+        $("#timeline").innerHTML = html;
+        $$(".lane-label").forEach(
+          (x) =>
+            (x.onclick = () => {
+              selectedLane = x.dataset.lane;
+              renderTimeline();
+              renderPalette();
+            }),
+        );
+        initEventInteractions();
+        $("#timeline").onpointerdown = startMarquee;
+        drawHead();
+        $("#count").textContent =
+          `${state.events.length} event${state.events.length === 1 ? "" : "s"}`;
+        checks();
+      }
+      function eventHtml(e, row = 0) {
+        return `<div class="event ${selectedEvent?.id === e.id ? "selected" : selectedEvents.has(e.id) ? "multi" : ""}" data-id="${e.id}" data-kind="${e.kind}" style="top:${9 + row * 42}px;left:${e.time * px}px;width:${eventWidth(e)}px">${e.label}<span class="resize-handle" title="Drag to resize"></span></div>`;
+      }
+      function valid(target, action, native = null) {
+        if (target === "pyrotechnics") return action === "pyro";
+        if (action === "pyro") return false;
+        if (action === "block") return true;
+        const type = target.split(":")[0];
+        if (action.startsWith("flux-")) return native?.fixture === type;
+        return (
+          capabilities(type).includes(
+            action === "level" ? "intensity" : action,
+          ) || action === "reset"
+        );
+      }
+      function place(target, time) {
+        if (!armed) {
+          toast("Drag a cue or custom block onto a lane");
+          return;
+        }
+        if (!valid(target, armed.action, armed.native)) {
+          toast("That cue belongs to a different fixture type");
+          return;
+        }
+        commit();
+        let value = armed.value;
+        if (armed.action === "color") value = $("#color").value;
+        else if (
+          !armed.native &&
+          !armed.actions &&
+          !isNaN(Number(value)) &&
+          value !== ""
+        )
+          value = Number(value);
+        const e = {
+          id: uid(),
+          target,
+          time: +time.toFixed(3),
+          action: armed.action,
+          value,
+          duration: armed.duration,
+          label: armed.label,
+          kind: armed.kind,
+          selection: laneSelection(target),
+          native: armed.native,
+          actions: structuredClone(armed.actions),
+        };
+        state.events.push(e);
+        selectedEvents = new Set([e.id]);
+        selectedEvent = e;
+        renderTimeline();
+        renderInspector();
+      }
+      function trackAtPoint(x, y) {
+        return (
+          document
+            .elementsFromPoint(x, y)
+            .find((n) => n.classList?.contains("track")) || null
+        );
+      }
+      function dragEvent(ev, el) {
+        if (ev.button !== 0) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        const item = state.events.find((x) => x.id === el.dataset.id);
+        if (!item) return;
+        const additive = ev.ctrlKey || ev.metaKey || ev.shiftKey;
+        if (additive) {
+          selectedEvents.has(item.id)
+            ? selectedEvents.delete(item.id)
+            : selectedEvents.add(item.id);
+          selectedEvent = selectedEvents.size ? item : null;
+          renderTimeline();
+          renderInspector();
+          return;
+        }
+        if (!selectedEvents.has(item.id)) selectedEvents = new Set([item.id]);
+        selectedEvent = item;
+        renderTimeline();
+        renderInspector();
+        const scroller = $("#scroller"),
+          startScrollX = scroller.scrollLeft,
+          startX = ev.clientX,
+          anchorTime = item.time,
+          moving = selectedList(),
+          starts = moving.map((e) => ({
+            e,
+            time: e.time,
+            target: e.target,
+            selection: e.selection,
+            node: $$(".event").find((n) => n.dataset.id === e.id),
+            track: $$(".track").find((t) => t.dataset.lane === e.target),
+          })),
+          minTime = Math.min(...starts.map((s) => s.time)),
+          maxTime = Math.max(...starts.map((s) => s.time)),
+          trash = $("#dragTrash");
+        let moved = false,
+          overTrash = false,
+          shift = 0,
+          target = null,
+          highlight = null;
+        const clear = () => {
+          highlight?.classList.remove("drop-ok", "drop-bad");
+          highlight = null;
+        };
+        const move = (e) => {
+          if (!moved && Math.abs(e.clientX - startX) < 4) return;
+          if (!moved) {
+            moved = true;
+            document.body.classList.add("timeline-dragging", "event-dragging");
+          }
+          scrollWhileDragging(e);
+          const scrollDelta = scroller.scrollLeft - startScrollX,
+            anchorNew = snapTime(
+              anchorTime + (e.clientX - startX + scrollDelta) / px,
+            );
+          shift = clamp(
+            anchorNew - anchorTime,
+            -minTime,
+            state.duration - maxTime,
+          );
+          const tr = trash.getBoundingClientRect();
+          overTrash =
+            e.clientX >= tr.left &&
+            e.clientX <= tr.right &&
+            e.clientY >= tr.top &&
+            e.clientY <= tr.bottom;
+          trash.classList.toggle("hot", overTrash);
+          clear();
+          target = null;
+          const track = overTrash ? null : trackAtPoint(e.clientX, e.clientY);
+          if (track) {
+            const key = track.dataset.lane,
+              ok = starts.every((s) => valid(key, s.e.action, s.e.native));
+            track.classList.add(ok ? "drop-ok" : "drop-bad");
+            highlight = track;
+            if (ok) target = key;
+          }
+          starts.forEach((s) => {
+            if (!s.node) return;
+            const dy =
+              target && s.track
+                ? track.getBoundingClientRect().top -
+                  s.track.getBoundingClientRect().top
+                : 0;
+            s.node.style.transform = `translate(${shift * px}px,${dy}px)`;
+            s.node.classList.add("dragging");
+          });
+        };
+        const up = () => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          document.body.classList.remove("timeline-dragging", "event-dragging");
+          trash.classList.remove("hot");
+          clear();
+          if (moved) {
+            commit();
+            if (overTrash) {
+              const n = selectedEvents.size;
+              state.events = state.events.filter(
+                (e) => !selectedEvents.has(e.id),
+              );
+              selectedEvents.clear();
+              selectedEvent = null;
+              toast(`${n} event${n === 1 ? "" : "s"} deleted`);
+            } else
+              starts.forEach((s) => {
+                s.e.time = +(s.time + shift).toFixed(3);
+                if (target) {
+                  s.e.target = target;
+                  s.e.selection = laneSelection(target);
+                }
+              });
+            autosave();
+          }
+          renderTimeline();
+          renderInspector();
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+      }
+      function dragPlayhead(ev) {
+        if (ev.button !== 0) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        const startX = ev.clientX,
+          start = position;
+        document.body.classList.add("timeline-dragging");
+        const move = (e) => {
+          scrollWhileDragging(e);
+          seek(snapTime(start + (e.clientX - startX) / px));
+        };
+        const up = () => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          document.body.classList.remove("timeline-dragging");
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+      }
+      function resizeEvent(ev, el) {
+        if (ev.button !== 0) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        const item = state.events.find((x) => x.id === el.dataset.id);
+        if (!item) return;
+        selectedEvents = new Set([item.id]);
+        selectedEvent = item;
+        renderTimeline();
+        renderInspector();
+        const node = $$(`.event`).find((n) => n.dataset.id === item.id),
+          scroller = $("#scroller"),
+          startScroll = scroller.scrollLeft,
+          startX = ev.clientX,
+          startDuration = item.duration || 0.35;
+        let moved = false,
+          next = startDuration;
+        const move = (e) => {
+          if (!moved && Math.abs(e.clientX - startX) < 3) return;
+          if (!moved) {
+            moved = true;
+            document.body.classList.add("timeline-dragging");
+          }
+          scrollWhileDragging(e);
+          const track = trackAtPoint(e.clientX, e.clientY),
+            end = track
+              ? snapTime((e.clientX - track.getBoundingClientRect().left) / px)
+              : snapTime(
+                  item.time +
+                    startDuration +
+                    (e.clientX - startX + scroller.scrollLeft - startScroll) /
+                      px,
+                );
+          next = Math.max(0.05, end - item.time);
+          if (node)
+            node.style.width = eventWidth({ ...item, duration: next }) + "px";
+          const field = $("#evDuration");
+          if (field) field.value = +next.toFixed(3);
+        };
+        const up = () => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          document.body.classList.remove("timeline-dragging");
+          if (moved) {
+            commit();
+            item.duration = +next.toFixed(3);
+            autosave();
+          }
+          renderTimeline();
+          renderInspector();
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+      }
+      let interactSession = null,
+        interactFrame = 0;
+      function paintInteractSession() {
+        interactFrame = 0;
+        const s = interactSession;
+        if (!s || s.resize) return;
+        const shift =
+          snapTime(
+            s.anchorTime +
+              (s.dx + s.scroller.scrollLeft - s.startScroll) / px,
+          ) - s.anchorTime;
+        s.shift = clamp(
+          shift,
+          -s.minTime,
+          state.duration - s.maxTime,
+        );
+        const track = s.overTrash ? null : trackAtPoint(s.clientX, s.clientY);
+        s.highlight?.classList.remove("drop-ok", "drop-bad");
+        s.highlight = track;
+        s.target = null;
+        s.invalid = false;
+        if (track) {
+          const key = track.dataset.lane;
+          const ok = s.starts.every((x) =>
+            valid(key, x.e.action, x.e.native),
+          );
+          track.classList.add(ok ? "drop-ok" : "drop-bad");
+          s.target = ok ? key : null;
+          s.invalid = !ok;
+        }
+        const targetTop =
+          s.target && track ? track.getBoundingClientRect().top : 0;
+        s.starts.forEach((x) => {
+          const dy =
+            s.target && x.track
+              ? targetTop - x.track.getBoundingClientRect().top
+              : 0;
+          x.node.style.transform = `translate3d(${s.shift * px}px,${dy}px,0)`;
+        });
+      }
+      function scheduleInteractPaint() {
+        if (!interactFrame)
+          interactFrame = requestAnimationFrame(paintInteractSession);
+      }
+      function beginEventInteraction(event) {
+        const item = state.events.find(
+          (x) => x.id === event.target.dataset.id,
+        );
+        if (!item) return;
+        if (!selectedEvents.has(item.id)) {
+          selectedEvents = new Set([item.id]);
+          selectedEvent = item;
+          $$(".event").forEach((node) =>
+            node.classList.toggle("selected", selectedEvents.has(node.dataset.id)),
+          );
+          renderInspector();
+        }
+        const scroller = $("#scroller");
+        const starts = selectedList()
+          .map((e) => ({
+            e,
+            time: e.time,
+            target: e.target,
+            selection: e.selection,
+            node: $$(".event").find((n) => n.dataset.id === e.id),
+            track: $$(".track").find((t) => t.dataset.lane === e.target),
+          }))
+          .filter((x) => x.node && x.track);
+        interactSession = {
+          starts,
+          scroller,
+          startScroll: scroller.scrollLeft,
+          anchorTime: item.time,
+          minTime: Math.min(...starts.map((x) => x.time)),
+          maxTime: Math.max(...starts.map((x) => x.time)),
+          dx: 0,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          shift: 0,
+          target: null,
+          highlight: null,
+          invalid: false,
+          overTrash: false,
+        };
+        starts.forEach((x) => x.node.classList.add("dragging"));
+        document.body.classList.add("timeline-dragging", "event-dragging");
+      }
+      function moveEventInteraction(event) {
+        const s = interactSession;
+        if (!s || s.resize) return;
+        s.dx += event.dx;
+        s.clientX = event.clientX;
+        s.clientY = event.clientY;
+        const trash = $("#dragTrash").getBoundingClientRect();
+        s.overTrash =
+          s.clientX >= trash.left &&
+          s.clientX <= trash.right &&
+          s.clientY >= trash.top &&
+          s.clientY <= trash.bottom;
+        $("#dragTrash").classList.toggle("hot", s.overTrash);
+        scheduleInteractPaint();
+      }
+      function endEventInteraction() {
+        const s = interactSession;
+        if (!s || s.resize) return;
+        if (interactFrame) {
+          cancelAnimationFrame(interactFrame);
+          paintInteractSession();
+        }
+        commit();
+        if (s.overTrash) {
+          const count = selectedEvents.size;
+          state.events = state.events.filter((e) => !selectedEvents.has(e.id));
+          selectedEvents.clear();
+          selectedEvent = null;
+          toast(`${count} event${count === 1 ? "" : "s"} deleted`);
+        } else if (!s.invalid) {
+          s.starts.forEach((x) => {
+            x.e.time = +(x.time + s.shift).toFixed(3);
+            if (s.target) {
+              x.e.target = s.target;
+              x.e.selection = laneSelection(s.target);
+            }
+          });
+        } else toast("That cue is not supported on this lane");
+        s.highlight?.classList.remove("drop-ok", "drop-bad");
+        $("#dragTrash").classList.remove("hot");
+        document.body.classList.remove("timeline-dragging", "event-dragging");
+        interactSession = null;
+        autosave();
+        renderTimeline();
+        renderInspector();
+      }
+      function beginResizeInteraction(event) {
+        const item = state.events.find(
+          (x) => x.id === event.target.dataset.id,
+        );
+        if (!item) return;
+        selectedEvents = new Set([item.id]);
+        selectedEvent = item;
+        event.target.classList.add("interact-resizing", "selected");
+        interactSession = {
+          resize: true,
+          item,
+          node: event.target,
+          next: item.duration || 0.35,
+        };
+        renderInspector();
+      }
+      function moveResizeInteraction(event) {
+        const s = interactSession;
+        if (!s?.resize) return;
+        const raw = Math.max(24, event.rect.width) / px;
+        s.next = Math.max(0.05, snapTime(s.item.time + raw) - s.item.time);
+        s.node.style.width =
+          eventWidth({ ...s.item, duration: s.next }) + "px";
+        const field = $("#evDuration");
+        if (field) field.value = +s.next.toFixed(3);
+      }
+      function endResizeInteraction() {
+        const s = interactSession;
+        if (!s?.resize) return;
+        commit();
+        s.item.duration = +s.next.toFixed(3);
+        interactSession = null;
+        autosave();
+        renderTimeline();
+        renderInspector();
+      }
+      function initEventInteractions() {
+        if (typeof interact !== "function") {
+          console.error("Interact.js failed to load");
+          return;
+        }
+        interact(".event").unset();
+        interact(".event")
+          .draggable({
+            inertia: false,
+            ignoreFrom: ".resize-handle",
+            autoScroll: {
+              container: $("#scroller"),
+              margin: 70,
+              distance: 12,
+              interval: 16,
+            },
+            listeners: {
+              start: beginEventInteraction,
+              move: moveEventInteraction,
+              end: endEventInteraction,
+            },
+          })
+          .resizable({
+            inertia: false,
+            edges: { right: ".resize-handle" },
+            modifiers: [
+              interact.modifiers.restrictSize({
+                min: { width: 24, height: 36 },
+              }),
+            ],
+            listeners: {
+              start: beginResizeInteraction,
+              move: moveResizeInteraction,
+              end: endResizeInteraction,
+            },
+          })
+          .on("tap", (event) => {
+            const item = state.events.find(
+              (x) => x.id === event.currentTarget.dataset.id,
+            );
+            if (!item) return;
+            const additive = event.ctrlKey || event.metaKey || event.shiftKey;
+            if (additive) {
+              selectedEvents.has(item.id)
+                ? selectedEvents.delete(item.id)
+                : selectedEvents.add(item.id);
+            } else selectedEvents = new Set([item.id]);
+            selectedEvent = selectedEvents.size ? item : null;
+            renderTimeline();
+            renderInspector();
+          });
+      }
+      function renderInspector() {
+        const root = $("#inspector");
+        if (selectedEvents.size > 1) {
+          const list = selectedList();
+          root.innerHTML = `<h2>${list.length} events selected</h2><p class="sub">Drag any selected event to move the group together.</p><div class="field"><label>Move by beats</label><input id="multiShift" type="number" step=".25" value="0"></div><div class="field"><label>Set duration</label><input id="multiDuration" type="number" step=".05" min="0" placeholder="Leave unchanged"></div><button class="pill" id="copyMany">Copy</button> <button class="pill" id="duplicateMany">Duplicate</button> <button class="pill danger" id="deleteMany">Delete</button>`;
+          $("#multiShift").onchange = (x) => {
+            const amount = ((+x.target.value || 0) * 60) / state.bpm;
+            if (!amount) return;
+            commit();
+            list.forEach((e) => (e.time = snapTime(e.time + amount)));
+            renderAll();
+          };
+          $("#multiDuration").onchange = (x) => {
+            if (x.target.value === "") return;
+            commit();
+            list.forEach(
+              (e) => (e.duration = Math.max(0, +x.target.value || 0)),
+            );
+            renderAll();
+          };
+          $("#copyMany").onclick = copySelection;
+          $("#duplicateMany").onclick = duplicateSelection;
+          $("#deleteMany").onclick = deleteSelection;
+          return;
+        }
+        if (!selectedEvent) {
+          root.innerHTML = `<h2>Nothing selected</h2><p class="sub">Drag a cue onto a lane, or click one then click the timeline. Double-click places it at the playhead.</p><div class="section-title">Project</div><div class="field"><label>Show name</label><input id="showName" value="${state.name}"></div><div class="field"><label>Roblox song ID</label><input id="songId" value="${state.songId}"></div><div class="field"><label>Duration</label><input id="duration" type="number" value="${state.duration}"></div>`;
+          $("#showName").onchange = (e) => {
+            commit();
+            state.name = e.target.value;
+            patchSummary();
+          };
+          $("#songId").onchange = (e) => {
+            commit();
+            state.songId = e.target.value.replace(/\D/g, "");
+          };
+          $("#duration").onchange = (e) => {
+            commit();
+            state.duration = Math.max(5, +e.target.value || 180);
+            renderAll();
+          };
+          return;
+        }
+        const e = selectedEvent,
+          isColor = e.action === "color",
+          isPyro = e.action === "pyro",
+          isNative = e.action.startsWith("flux-"),
+          isBlock = e.action === "block",
+          range = {
+            level: [0, 1, 0.01],
+            intensity: [0, 1, 0.01],
+            pan: [-180, 180, 1],
+            tilt: [-180, 180, 1],
+            spin: [-360, 360, 1],
+            pitch: [-180, 180, 1],
+            strobe: [0, 30, 0.25],
+            iris: [0, 1, 0.01],
+            width: [0, 1, 0.01],
+          }[e.action];
+        const targets = laneList()
+          .map(
+            (l) =>
+              `<option value="${l.key}" ${e.target === l.key ? "selected" : ""}>${l.label} · ${l.detail}</option>`,
+          )
+          .join("");
+        const valueEditor = isColor
+          ? `<div class="field"><label>Colour</label><div class="row"><input id="evValue" type="color" value="${e.value}"><input id="evHex" value="${e.value}"></div></div>`
+          : range
+            ? `<div class="field"><label>Value</label><input id="evRange" type="range" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"><input id="evValue" type="number" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"></div>`
+            : `<div class="field"><label>Value</label><input id="evValue" type="number" step=".01" value="${e.value}"></div>`;
+        root.innerHTML = `<h2>${e.label}</h2><p class="sub">${isBlock ? `${e.actions?.length || 0} actions fire together` : e.native ? e.native.fixture + " · " + e.native.scope : e.target + " · " + e.action}</p><div class="row"><div class="field"><label>Time</label><input id="evTime" type="number" step=".001" value="${e.time}"></div><div class="field"><label>Duration</label><input id="evDuration" type="number" step=".05" min="0" value="${e.duration || 0}"></div></div>${isPyro || isNative || isBlock ? "" : valueEditor}${isBlock ? `<div class="section-title">Block actions</div>${e.actions.map((a) => `<p class="sub">${esc(a.label)} · ${esc(a.action)} · ${esc(a.value)}${a.duration ? ` · ${a.duration}s` : ""}</p>`).join("")}` : ""}<div class="field"><label>Target</label><select id="evTarget">${targets}<option value="pyrotechnics" ${e.target === "pyrotechnics" ? "selected" : ""}>Pyrotechnics</option></select></div><button class="pill" id="copyOne">Copy</button> <button class="pill" id="duplicateOne">Duplicate</button> <button class="pill danger" id="delete">Delete</button>`;
+        const change = () => {
+          commit();
+          e.time = snapTime(+$("#evTime").value);
+          e.duration = Math.max(0, +$("#evDuration").value);
+          e.target = $("#evTarget").value;
+          e.selection = laneSelection(e.target);
+          if ($("#evValue"))
+            e.value = isColor ? $("#evValue").value : +$("#evValue").value;
+          renderTimeline();
+        };
+        ["evTime", "evDuration", "evTarget", "evValue"].forEach((id) => {
+          const x = $("#" + id);
+          if (x) x.onchange = change;
+        });
+        if ($("#evRange")) {
+          $("#evRange").oninput = (x) => {
+            $("#evValue").value = x.target.value;
+            e.value = +x.target.value;
+            renderTimeline();
+          };
+          $("#evValue").oninput = (x) => {
+            $("#evRange").value = x.target.value;
+          };
+        }
+        if ($("#evHex"))
+          $("#evHex").onchange = (x) => {
+            if (/^#[0-9a-f]{6}$/i.test(x.target.value)) {
+              e.value = x.target.value;
+              $("#evValue").value = e.value;
+              renderTimeline();
+            }
+          };
+        $("#copyOne").onclick = () => {
+          selectedEvents = new Set([e.id]);
+          copySelection();
+        };
+        $("#duplicateOne").onclick = () => {
+          selectedEvents = new Set([e.id]);
+          duplicateSelection();
+        };
+        $("#delete").onclick = deleteSelection;
+      }
+      function removeSelected() {
+        deleteSelection();
+      }
+      function duplicate() {
+        duplicateSelection();
+      }
+      function format(t, ms = true) {
+        const m = Math.floor(t / 60),
+          s = Math.floor(t % 60),
+          n = Math.floor((t % 1) * 1000);
+        return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}${ms ? `<span style="color:#777">.${String(n).padStart(3, "0")}</span>` : ""}`;
+      }
+      function seek(t) {
+        position = clamp(t, 0, state.duration);
+        if (audioEl) audioEl.currentTime = position;
+        drawHead();
+      }
+      function drawHead() {
+        const h = $("#head");
+        if (h) h.style.left = 210 + position * px + "px";
+        $("#time").innerHTML = format(position);
+      }
+      function stop() {
+        playing = false;
+        cancelAnimationFrame(raf);
+        if (audioEl) audioEl.pause();
+        $("#play").textContent = "▶";
+      }
+      function tick() {
+        if (!playing) return;
+        position = audioEl
+          ? audioEl.currentTime
+          : ((performance.now() - started) / 1000) * playbackSpeed;
+        if (position >= state.duration) {
+          if (looping) {
+            position = 0;
+            started = performance.now();
+            if (audioEl) {
+              audioEl.currentTime = 0;
+              audioEl.play();
+            }
+          } else {
+            stop();
+            position = state.duration;
+          }
+        }
+        drawHead();
+        raf = requestAnimationFrame(tick);
+      }
+      function togglePlay() {
+        if (playing) {
+          stop();
+          return;
+        }
+        playing = true;
+        started = performance.now() - (position / playbackSpeed) * 1000;
+        if (audioEl) {
+          audioEl.currentTime = position;
+          audioEl.playbackRate = playbackSpeed;
+          audioEl.play();
+        }
+        $("#play").textContent = "❚❚";
+        tick();
+      }
+      async function loadAudio(file) {
+        audioEl = new Audio(URL.createObjectURL(file));
+        $("#audioName").textContent = file.name;
+        const data = await file.arrayBuffer(),
+          ctx = new AudioContext();
+        audioBuffer = await ctx.decodeAudioData(data.slice(0));
+        state.duration = audioBuffer.duration;
+        drawWave();
+        renderAll();
+        toast("Audio loaded");
+      }
+      function drawWave() {
+        const c = $("#wave"),
+          box = $("#waveWrap");
+        c.width = Math.max(1, box.clientWidth * devicePixelRatio);
+        c.height = Math.max(1, box.clientHeight * devicePixelRatio);
+        const x = c.getContext("2d");
+        x.scale(devicePixelRatio, devicePixelRatio);
+        const w = box.clientWidth,
+          h = box.clientHeight;
+        x.clearRect(0, 0, w, h);
+        x.strokeStyle = "#fff";
+        x.globalAlpha = 0.65;
+        x.beginPath();
+        if (audioBuffer) {
+          const d = audioBuffer.getChannelData(0),
+            step = Math.max(1, Math.floor(d.length / w));
+          for (let i = 0; i < w; i++) {
+            let lo = 1,
+              hi = -1;
+            for (let j = 0; j < step; j++) {
+              const v = d[i * step + j] || 0;
+              lo = Math.min(lo, v);
+              hi = Math.max(hi, v);
+            }
+            x.moveTo(i, ((1 + lo) * h) / 2);
+            x.lineTo(i, ((1 + hi) * h) / 2);
+          }
+        } else {
+          for (let i = 0; i < w; i += 3) {
+            const a = Math.sin(i * 0.11) * 0.08 + Math.sin(i * 0.037) * 0.05;
+            x.moveTo(i, h * (0.5 - a));
+            x.lineTo(i, h * (0.5 + a));
+          }
+        }
+        x.stroke();
+      }
+      function checks() {
+        const bad = state.events.filter(
+          (e) => !valid(e.target, e.action, e.native),
+        );
+        const b = $("#checks");
+        b.textContent = bad.length
+          ? `● ${bad.length} export issue${bad.length > 1 ? "s" : ""}`
+          : "● All checks pass";
+        b.classList.toggle("check", !bad.length);
+        return bad;
+      }
+      function lua(v) {
+        if (v === null || v === undefined) return "nil";
+        if (typeof v === "number" || typeof v === "boolean") return String(v);
+        if (typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v)) {
+          const n = parseInt(v.slice(1), 16);
+          return `{${n >> 16},${(n >> 8) & 255},${n & 255}}`;
+        }
+        if (typeof v === "string") return JSON.stringify(v);
+        if (Array.isArray(v))
+          return (
+            "{" + v.map((x, i) => `[${i + 1}] = ${lua(x)}`).join(", ") + "}"
+          );
+        if (typeof v === "object")
+          return (
+            "{" +
+            Object.entries(v)
+              .map(([k, x]) => `[${JSON.stringify(k)}] = ${lua(x)}`)
+              .join(", ") +
+            "}"
+          );
+        return "nil";
+      }
+      function exportLua() {
+        const ev = [...state.events]
+          .sort((a, b) => a.time - b.time)
+          .map(
+            (e) =>
+              `\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration || 0}, selection = ${lua(e.selection)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`,
+          )
+          .join("\n");
+        return `-- Exported by Flux Sequencer\nreturn {\n\tversion = 3,\n\tname = ${JSON.stringify(state.name)},\n\tsongId = ${JSON.stringify(state.songId)},\n\tduration = ${state.duration},\n\tbpm = ${state.bpm},\n\tevents = {\n${ev}\n\t},\n}`;
+      }
+      function openModal(title, sub, text, copy = true) {
+        $("#modalTitle").textContent = title;
+        $("#modalSub").textContent = sub;
+        $("#output").textContent = text;
+        $("#copy").style.display = copy ? "" : "none";
+        $("#modal").classList.add("open");
+      }
+      function save() {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(
+          new Blob([JSON.stringify(state, null, 2)], {
+            type: "application/json",
+          }),
+        );
+        a.download =
+          (state.name || "show").replace(/[^a-z0-9]+/gi, "-").toLowerCase() +
+          ".flux.json";
+        a.click();
+      }
+      function projectBundle() {
+        return {
+          format: "fluxline-project",
+          version: 1,
+          savedAt: new Date().toISOString(),
+          state,
+          fluxData,
+          customBlocks: CUSTOM_BLOCKS,
+        };
+      }
+      function loadProject(bundle) {
+        if (bundle?.format === "fluxline-project") {
+          state = bundle.state;
+          fluxData = bundle.fluxData || null;
+          CUSTOM_BLOCKS = bundle.customBlocks || CUSTOM_BLOCKS;
+        } else if (bundle?.events) {
+          state = bundle;
+        } else throw new Error("This is not a Fluxline project file.");
+        if (fluxData) buildImportedLibrary(fluxData);
+        else {
+          DEFINITIONS = structuredClone(BASE_DEFINITIONS);
+          IMPORTED = {};
+          appendCustomDefinitions();
+        }
+        selectedEvent = null;
+        selectedEvents.clear();
+        selectedLane = state.patch?.[0]?.type + ":all";
+        hydrate();
+        toast("Show loaded");
+      }
+      function downloadProject() {
+        const blob = new Blob([JSON.stringify(projectBundle(), null, 2)], {
+            type: "application/json",
+          }),
+          a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download =
+          (state.name || "flux-show")
+            .replace(/[^a-z0-9]+/gi, "-")
+            .toLowerCase() + ".fluxline.json";
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      }
+      function savedProjects() {
+        try {
+          return JSON.parse(localStorage.getItem("fluxlineSavedShows")) || [];
+        } catch {
+          return [];
+        }
+      }
+      function renderSavedShows() {
+        const root = $("#savedShows"),
+          items = savedProjects();
+        root.innerHTML = items
+          .map(
+            (x) =>
+              `<div class="saved-item" data-id="${esc(x.id)}"><b>${esc(x.name)}</b><small>${new Date(x.savedAt).toLocaleString()}</small><button data-load="${esc(x.id)}">Load</button><button data-delete="${esc(x.id)}">Delete</button></div>`,
+          )
+          .join("");
+        $$("[data-load]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              const item = savedProjects().find((x) => x.id === b.dataset.load);
+              if (item) {
+                loadProject(item.project);
+                $("#projectModal").classList.remove("open");
+              }
+            }),
+        );
+        $$("[data-delete]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              localStorage.setItem(
+                "fluxlineSavedShows",
+                JSON.stringify(
+                  savedProjects().filter((x) => x.id !== b.dataset.delete),
+                ),
+              );
+              renderSavedShows();
+            }),
+        );
+      }
+      function cacheProject() {
+        const items = savedProjects(),
+          existing = items.find((x) => x.name === state.name),
+          entry = {
+            id: existing?.id || uid(),
+            name: state.name || "Untitled show",
+            savedAt: new Date().toISOString(),
+            project: projectBundle(),
+          };
+        const next = [entry, ...items.filter((x) => x.id !== entry.id)].slice(
+          0,
+          20,
+        );
+        localStorage.setItem("fluxlineSavedShows", JSON.stringify(next));
+        renderSavedShows();
+        toast("Saved in this browser");
+      }
+      function autosave() {
+        try {
+          localStorage.setItem(
+            "fluxlineAutosave",
+            JSON.stringify(projectBundle()),
+          );
+        } catch {}
+      }
+      function readCustomBlocks() {
+        try {
+          CUSTOM_BLOCKS =
+            JSON.parse(localStorage.getItem("fluxlineCustomBlocks")) || [];
+        } catch {
+          CUSTOM_BLOCKS = [];
+        }
+        appendCustomDefinitions();
+      }
+      function renderBuilderActions() {
+        const root = $("#builderActions");
+        root.innerHTML = builderActions.length
+          ? builderActions
+              .map(
+                (a, i) =>
+                  `<div class="builder-action"><b>${esc(a.label)}</b><span>${esc(a.value)}${a.duration ? ` · ${a.duration}s` : ""}</span><button class="project-action" data-remove-action="${i}">Remove</button></div>`,
+              )
+              .join("")
+          : '<div class="builder-empty">Add two or more actions. They will fire at exactly the same time.</div>';
+        $$("[data-remove-action]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              builderActions.splice(+b.dataset.removeAction, 1);
+              renderBuilderActions();
+            }),
+        );
+      }
+      function renderCustomBlockManager() {
+        const root = $("#savedBlocksEditor");
+        root.innerHTML = CUSTOM_BLOCKS.length
+          ? CUSTOM_BLOCKS.map(
+              (x) =>
+                `<div class="builder-action"><b>${esc(x.name)}</b><span>${x.actions.length} actions</span><button class="project-action" data-edit-block="${x.id}">Edit</button><button class="project-action" data-delete-block="${x.id}">Delete</button></div>`,
+            ).join("")
+          : '<div class="builder-empty">No custom blocks yet.</div>';
+        $$("[data-edit-block]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              const x = CUSTOM_BLOCKS.find((y) => y.id === b.dataset.editBlock);
+              if (!x) return;
+              editingBlockId = x.id;
+              $("#blockName").value = x.name;
+              builderActions = structuredClone(x.actions);
+              renderBuilderActions();
+            }),
+        );
+        $$("[data-delete-block]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              CUSTOM_BLOCKS = CUSTOM_BLOCKS.filter(
+                (x) => x.id !== b.dataset.deleteBlock,
+              );
+              localStorage.setItem(
+                "fluxlineCustomBlocks",
+                JSON.stringify(CUSTOM_BLOCKS),
+              );
+              appendCustomDefinitions();
+              renderCustomBlockManager();
+              renderPalette();
+              toast("Block deleted");
+            }),
+        );
+      }
+      function resetBlockEditor() {
+        editingBlockId = null;
+        builderActions = [];
+        $("#blockName").value = "";
+        syncBlockValue();
+        renderBuilderActions();
+      }
+      function syncBlockValue() {
+        const [action, value] = $("#blockAction").value.split(":");
+        $("#blockValue").type = action === "color" ? "color" : "number";
+        $("#blockValue").step = action === "color" ? "" : ".01";
+        $("#blockValue").value = value;
+      }
+      function addBuilderAction() {
+        const option = $("#blockAction").selectedOptions[0],
+          [action] = $("#blockAction").value.split(":"),
+          raw = $("#blockValue").value,
+          duration = Math.max(0, +$("#blockDuration").value || 0),
+          value = action === "color" ? raw : +raw;
+        builderActions.push({
+          label: option.textContent,
+          action,
+          value,
+          duration,
+        });
+        renderBuilderActions();
+      }
+      function saveCustomBlock() {
+        const name = $("#blockName").value.trim();
+        if (!name) return toast("Give this block a name");
+        if (!builderActions.length) return toast("Add at least one action");
+        const existing =
+            CUSTOM_BLOCKS.find((x) => x.id === editingBlockId) ||
+            CUSTOM_BLOCKS.find(
+              (x) => x.name.toLowerCase() === name.toLowerCase(),
+            ),
+          item = {
+            id: existing?.id || uid(),
+            name,
+            actions: structuredClone(builderActions),
+          };
+        CUSTOM_BLOCKS = [
+          item,
+          ...CUSTOM_BLOCKS.filter((x) => x.id !== item.id),
+        ];
+        localStorage.setItem(
+          "fluxlineCustomBlocks",
+          JSON.stringify(CUSTOM_BLOCKS),
+        );
+        appendCustomDefinitions();
+        renderPalette();
+        renderCustomBlockManager();
+        resetBlockEditor();
+        toast("Block saved — drag it from My Blocks");
+      }
+      function hydrate() {
+        state.patch = state.patch || structuredClone(DEFAULT_PATCH);
+        state.events = state.events || [];
+        $("#bpm").value = state.bpm || 128;
+        renderAll();
+      }
+      function renderAll() {
+        patchSummary();
+        renderPalette();
+        renderRuler();
+        renderTimeline();
+        renderInspector();
+        drawWave();
+        buttons();
+        autosave();
+      }
+      $("#loadFlux").onclick = importFlux;
+      $("#demoFlux").onclick = () => {
+        $("#importGate").classList.add("hidden");
+        hydrate();
+      };
+      $("#fluxJson").oninput = () => {
+        $("#importError").textContent = "";
+      };
+      $("#search").oninput = renderPalette;
+      $("#color").oninput = (e) => {
+        if (armed?.action === "color") {
+          armed.value = e.target.value;
+          renderPalette();
+        }
+      };
+      $("#undo").onclick = undo;
+      $("#redo").onclick = redo;
+      $("#play").onclick = togglePlay;
+      $("#home").onclick = () => {
+        stop();
+        seek(0);
+      };
+      $("#bpm").onchange = (e) => {
+        commit();
+        state.bpm = +e.target.value || 128;
+      };
+      $("#zoom").oninput = (e) => {
+        px = +e.target.value;
+        document.documentElement.style.setProperty("--pps", px + "px");
+        renderRuler();
+        renderTimeline();
+      };
+      $("#waveWrap").onpointerdown = (e) =>
+        scrubSurface(e, e.currentTarget, true);
+      $("#audio").onclick = () => $("#file").click();
+      $("#file").onchange = (e) => {
+        const f = e.target.files[0];
+        if (f) loadAudio(f);
+        e.target.value = "";
+      };
+      $("#checks").onclick = () => {
+        const bad = checks();
+        openModal(
+          "Export checks",
+          bad.length
+            ? "Fix these events before export."
+            : "Every event is supported by its target fixture.",
+          bad.length
+            ? bad
+                .map((e) => `${e.time}s · ${e.target} cannot use ${e.action}`)
+                .join("\n")
+            : "No problems found.",
+          false,
+        );
+      };
+      $("#projectMenu").onclick = () => {
+        $("#projectModal").classList.add("open");
+        renderSavedShows();
+      };
+      $("#closeProject").onclick = () =>
+        $("#projectModal").classList.remove("open");
+      $("#projectModal").onclick = (e) => {
+        if (e.target.id === "projectModal")
+          $("#projectModal").classList.remove("open");
+      };
+      $("#importDatastore").onclick = () => {
+        $("#projectModal").classList.remove("open");
+        $("#fluxJson").value = "";
+        $("#importError").textContent = "";
+        $("#importGate").classList.remove("hidden");
+      };
+      $("#exportShow").onclick = () => {
+        if (checks().length) {
+          $("#projectModal").classList.remove("open");
+          $("#checks").click();
+          return;
+        }
+        $("#projectModal").classList.remove("open");
+        openModal(
+          "Export Flux show",
+          "Copy this into a ModuleScript inside Workspace.Fluxline.Shows.",
+          exportLua(),
+        );
+      };
+      $("#importShow").onclick = () => $("#showFile").click();
+      $("#showFile").onchange = (e) => {
+        const f = e.target.files[0];
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            loadProject(JSON.parse(reader.result));
+            $("#projectModal").classList.remove("open");
+          } catch (error) {
+            toast(error.message);
+          }
+        };
+        reader.readAsText(f);
+        e.target.value = "";
+      };
+      $("#downloadShow").onclick = downloadProject;
+      $("#cacheShow").onclick = cacheProject;
+      $("#close").onclick = () => $("#modal").classList.remove("open");
+      $("#copy").onclick = () =>
+        navigator.clipboard
+          .writeText($("#output").textContent)
+          .then(() => toast("Copied"));
+      $("#modal").onclick = (e) => {
+        if (e.target.id === "modal") $("#modal").classList.remove("open");
+      };
+      const paletteDragBase = paletteDrag;
+      paletteDrag = function (ev, b) {
+        if (b.classList.contains("blocked")) {
+          toast("That cue is not supported by the selected lane");
+          return;
+        }
+        paletteDragBase(ev, b);
+      };
+      $("#zoom").oninput = (e) => zoomTo(+e.target.value);
+      $("#speed").onchange = (e) => {
+        playbackSpeed = +e.target.value || 1;
+        if (audioEl) audioEl.playbackRate = playbackSpeed;
+        if (playing && !audioEl)
+          started = performance.now() - (position / playbackSpeed) * 1000;
+      };
+      $("#loop").onclick = (e) => {
+        looping = !looping;
+        e.currentTarget.classList.toggle("check", looping);
+        toast(looping ? "Loop on" : "Loop off");
+      };
+      $("#blocksMenu").onclick = () => {
+        resetBlockEditor();
+        renderCustomBlockManager();
+        $("#blocksModal").classList.add("open");
+      };
+      $("#closeBlocks").onclick = () =>
+        $("#blocksModal").classList.remove("open");
+      $("#blocksModal").onclick = (e) => {
+        if (e.target.id === "blocksModal")
+          $("#blocksModal").classList.remove("open");
+      };
+      $("#blockAction").onchange = syncBlockValue;
+      $("#addBlockAction").onclick = addBuilderAction;
+      $("#newBlock").onclick = resetBlockEditor;
+      $("#saveBlock").onclick = saveCustomBlock;
+      document.addEventListener(
+        "pointerdown",
+        (e) => {
+          if (e.target.closest?.("#head")) dragPlayhead(e);
+        },
+        true,
+      );
+      document.addEventListener("keydown", (e) => {
+        if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) return;
+        const mod = e.ctrlKey || e.metaKey,
+          key = e.key.toLowerCase();
+        if (e.code === "Space") {
+          e.preventDefault();
+          togglePlay();
+        } else if (e.key === "Escape") {
+          armed = null;
+          selectedEvents.clear();
+          selectedEvent = null;
+          renderAll();
+        } else if (e.key === "Enter" && armed) {
+          e.preventDefault();
+          place(selectedLane, snapTime(position));
+          armed = null;
+          renderPalette();
+        } else if (e.key === "Delete" || e.key === "Backspace") {
+          e.preventDefault();
+          deleteSelection();
+        } else if (mod && key === "c") {
+          e.preventDefault();
+          copySelection();
+        } else if (mod && key === "v") {
+          e.preventDefault();
+          pasteSelection();
+        } else if (mod && key === "z") {
+          e.preventDefault();
+          e.shiftKey ? redo() : undo();
+        } else if (mod && key === "d") {
+          e.preventDefault();
+          duplicateSelection();
+        } else if (
+          selectedEvents.size &&
+          (e.key === "ArrowLeft" || e.key === "ArrowRight")
+        ) {
+          e.preventDefault();
+          commit();
+          const amount =
+            (e.key === "ArrowRight" ? 1 : -1) *
+            (e.shiftKey
+              ? (60 / state.bpm) * 4
+              : ((+$("#snap").value || 1) * 60) / state.bpm);
+          selectedList().forEach((x) => (x.time = snapTime(x.time + amount)));
+          renderAll();
+        }
+      });
+      window.addEventListener("resize", drawWave);
+      readCustomBlocks();
+      renderAll();
+    </script>
+  </body>
+</html>

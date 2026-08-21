@@ -2330,11 +2330,11 @@
         builderActions = [],
         editingBlockId = null;
       const DEFAULT_PATCH = [
-        { type: "profile", count: 12 },
-        { type: "wash", count: 10 },
-        { type: "jdc1", count: 12 },
-        { type: "line", count: 8 },
-        { type: "blinder", count: 8 },
+        { type: "profile", count: 12, exact: false },
+        { type: "wash", count: 10, exact: false },
+        { type: "jdc1", count: 12, exact: false },
+        { type: "line", count: 8, exact: false },
+        { type: "blinder", count: 8, exact: false },
       ];
       let fluxData = null;
       let state = {
@@ -2515,6 +2515,35 @@
           highest || DEFAULT_PATCH.find((x) => x.type === type)?.count || 1
         );
       }
+      function normalisePatchEntry(entry) {
+        const channels = Array.isArray(entry?.channels)
+          ? entry.channels
+              .map((channel) => ({
+                module: Number.isFinite(+channel.module)
+                  ? +channel.module
+                  : channel.module,
+                label: String(channel.label || `Module ${channel.module}`),
+                capabilities: Array.isArray(channel.capabilities)
+                  ? [...new Set(channel.capabilities.map(String))]
+                  : [],
+                emitterCount: Math.max(0, +channel.emitterCount || 0),
+              }))
+              .filter((channel) => channel.module !== undefined)
+          : [];
+        return {
+          type: String(entry.type || "").toLowerCase(),
+          count: Math.max(0, +entry.count || 0),
+          exact: entry.exact === true,
+          ids: Array.isArray(entry.ids) ? entry.ids.map(String) : [],
+          capabilities: Array.isArray(entry.capabilities)
+            ? [...new Set(entry.capabilities.map(String))]
+            : [],
+          channels,
+        };
+      }
+      function patchEntry(type) {
+        return state.patch.find((entry) => entry.type === type) || null;
+      }
       function appendCustomDefinitions() {
         DEFINITIONS = DEFINITIONS.filter((x) => x[0] !== "My Blocks");
         if (CUSTOM_BLOCKS.length)
@@ -2566,34 +2595,93 @@
           );
         if (missing.length)
           throw new Error("Missing Flux sections: " + missing.join(", "));
+        if (
+          parsed.format === "fluxline-datastore" &&
+          !Array.isArray(parsed.patch)
+        )
+          throw new Error(
+            "Legacy Flux export detected. Restart Play mode and export again from the updated Roblox GUI; the new JSON contains an exact fixture patch.",
+          );
         fluxData = data;
         buildImportedLibrary(data);
-        const names = new Set();
-        required.forEach((key) =>
-          Object.keys(data[key]).forEach((type) => {
-            if (type !== "pyrotechnics") names.add(type);
-          }),
-        );
-        state.patch = [...names].map((type) => ({
-          type,
-          count: fixtureCount(data.groups, type),
-        }));
+        const exportedPatch = Array.isArray(parsed.patch)
+          ? parsed.patch.map(normalisePatchEntry)
+          : [],
+          names = new Set();
+        if (exportedPatch.length)
+          exportedPatch.forEach((entry) => names.add(entry.type));
+        else
+          required.forEach((key) =>
+            Object.keys(data[key]).forEach((type) => {
+              if (type !== "pyrotechnics") names.add(type);
+            }),
+          );
+        state.patch = [...names].map((type) => {
+          const exact = exportedPatch.find((entry) => entry.type === type);
+          if (exact) return exact;
+          return {
+            type,
+            count: fixtureCount(data.groups, type),
+            exact: false,
+            ids: [],
+            capabilities: CAPS[type] || [],
+            channels: [],
+          };
+        });
         if (!state.patch.length)
           throw new Error("No Flux fixtures were found.");
         selectedLane = state.patch[0].type + ":all";
         if (persist)
           localStorage.setItem("fluxDataStore", JSON.stringify(parsed));
       }
+      function parsePastedJson(source) {
+        const text = String(source || "")
+          .replace(/^\uFEFF/, "")
+          .trim();
+        if (!text) throw new Error("Paste your Flux DataStore JSON first.");
+        if (text[0] !== "{" && text[0] !== "[")
+          throw new Error("Flux JSON must begin with { or [.");
+        let depth = 0,
+          quote = false,
+          escaped = false;
+        for (let index = 0; index < text.length; index += 1) {
+          const character = text[index];
+          if (quote) {
+            if (escaped) escaped = false;
+            else if (character === "\\") escaped = true;
+            else if (character === '"') quote = false;
+            continue;
+          }
+          if (character === '"') {
+            quote = true;
+            continue;
+          }
+          if (character === "{" || character === "[") depth += 1;
+          else if (character === "}" || character === "]") depth -= 1;
+          if (depth === 0) {
+            const json = text.slice(0, index + 1),
+              trailing = text.slice(index + 1).trim();
+            return { value: JSON.parse(json), ignoredTrailingText: !!trailing };
+          }
+          if (depth < 0) break;
+        }
+        return { value: JSON.parse(text), ignoredTrailingText: false };
+      }
       function importFlux() {
         try {
-          configureFluxExport(JSON.parse($("#fluxJson").value.trim()));
+          const parsed = parsePastedJson($("#fluxJson").value);
+          configureFluxExport(parsed.value);
           projectOpen = true;
           $("#launchGate").classList.add("hidden");
           $("#importGate").classList.add("hidden");
           recoveryEditsSinceSave = 0;
           hydrate();
           autosave(true);
-          toast("Flux library loaded");
+          toast(
+            parsed.ignoredTrailingText
+              ? "Flux library loaded · trailing pasted text ignored"
+              : "Flux library loaded",
+          );
         } catch (error) {
           $("#importError").textContent = error.message;
         }
@@ -2735,7 +2823,7 @@
           delete e._offset;
           e.id = uid();
           e.time = snapTime(position + saved._offset);
-          if (!valid(e.target, e.action, e.native)) continue;
+          if (!valid(e.target, e.action, e.native, e.module)) continue;
           state.events.push(e);
           ids.push(e.id);
         }
@@ -2777,7 +2865,16 @@
         setSelection(ids);
         toast(`${ids.length} duplicated`);
       }
-      function capabilities(type) {
+      function capabilities(type, module = null) {
+        const fixture = patchEntry(type),
+          channel =
+            module === null || module === undefined
+              ? null
+              : fixture?.channels?.find(
+                  (entry) => String(entry.module) === String(module),
+                );
+        if (channel?.capabilities?.length) return channel.capabilities;
+        if (fixture?.capabilities?.length) return fixture.capabilities;
         return CAPS[type] || [];
       }
       function cueFromButton(b) {
@@ -2928,7 +3025,7 @@
           const track = trackAtPoint(e.clientX, e.clientY);
           if (!track) return;
           const target = track.dataset.lane;
-          const ok = valid(target, cue.action, cue.native);
+          const ok = valid(target, cue.action, cue.native, laneModule(target));
           track.classList.add(ok ? "drop-ok" : "drop-bad");
           lastTrack = track;
           if (!ok) return;
@@ -2940,6 +3037,7 @@
           );
           previewEvent.time = dropTime;
           previewEvent.target = target;
+          previewEvent.module = laneModule(target);
           const start = { e: previewEvent, time: dropTime };
           const rows = previewRows(target, [start], 0),
             row = rows.get(previewEvent.id) || 0;
@@ -3010,7 +3108,12 @@
           return `<div class="section-title">${section}</div><div class="blocks">${visible
             .map(([label, action, value, duration]) => {
               const native = IMPORTED[value] || null,
-                blocked = !valid(selectedLane, action, native),
+                blocked = !valid(
+                  selectedLane,
+                  action,
+                  native,
+                  laneModule(selectedLane),
+                ),
                 colourCue = action === "color",
                 kind = action.startsWith("flux-")
                   ? action.slice(5)
@@ -3049,6 +3152,7 @@
             selectedLane,
             button.dataset.action,
             IMPORTED[button.dataset.value] || null,
+            laneModule(selectedLane),
           );
           button.classList.toggle("blocked", blocked);
           button.setAttribute("aria-disabled", String(blocked));
@@ -3058,11 +3162,12 @@
         });
       }
       function patchSummary() {
-        const total = state.patch.reduce((a, f) => a + f.count, 0);
+        const exact = state.patch.every((fixture) => fixture.exact === true),
+          total = state.patch.reduce((a, f) => a + (+f.count || 0), 0);
         $("#summary").textContent =
-          `Flux · ${state.patch.length} fixture types · ${total} fixtures`;
+          `Flux · ${state.patch.length} fixture types · ${exact ? `${total} fixtures` : "fixture inventory unavailable"}`;
         $("#patchSummary").innerHTML =
-          `<b>${state.name}</b><br>${state.patch.map((f) => `${f.type} ${f.count}`).join(" · ")}<br><span>Drag cues from the palette onto a compatible lane.</span>`;
+          `<b>${state.name}</b><br>${state.patch.map((f) => `${f.type} ${f.exact === true ? f.count : "inventory unknown"}${f.channels?.length ? ` · ${f.channels.map((channel) => esc(channel.label)).join(" / ")}` : ""}`).join(" · ")}<br><span>${exact ? "" : "Legacy setup: physical group counts are not fixture inventory. Re-export in Roblox for the exact patch. "}Drag cues from the palette onto a compatible lane.</span>`;
       }
       function timelineWidth() {
         const visible = Math.max(
@@ -3119,8 +3224,17 @@
             key: f.type + ":all",
             type: f.type,
             label: f.type,
-            detail: f.count + " fixtures",
+            detail:
+              f.exact === true ? f.count + " fixtures" : "inventory unknown",
           });
+          for (const channel of f.channels || [])
+            lanes.push({
+              key: `${f.type}:channel:${channel.module}`,
+              type: f.type,
+              label: `${f.type} · ${channel.label}`,
+              detail: `${f.exact === true ? `${f.count} fixtures` : "inventory unknown"} · module ${channel.module}`,
+              module: channel.module,
+            });
           for (const [name, record] of Object.entries(
             fluxData?.groups?.[f.type] || {},
           )) {
@@ -3140,6 +3254,9 @@
       }
       function laneSelection(target) {
         return laneList().find((x) => x.key === target)?.selection || null;
+      }
+      function laneModule(target) {
+        return laneList().find((x) => x.key === target)?.module ?? null;
       }
       function eventWidth(e) {
         return Math.max(
@@ -3231,7 +3348,7 @@
         applyGridStyles($("#timeline"));
         let html = `<div class="playhead" id="head"></div><div class="marquee" id="marquee"></div>`;
         for (const lane of laneList()) {
-          const caps = capabilities(lane.type);
+          const caps = capabilities(lane.type, lane.module);
           html += laneMarkup(
             lane.key,
             lane.label,
@@ -3265,14 +3382,14 @@
       function eventHtml(e, row = 0) {
         return `<div class="event ${selectedEvent?.id === e.id ? "selected" : selectedEvents.has(e.id) ? "multi" : ""}" data-id="${e.id}" data-kind="${e.kind}" style="top:${9 + row * 42}px;left:${e.time * px}px;width:${eventWidth(e)}px">${e.label}<span class="resize-handle" title="Drag to resize"></span></div>`;
       }
-      function valid(target, action, native = null) {
+      function valid(target, action, native = null, module = null) {
         if (target === "pyrotechnics") return action === "pyro";
         if (action === "pyro") return false;
         if (action === "block") return true;
         const type = target.split(":")[0];
         if (action.startsWith("flux-")) return native?.fixture === type;
         return (
-          capabilities(type).includes(
+          capabilities(type, module).includes(
             action === "level" ? "intensity" : action,
           ) || action === "reset"
         );
@@ -3282,7 +3399,7 @@
           toast("Drag a cue or custom block onto a lane");
           return;
         }
-        if (!valid(target, armed.action, armed.native)) {
+        if (!valid(target, armed.action, armed.native, laneModule(target))) {
           toast("That cue belongs to a different fixture type");
           return;
         }
@@ -3305,6 +3422,7 @@
           label: armed.label,
           kind: armed.kind,
           selection: laneSelection(target),
+          module: laneModule(target),
           native: armed.native,
           actions: structuredClone(armed.actions),
         };
@@ -3470,7 +3588,9 @@
           const track = overTrash ? null : trackAtPoint(e.clientX, e.clientY);
           if (track) {
             const key = track.dataset.lane,
-              ok = starts.every((s) => valid(key, s.e.action, s.e.native));
+              ok = starts.every((s) =>
+                valid(key, s.e.action, s.e.native, laneModule(key)),
+              );
             track.classList.add(ok ? "drop-ok" : "drop-bad");
             highlight = track;
             if (ok) target = key;
@@ -3508,6 +3628,7 @@
                 if (target) {
                   s.e.target = target;
                   s.e.selection = laneSelection(target);
+                  s.e.module = laneModule(target);
                 }
               });
             autosave();
@@ -3606,7 +3727,9 @@
         s.invalid = false;
         if (track) {
           const key = track.dataset.lane;
-          const ok = s.starts.every((x) => valid(key, x.e.action, x.e.native));
+          const ok = s.starts.every((x) =>
+            valid(key, x.e.action, x.e.native, laneModule(key)),
+          );
           track.classList.add(ok ? "drop-ok" : "drop-bad");
           s.target = ok ? key : null;
           s.invalid = !ok;
@@ -3718,6 +3841,7 @@
             x.e.time = +(x.time + s.shift).toFixed(3);
             x.e.target = s.target;
             x.e.selection = laneSelection(s.target);
+            x.e.module = laneModule(s.target);
           });
         } else if (s.invalid) toast("That cue is not supported on this lane");
         s.highlight?.classList.remove("drop-ok", "drop-bad");
@@ -3990,6 +4114,7 @@
           e.duration = Math.max(0, +$("#evDuration").value);
           e.target = $("#evTarget").value;
           e.selection = laneSelection(e.target);
+          e.module = laneModule(e.target);
           if ($("#evValue"))
             e.value = isColor ? $("#evValue").value : +$("#evValue").value;
           renderTimeline();
@@ -4150,7 +4275,7 @@
       }
       function checks() {
         const bad = state.events.filter(
-          (e) => !valid(e.target, e.action, e.native),
+          (e) => !valid(e.target, e.action, e.native, e.module),
         );
         const b = $("#checks");
         const label = bad.length
@@ -4191,7 +4316,7 @@
           .sort((a, b) => a.time - b.time)
           .map(
             (e) =>
-              `\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration || 0}, label = ${JSON.stringify(e.label || e.action)}, kind = ${JSON.stringify(e.kind || "output")}, selection = ${lua(e.selection)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`,
+              `\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration || 0}, label = ${JSON.stringify(e.label || e.action)}, kind = ${JSON.stringify(e.kind || "output")}, selection = ${lua(e.selection)}, module = ${lua(e.module)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`,
           )
           .join("\n");
         return `-- Exported by Flux Sequencer\nreturn {\n\tversion = 3,\n\tname = ${JSON.stringify(state.name)},\n\tsongId = ${JSON.stringify(state.songId)},\n\tduration = ${state.duration},\n\tbpm = ${state.bpm},\n\tevents = {\n${ev}\n\t},\n}`;
@@ -4319,6 +4444,7 @@
             label: String(raw.label || raw.action || "Cue"),
             kind: String(raw.kind || "output"),
             selection: raw.selection || laneSelection(raw.target),
+            module: raw.module ?? laneModule(raw.target),
             native: raw.native || null,
             actions: Array.isArray(raw.actions)
               ? raw.actions.map(normaliseAction)

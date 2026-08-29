@@ -3,6 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="flux-sequencer-version" content="2026.08.29.3" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>Flux Sequencer</title>
     <link rel="icon" type="image/png" sizes="360x360" href="favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -272,18 +276,43 @@
         border-bottom: 1px solid var(--line);
       }
       .brand {
-        min-width: 250px;
+        display: flex;
+        min-width: 300px;
+        align-items: center;
+        gap: 12px;
+      }
+      .brand-copy {
+        min-width: 0;
+        flex: 1;
       }
       .brand h1 {
         font-size: 19px;
         margin: 0;
         font-weight: 750;
         letter-spacing: -0.03em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .brand p {
         margin: 3px 0 0;
         color: var(--muted);
         font-size: 12px;
+      }
+      .brand-saves {
+        flex: 0 0 auto;
+        height: 38px;
+        padding: 0 16px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--panel2);
+        color: var(--text);
+        font-weight: 720;
+        cursor: pointer;
+      }
+      .brand-saves:hover {
+        background: #292929;
+        border-color: #5a5a5a;
       }
       .spacer {
         flex: 1;
@@ -863,6 +892,26 @@
         opacity: 1;
         transform: translateX(-50%);
       }
+      .update-notice {
+        position: fixed;
+        top: 18px;
+        left: 50%;
+        z-index: 230;
+        min-height: 42px;
+        padding: 0 18px;
+        transform: translateX(-50%);
+        border: 1px solid #666;
+        border-radius: 999px;
+        background: #f5f5f5;
+        color: #111;
+        box-shadow: 0 12px 36px #000a;
+        font-weight: 760;
+        cursor: pointer;
+        animation: md-dialog-in 220ms var(--md-emphasized, ease-out) both;
+      }
+      .update-notice[hidden] {
+        display: none;
+      }
       @media (max-width: 1000px) {
         .topbar {
           gap: 7px;
@@ -959,6 +1008,7 @@
         place-items: center;
         padding: 24px;
         background: #09090a;
+        animation: md-scrim-in 160ms var(--md-standard, ease-out) both;
       }
       .launch-gate.hidden {
         display: none;
@@ -972,6 +1022,7 @@
         border: 1px solid var(--line);
         border-radius: var(--md-radius-lg, 28px);
         box-shadow: var(--md-shadow-3, 0 24px 80px #000c);
+        animation: md-dialog-in 260ms var(--md-emphasized, ease-out) both;
       }
       .launch-title {
         margin-bottom: 24px;
@@ -989,6 +1040,35 @@
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
+      }
+      .launch-create {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .launch-create input {
+        min-width: 0;
+        height: 50px;
+        padding: 0 16px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--panel);
+        color: var(--text);
+      }
+      .launch-create input:focus {
+        border-color: #777;
+        outline: 2px solid #fff;
+        outline-offset: 2px;
+      }
+      .launch-create button {
+        min-width: 132px;
+        border: 1px solid #f1f1f3;
+        border-radius: 16px;
+        background: #f1f1f3;
+        color: #111;
+        font-weight: 760;
+        cursor: pointer;
       }
       .launch-action {
         min-height: 96px;
@@ -1031,7 +1111,7 @@
       }
       .launch-project {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto auto;
+        grid-template-columns: minmax(0, 1fr) auto auto auto;
         align-items: center;
         gap: 10px;
         padding: 13px 14px;
@@ -1089,8 +1169,12 @@
         .launch-project {
           grid-template-columns: minmax(0, 1fr) auto;
         }
+        .launch-project [data-launch-export],
         .launch-project [data-launch-delete] {
           display: none;
+        }
+        .launch-create {
+          grid-template-columns: 1fr;
         }
         .launch-footer {
           align-items: flex-start;
@@ -1654,26 +1738,33 @@
     <div class="launch-gate" id="launchGate">
       <div class="launch-card">
         <div class="launch-title">
-          <h1>What would you like to open?</h1>
+          <h1>Your shows</h1>
           <p>
-            Flux Sequencer · create a show, open a browser save, or import JSON.
+            Create a show, open a browser save, or import a portable JSON file.
           </p>
         </div>
         <div class="launch-actions">
-          <button class="launch-action primary" id="newShow">
-            <b>New show</b>
-            <small
-              >Start with an empty timeline and your most recent Flux
-              setup.</small
-            >
-          </button>
           <button class="launch-action" id="launchImportJson">
             <b>Import project JSON</b>
             <small
-              >Open a portable <code>.json</code> project from any
+              >Import and save an editable <code>.json</code> show from any
               device.</small
             >
           </button>
+          <div class="launch-action primary" aria-hidden="true">
+            <b>Create a new show</b>
+            <small>Name it first, then start with an empty timeline.</small>
+          </div>
+        </div>
+        <div class="launch-create">
+          <input
+            id="newShowName"
+            autocomplete="off"
+            maxlength="80"
+            placeholder="Show name"
+            aria-label="New show name"
+          />
+          <button id="newShow">Create show</button>
         </div>
         <div class="project-section">Saved in this browser</div>
         <div class="launch-list" id="launchProjects"></div>
@@ -1686,8 +1777,7 @@
           </div>
           <div style="display: flex; align-items: center; gap: 10px">
             <small style="color: var(--muted)"
-              >Cache stays on this browser. Export JSON for a permanent
-              copy.</small
+              >Shows autosave here. Export JSON for a portable copy.</small
             >
             <button class="pill" id="returnToEditor">Back to editor</button>
           </div>
@@ -1717,8 +1807,13 @@
     <div class="app">
       <header class="topbar">
         <div class="brand">
-          <h1>Flux Sequencer</h1>
-          <p id="summary">Loading fixture patch…</p>
+          <div class="brand-copy">
+            <h1 id="currentShowName">Flux Sequencer</h1>
+            <p id="summary">Loading fixture patch…</p>
+          </div>
+          <button class="brand-saves" id="libraryMenu" title="Open saved shows">
+            Shows
+          </button>
         </div>
         <button
           class="icon expandable-icon"
@@ -1745,19 +1840,6 @@
         >
           <span class="icon-symbol">♫</span
           ><span class="icon-label">Load audio</span></button
-        ><button
-          class="icon expandable-icon"
-          id="libraryMenu"
-          title="Open project library"
-          style="--expanded-width: 116px"
-        >
-          <span class="icon-symbol"
-            ><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-              <path
-                fill="currentColor"
-                d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2Z"
-              /></svg></span
-          ><span class="icon-label">Projects</span></button
         ><button
           class="icon expandable-icon"
           id="songIdMenu"
@@ -1909,6 +1991,9 @@
       <span>🗑</span><span>Drop to delete</span>
     </div>
     <div class="toast" id="toast"></div>
+    <button class="update-notice" id="updateNotice" hidden>
+      New version ready · Reload
+    </button>
     <div class="project-modal" id="projectModal">
       <div class="project-card">
         <div class="project-head">
@@ -1927,25 +2012,6 @@
             ><small>Paste a fresh export from the Roblox GUI</small>
           </div>
           <button class="project-action" id="importDatastore">Import</button>
-        </div>
-        <div class="project-section">Project JSON</div>
-        <div class="project-row">
-          <div class="project-icon">↑</div>
-          <div class="project-copy">
-            <b>Import project JSON</b
-            ><small>Restore an editable <code>.json</code> timeline</small>
-          </div>
-          <button class="project-action" id="importShow">Import</button>
-        </div>
-        <div class="project-row">
-          <div class="project-icon">↓</div>
-          <div class="project-copy">
-            <b>Export project JSON</b
-            ><small>Portable editable backup; audio file is excluded</small>
-          </div>
-          <button class="project-action primary" id="downloadShow">
-            Export
-          </button>
         </div>
         <div class="project-section">Roblox Lua show</div>
         <div class="project-row">
@@ -1991,7 +2057,6 @@
             </button>
           </div>
         </div>
-        <div class="saved-list" id="savedShows"></div>
         <div class="project-section">Storage</div>
         <div class="project-row">
           <div class="project-icon">×</div>
@@ -2206,6 +2271,9 @@
     </div>
     <script src="vendor/interact.min.js?v=1.10.28"></script>
     <script>
+      const APP_VERSION =
+        document.querySelector('meta[name="flux-sequencer-version"]')
+          ?.content || "unknown";
       const CAPS = {
         profile: [
           "intensity",
@@ -2374,8 +2442,7 @@
         activeSavedProjectId = null,
         lastNamedSaveSignature = null,
         saveFlashTimer = 0,
-        pendingRenameProjectId = null,
-        pendingProjectImport = "project";
+        pendingRenameProjectId = null;
       const APP_CACHE_KEYS = [
         "fluxlineAutosave",
         "fluxlineAutosaveEnabled",
@@ -2384,6 +2451,7 @@
         "fluxlineCustomBlocks",
         "fluxlineCustomColours",
         "fluxlineActiveColour",
+        "fluxlineLastProjectId",
         "fluxDataStore",
       ];
       function freshState(patch = DEFAULT_PATCH) {
@@ -2518,17 +2586,31 @@
       function normalisePatchEntry(entry) {
         const channels = Array.isArray(entry?.channels)
           ? entry.channels
-              .map((channel) => ({
-                module: Number.isFinite(+channel.module)
-                  ? +channel.module
-                  : channel.module,
-                label: String(channel.label || `Module ${channel.module}`),
-                capabilities: Array.isArray(channel.capabilities)
-                  ? [...new Set(channel.capabilities.map(String))]
-                  : [],
-                emitterCount: Math.max(0, +channel.emitterCount || 0),
-              }))
-              .filter((channel) => channel.module !== undefined)
+              .map((channel) => {
+                const module =
+                    channel.module != null && Number.isFinite(+channel.module)
+                      ? +channel.module
+                      : channel.module,
+                  key = String(channel.id ?? channel.key ?? module ?? "");
+                return {
+                  key,
+                  id: channel.id == null ? null : String(channel.id),
+                  module,
+                  component:
+                    channel.component == null
+                      ? null
+                      : String(channel.component),
+                  label: String(
+                    channel.label ||
+                      (module == null ? key : `Module ${module}`),
+                  ),
+                  capabilities: Array.isArray(channel.capabilities)
+                    ? [...new Set(channel.capabilities.map(String))]
+                    : [],
+                  emitterCount: Math.max(0, +channel.emitterCount || 0),
+                };
+              })
+              .filter((channel) => channel.key)
           : [];
         return {
           type: String(entry.type || "").toLowerCase(),
@@ -2693,6 +2775,66 @@
         clearTimeout(t._h);
         t._h = setTimeout(() => t.classList.remove("show"), 1400);
       }
+      let updateCheckInFlight = false,
+        lastUpdateCheck = 0;
+      function ensureFreshEntry() {
+        if (location.protocol === "file:") return false;
+        const token = Math.floor(Date.now() / 60_000).toString(36),
+          url = new URL(location.href);
+        if (url.searchParams.get("_fresh") === token) return false;
+        url.searchParams.delete("_refresh");
+        url.searchParams.delete("_version_check");
+        url.searchParams.set("_fresh", token);
+        autosave(true);
+        location.replace(url);
+        return true;
+      }
+      function reloadLatest(remoteVersion) {
+        autosave(true);
+        sessionStorage.setItem("fluxlineUpdateAttempt", remoteVersion);
+        const url = new URL(location.href);
+        url.hash = "";
+        url.searchParams.set("v", remoteVersion);
+        url.searchParams.set("_refresh", Date.now());
+        toast(`Updating to ${remoteVersion}…`);
+        setTimeout(() => location.replace(url), 550);
+      }
+      async function checkForAppUpdate(force = false) {
+        if (location.protocol === "file:" || updateCheckInFlight) return;
+        const now = Date.now();
+        if (!force && now - lastUpdateCheck < 60_000) return;
+        updateCheckInFlight = true;
+        lastUpdateCheck = now;
+        try {
+          const script = document.createElement("script"),
+            url = new URL("./version.js", document.baseURI);
+          url.searchParams.set("_version_check", now);
+          script.async = true;
+          script.src = url;
+          document.head.appendChild(script);
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          const remoteVersion = document.documentElement.dataset.fluxLatestVersion;
+          script.remove();
+          if (!remoteVersion) return;
+          if (remoteVersion === APP_VERSION) {
+            sessionStorage.removeItem("fluxlineUpdateAttempt");
+            $("#updateNotice").hidden = true;
+            return;
+          }
+          if (
+            sessionStorage.getItem("fluxlineUpdateAttempt") === remoteVersion
+          ) {
+            const notice = $("#updateNotice");
+            notice.textContent = `Version ${remoteVersion} ready · Reload`;
+            notice.hidden = false;
+            notice.onclick = () => reloadLatest(remoteVersion);
+          } else reloadLatest(remoteVersion);
+        } catch {
+          // Offline or mid-deploy: keep the current working version and retry later.
+        } finally {
+          updateCheckInFlight = false;
+        }
+      }
       function noteRecoveryEdit() {
         recoveryEditsSinceSave += 1;
         renderAutosaveStatus();
@@ -2823,7 +2965,8 @@
           delete e._offset;
           e.id = uid();
           e.time = snapTime(position + saved._offset);
-          if (!valid(e.target, e.action, e.native, e.module)) continue;
+          if (!valid(e.target, e.action, e.native, e.module, e.channel))
+            continue;
           state.events.push(e);
           ids.push(e.id);
         }
@@ -2865,13 +3008,17 @@
         setSelection(ids);
         toast(`${ids.length} duplicated`);
       }
-      function capabilities(type, module = null) {
+      function capabilities(type, module = null, channelKey = null) {
         const fixture = patchEntry(type),
           channel =
-            module === null || module === undefined
+            channelKey === null && (module === null || module === undefined)
               ? null
               : fixture?.channels?.find(
-                  (entry) => String(entry.module) === String(module),
+                  (entry) =>
+                    (channelKey !== null &&
+                      String(entry.key) === String(channelKey)) ||
+                    (channelKey === null &&
+                      String(entry.module) === String(module)),
                 );
         if (channel?.capabilities?.length) return channel.capabilities;
         if (fixture?.capabilities?.length) return fixture.capabilities;
@@ -3025,7 +3172,13 @@
           const track = trackAtPoint(e.clientX, e.clientY);
           if (!track) return;
           const target = track.dataset.lane;
-          const ok = valid(target, cue.action, cue.native, laneModule(target));
+          const ok = valid(
+            target,
+            cue.action,
+            cue.native,
+            laneModule(target),
+            laneChannel(target),
+          );
           track.classList.add(ok ? "drop-ok" : "drop-bad");
           lastTrack = track;
           if (!ok) return;
@@ -3038,6 +3191,7 @@
           previewEvent.time = dropTime;
           previewEvent.target = target;
           previewEvent.module = laneModule(target);
+          previewEvent.channel = laneChannel(target);
           const start = { e: previewEvent, time: dropTime };
           const rows = previewRows(target, [start], 0),
             row = rows.get(previewEvent.id) || 0;
@@ -3113,6 +3267,7 @@
                   action,
                   native,
                   laneModule(selectedLane),
+                  laneChannel(selectedLane),
                 ),
                 colourCue = action === "color",
                 kind = action.startsWith("flux-")
@@ -3153,6 +3308,7 @@
             button.dataset.action,
             IMPORTED[button.dataset.value] || null,
             laneModule(selectedLane),
+            laneChannel(selectedLane),
           );
           button.classList.toggle("blocked", blocked);
           button.setAttribute("aria-disabled", String(blocked));
@@ -3164,8 +3320,9 @@
       function patchSummary() {
         const exact = state.patch.every((fixture) => fixture.exact === true),
           total = state.patch.reduce((a, f) => a + (+f.count || 0), 0);
+        $("#currentShowName").textContent = state.name || "Untitled show";
         $("#summary").textContent =
-          `Flux · ${state.patch.length} fixture types · ${exact ? `${total} fixtures` : "fixture inventory unavailable"}`;
+          `Flux Sequencer · ${state.patch.length} fixture types · ${exact ? `${total} fixtures` : "fixture inventory unavailable"}`;
         $("#patchSummary").innerHTML =
           `<b>${state.name}</b><br>${state.patch.map((f) => `${f.type} ${f.exact === true ? f.count : "inventory unknown"}${f.channels?.length ? ` · ${f.channels.map((channel) => esc(channel.label)).join(" / ")}` : ""}`).join(" · ")}<br><span>${exact ? "" : "Legacy setup: physical group counts are not fixture inventory. Re-export in Roblox for the exact patch. "}Drag cues from the palette onto a compatible lane.</span>`;
       }
@@ -3223,17 +3380,18 @@
           lanes.push({
             key: f.type + ":all",
             type: f.type,
-            label: f.type,
+            label: f.channels?.length ? `${f.type} · Whole fixture` : f.type,
             detail:
               f.exact === true ? f.count + " fixtures" : "inventory unknown",
           });
           for (const channel of f.channels || [])
             lanes.push({
-              key: `${f.type}:channel:${channel.module}`,
+              key: `${f.type}:channel:${encodeURIComponent(channel.key)}`,
               type: f.type,
               label: `${f.type} · ${channel.label}`,
-              detail: `${f.exact === true ? `${f.count} fixtures` : "inventory unknown"} · module ${channel.module}`,
+              detail: `${f.exact === true ? `${f.count} fixtures` : "inventory unknown"}${channel.module == null ? "" : ` · module ${channel.module}`}`,
               module: channel.module,
+              channel: channel.key,
             });
           for (const [name, record] of Object.entries(
             fluxData?.groups?.[f.type] || {},
@@ -3257,6 +3415,9 @@
       }
       function laneModule(target) {
         return laneList().find((x) => x.key === target)?.module ?? null;
+      }
+      function laneChannel(target) {
+        return laneList().find((x) => x.key === target)?.channel ?? null;
       }
       function eventWidth(e) {
         return Math.max(
@@ -3348,7 +3509,7 @@
         applyGridStyles($("#timeline"));
         let html = `<div class="playhead" id="head"></div><div class="marquee" id="marquee"></div>`;
         for (const lane of laneList()) {
-          const caps = capabilities(lane.type, lane.module);
+          const caps = capabilities(lane.type, lane.module, lane.channel);
           html += laneMarkup(
             lane.key,
             lane.label,
@@ -3382,14 +3543,20 @@
       function eventHtml(e, row = 0) {
         return `<div class="event ${selectedEvent?.id === e.id ? "selected" : selectedEvents.has(e.id) ? "multi" : ""}" data-id="${e.id}" data-kind="${e.kind}" style="top:${9 + row * 42}px;left:${e.time * px}px;width:${eventWidth(e)}px">${e.label}<span class="resize-handle" title="Drag to resize"></span></div>`;
       }
-      function valid(target, action, native = null, module = null) {
+      function valid(
+        target,
+        action,
+        native = null,
+        module = null,
+        channel = null,
+      ) {
         if (target === "pyrotechnics") return action === "pyro";
         if (action === "pyro") return false;
         if (action === "block") return true;
         const type = target.split(":")[0];
         if (action.startsWith("flux-")) return native?.fixture === type;
         return (
-          capabilities(type, module).includes(
+          capabilities(type, module, channel).includes(
             action === "level" ? "intensity" : action,
           ) || action === "reset"
         );
@@ -3399,7 +3566,15 @@
           toast("Drag a cue or custom block onto a lane");
           return;
         }
-        if (!valid(target, armed.action, armed.native, laneModule(target))) {
+        if (
+          !valid(
+            target,
+            armed.action,
+            armed.native,
+            laneModule(target),
+            laneChannel(target),
+          )
+        ) {
           toast("That cue belongs to a different fixture type");
           return;
         }
@@ -3423,6 +3598,7 @@
           kind: armed.kind,
           selection: laneSelection(target),
           module: laneModule(target),
+          channel: laneChannel(target),
           native: armed.native,
           actions: structuredClone(armed.actions),
         };
@@ -3589,7 +3765,13 @@
           if (track) {
             const key = track.dataset.lane,
               ok = starts.every((s) =>
-                valid(key, s.e.action, s.e.native, laneModule(key)),
+                valid(
+                  key,
+                  s.e.action,
+                  s.e.native,
+                  laneModule(key),
+                  laneChannel(key),
+                ),
               );
             track.classList.add(ok ? "drop-ok" : "drop-bad");
             highlight = track;
@@ -3629,6 +3811,7 @@
                   s.e.target = target;
                   s.e.selection = laneSelection(target);
                   s.e.module = laneModule(target);
+                  s.e.channel = laneChannel(target);
                 }
               });
             autosave();
@@ -3728,7 +3911,13 @@
         if (track) {
           const key = track.dataset.lane;
           const ok = s.starts.every((x) =>
-            valid(key, x.e.action, x.e.native, laneModule(key)),
+            valid(
+              key,
+              x.e.action,
+              x.e.native,
+              laneModule(key),
+              laneChannel(key),
+            ),
           );
           track.classList.add(ok ? "drop-ok" : "drop-bad");
           s.target = ok ? key : null;
@@ -3842,6 +4031,7 @@
             x.e.target = s.target;
             x.e.selection = laneSelection(s.target);
             x.e.module = laneModule(s.target);
+            x.e.channel = laneChannel(s.target);
           });
         } else if (s.invalid) toast("That cue is not supported on this lane");
         s.highlight?.classList.remove("drop-ok", "drop-bad");
@@ -4115,6 +4305,7 @@
           e.target = $("#evTarget").value;
           e.selection = laneSelection(e.target);
           e.module = laneModule(e.target);
+          e.channel = laneChannel(e.target);
           if ($("#evValue"))
             e.value = isColor ? $("#evValue").value : +$("#evValue").value;
           renderTimeline();
@@ -4275,7 +4466,7 @@
       }
       function checks() {
         const bad = state.events.filter(
-          (e) => !valid(e.target, e.action, e.native, e.module),
+          (e) => !valid(e.target, e.action, e.native, e.module, e.channel),
         );
         const b = $("#checks");
         const label = bad.length
@@ -4316,7 +4507,7 @@
           .sort((a, b) => a.time - b.time)
           .map(
             (e) =>
-              `\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration || 0}, label = ${JSON.stringify(e.label || e.action)}, kind = ${JSON.stringify(e.kind || "output")}, selection = ${lua(e.selection)}, module = ${lua(e.module)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`,
+              `\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration || 0}, label = ${JSON.stringify(e.label || e.action)}, kind = ${JSON.stringify(e.kind || "output")}, selection = ${lua(e.selection)}, module = ${lua(e.module)}, channel = ${lua(e.channel)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`,
           )
           .join("\n");
         return `-- Exported by Flux Sequencer\nreturn {\n\tversion = 3,\n\tname = ${JSON.stringify(state.name)},\n\tsongId = ${JSON.stringify(state.songId)},\n\tduration = ${state.duration},\n\tbpm = ${state.bpm},\n\tevents = {\n${ev}\n\t},\n}`;
@@ -4445,6 +4636,7 @@
             kind: String(raw.kind || "output"),
             selection: raw.selection || laneSelection(raw.target),
             module: raw.module ?? laneModule(raw.target),
+            channel: raw.channel ?? laneChannel(raw.target),
             native: raw.native || null,
             actions: Array.isArray(raw.actions)
               ? raw.actions.map(normaliseAction)
@@ -4554,6 +4746,8 @@
         selectedLane = state.patch?.[0]?.type + ":all";
         activeSavedProjectId = savedProjectId;
         lastNamedSaveSignature = savedProjectId ? namedSaveSignature() : null;
+        if (savedProjectId)
+          localStorage.setItem("fluxlineLastProjectId", savedProjectId);
         recoveryEditsSinceSave = 0;
         projectOpen = true;
         $("#launchGate").classList.add("hidden");
@@ -4562,14 +4756,17 @@
         autosave(true);
         toast("Show loaded");
       }
-      function downloadProject() {
-        const blob = new Blob([JSON.stringify(projectBundle(), null, 2)], {
+      function downloadProject(
+        bundle = projectBundle(),
+        projectName = state.name,
+      ) {
+        const blob = new Blob([JSON.stringify(bundle, null, 2)], {
             type: "application/json",
           }),
           a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
         a.download =
-          (state.name || "flux-show")
+          (projectName || "flux-show")
             .replace(/[^a-z0-9]+/gi, "-")
             .toLowerCase() + ".json";
         document.body.appendChild(a);
@@ -4636,6 +4833,7 @@
       function renderSavedShows() {
         const root = $("#savedShows"),
           items = savedProjects();
+        if (!root) return;
         root.innerHTML = items
           .map(
             (x) =>
@@ -4692,6 +4890,7 @@
         );
         localStorage.setItem("fluxlineSavedShows", JSON.stringify(next));
         activeSavedProjectId = entry.id;
+        localStorage.setItem("fluxlineLastProjectId", entry.id);
         lastNamedSaveSignature = namedSaveSignature();
         renderSavedShows();
         renderLauncher();
@@ -4708,8 +4907,25 @@
             "fluxlineAutosave",
             JSON.stringify(projectBundle()),
           );
+          if (activeSavedProjectId) {
+            const items = savedProjects(),
+              item = items.find(
+                (entry) => entry.id === activeSavedProjectId,
+              );
+            if (item) {
+              item.name = state.name || "Untitled show";
+              item.savedAt = new Date().toISOString();
+              item.project = projectBundle();
+              localStorage.setItem(
+                "fluxlineSavedShows",
+                JSON.stringify(items),
+              );
+              lastNamedSaveSignature = namedSaveSignature();
+            }
+          }
           recoveryEditsSinceSave = 0;
           renderAutosaveStatus();
+          updateQuickSaveButton();
         } catch {
           const control = $("#autosaveToggle");
           if (control) {
@@ -4780,7 +4996,7 @@
         $("#launchProjects").innerHTML = projects
           .map(
             (item) =>
-              `<div class="launch-project"><div><input class="launch-project-name" data-launch-name="${esc(item.id)}" aria-label="Rename ${esc(item.name)}" value="${esc(item.name)}"><small>${esc(projectSummary(item.project))} · ${new Date(item.savedAt).toLocaleString()}</small></div><button class="project-action" data-launch-load="${esc(item.id)}">Open</button><button class="project-action" data-launch-delete="${esc(item.id)}">Delete</button></div>`,
+              `<div class="launch-project"><div><input class="launch-project-name" data-launch-name="${esc(item.id)}" aria-label="Rename ${esc(item.name)}" value="${esc(item.name)}"><small>${item.id === activeSavedProjectId ? "Currently open · " : ""}${esc(projectSummary(item.project))} · ${new Date(item.savedAt).toLocaleString()}</small></div><button class="project-action" data-launch-load="${esc(item.id)}">Open</button><button class="project-action" data-launch-export="${esc(item.id)}">Export JSON</button><button class="project-action" data-launch-delete="${esc(item.id)}">Delete</button></div>`,
           )
           .join("");
         $$("[data-launch-name]").forEach((input) => {
@@ -4805,13 +5021,29 @@
               if (item) loadProject(item.project, item.id);
             }),
         );
+        $$("[data-launch-export]").forEach(
+          (button) =>
+            (button.onclick = () => {
+              const item = savedProjects().find(
+                (saved) => saved.id === button.dataset.launchExport,
+              );
+              if (item) downloadProject(item.project, item.name);
+            }),
+        );
         $$("[data-launch-delete]").forEach(
           (button) =>
             (button.onclick = () => {
               if (activeSavedProjectId === button.dataset.launchDelete) {
                 activeSavedProjectId = null;
                 lastNamedSaveSignature = null;
+                projectOpen = false;
+                stop();
               }
+              if (
+                localStorage.getItem("fluxlineLastProjectId") ===
+                button.dataset.launchDelete
+              )
+                localStorage.removeItem("fluxlineLastProjectId");
               localStorage.setItem(
                 "fluxlineSavedShows",
                 JSON.stringify(
@@ -4830,12 +5062,18 @@
         updateQuickSaveButton();
       }
       function openProjectLibrary() {
-        autosave();
+        autosave(true);
         renderLauncher();
         $("#projectModal").classList.remove("open");
         $("#launchGate").classList.remove("hidden");
       }
       function createNewProject() {
+        const name = $("#newShowName").value.trim();
+        if (!name) {
+          $("#launchError").textContent = "Name your show before creating it.";
+          $("#newShowName").focus();
+          return;
+        }
         stop();
         history = [];
         future = [];
@@ -4845,6 +5083,7 @@
         activeSavedProjectId = null;
         lastNamedSaveSignature = null;
         state = freshState();
+        state.name = name;
         fluxData = null;
         DEFINITIONS = structuredClone(BASE_DEFINITIONS);
         IMPORTED = {};
@@ -4859,10 +5098,31 @@
         projectOpen = true;
         recoveryEditsSinceSave = 0;
         $("#launchGate").classList.add("hidden");
-        if (fluxData) {
-          hydrate();
-          autosave(true);
-        } else $("#importGate").classList.remove("hidden");
+        $("#importGate").classList.add("hidden");
+        hydrate();
+        cacheProject();
+        autosave(true);
+        $("#newShowName").value = "";
+      }
+      function openInitialProject() {
+        const projects = savedProjects();
+        if (!projects.length) {
+          projectOpen = false;
+          $("#launchGate").classList.remove("hidden");
+          setTimeout(() => $("#newShowName").focus(), 0);
+          return;
+        }
+        const lastId = localStorage.getItem("fluxlineLastProjectId"),
+          item =
+            projects.find((project) => project.id === lastId) || projects[0];
+        try {
+          loadProject(item.project, item.id);
+        } catch (error) {
+          projectOpen = false;
+          $("#launchError").textContent =
+            `Could not reopen ${item.name}: ${error.message}`;
+          $("#launchGate").classList.remove("hidden");
+        }
       }
       function clearAllBrowserData() {
         if (
@@ -5024,8 +5284,14 @@
         toast("Block saved — drag it from My Blocks");
       }
       function hydrate() {
-        state.patch = state.patch || structuredClone(DEFAULT_PATCH);
+        state.patch = (state.patch || structuredClone(DEFAULT_PATCH)).map(
+          normalisePatchEntry,
+        );
         state.events = state.events || [];
+        state.events.forEach((event) => {
+          if (event.module == null) event.module = laneModule(event.target);
+          if (event.channel == null) event.channel = laneChannel(event.target);
+        });
         $("#bpm").value = state.bpm || 128;
         renderAll();
       }
@@ -5050,8 +5316,13 @@
         autosave(true);
       };
       $("#newShow").onclick = createNewProject;
+      $("#newShowName").oninput = () => {
+        $("#launchError").textContent = "";
+      };
+      $("#newShowName").onkeydown = (event) => {
+        if (event.key === "Enter") createNewProject();
+      };
       $("#launchImportJson").onclick = () => {
-        pendingProjectImport = "launcher";
         $("#launchError").textContent = "";
         $("#showFile").click();
       };
@@ -5208,10 +5479,6 @@
           exportLua(),
         );
       };
-      $("#importShow").onclick = () => {
-        pendingProjectImport = "project";
-        $("#showFile").click();
-      };
       $("#importLua").onclick = () => $("#luaFile").click();
       $("#luaFile").onchange = (e) => {
         const file = e.target.files[0];
@@ -5235,18 +5502,21 @@
         const reader = new FileReader();
         reader.onload = () => {
           try {
-            loadProject(JSON.parse(reader.result));
+            const bundle = JSON.parse(reader.result);
+            loadProject(bundle);
+            if (!state.name?.trim())
+              state.name = f.name.replace(/\.json$/i, "") || "Imported show";
+            cacheProject();
             $("#projectModal").classList.remove("open");
+            toast("Show imported and saved");
           } catch (error) {
-            if (pendingProjectImport === "launcher")
-              $("#launchError").textContent = error.message;
-            else toast(error.message);
+            $("#launchError").textContent = error.message;
+            $("#launchGate").classList.remove("hidden");
           }
         };
         reader.readAsText(f);
         e.target.value = "";
       };
-      $("#downloadShow").onclick = downloadProject;
       $("#quickSave").onclick = cacheProject;
       $("#autosaveToggle").onclick = toggleAutosave;
       $("#autosaveInterval").onchange = (event) =>
@@ -5407,6 +5677,7 @@
       window.addEventListener("beforeunload", () => autosave(true));
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "hidden") autosave(true);
+        else checkForAppUpdate();
       });
       $("#scroller").addEventListener("scroll", syncRulerScroll, {
         passive: true,
@@ -5424,6 +5695,12 @@
       setActiveColour(activeColour, false);
       renderSavedColours();
       renderLauncher();
+      openInitialProject();
+      const refreshingEntry = ensureFreshEntry();
+      if (!refreshingEntry) {
+        setTimeout(() => checkForAppUpdate(true), 900);
+        setInterval(checkForAppUpdate, 3 * 60_000);
+      }
     </script>
   </body>
 </html>

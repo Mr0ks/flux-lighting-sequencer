@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="flux-sequencer-version" content="2026.08.29.3" />
+    <meta name="flux-sequencer-version" content="2026.08.29.4" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -277,15 +277,22 @@
       }
       .brand {
         display: flex;
-        min-width: 300px;
+        min-width: 330px;
         align-items: center;
-        gap: 12px;
       }
       .brand-copy {
         min-width: 0;
         flex: 1;
       }
+      .brand-title-row {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 9px;
+      }
       .brand h1 {
+        min-width: 0;
+        flex: 1;
         font-size: 19px;
         margin: 0;
         font-weight: 750;
@@ -301,13 +308,14 @@
       }
       .brand-saves {
         flex: 0 0 auto;
-        height: 38px;
-        padding: 0 16px;
+        height: 30px;
+        padding: 0 12px;
         border: 1px solid var(--line);
         border-radius: 999px;
         background: var(--panel2);
         color: var(--text);
-        font-weight: 720;
+        font-size: 12px;
+        font-weight: 740;
         cursor: pointer;
       }
       .brand-saves:hover {
@@ -316,6 +324,17 @@
       }
       .spacer {
         flex: 1;
+      }
+      .topbar-statuses {
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        gap: 10px;
+      }
+      .topbar-status-divider {
+        width: 1px;
+        height: 28px;
+        background: var(--line);
       }
       .icon,
       .pill,
@@ -1808,12 +1827,18 @@
       <header class="topbar">
         <div class="brand">
           <div class="brand-copy">
-            <h1 id="currentShowName">Flux Sequencer</h1>
+            <div class="brand-title-row">
+              <h1 id="currentShowName">Flux Sequencer</h1>
+              <button
+                class="brand-saves"
+                id="libraryMenu"
+                title="Open saved shows"
+              >
+                Shows
+              </button>
+            </div>
             <p id="summary">Loading fixture patch…</p>
           </div>
-          <button class="brand-saves" id="libraryMenu" title="Open saved shows">
-            Shows
-          </button>
         </div>
         <button
           class="icon expandable-icon"
@@ -1872,22 +1897,26 @@
         >
           <span class="icon-symbol">▦</span
           ><span class="icon-label">Blocks</span></button
-        ><button
-          class="icon expandable-icon check"
-          id="checks"
-          title="Export checks"
-          style="--expanded-width: 164px"
-        >
-          <span class="icon-symbol">●</span
-          ><span class="icon-label">All checks pass</span></button
-        ><button
-          class="icon expandable-icon quick-save dirty"
-          id="quickSave"
-          title="Save project in this browser"
-          aria-label="Save project in this browser"
-          style="--expanded-width: 104px"
-        ></button
-        ><button class="pill primary" id="projectMenu">Project</button
+        ><div class="topbar-statuses">
+          <button
+            class="icon expandable-icon check"
+            id="checks"
+            title="Export checks"
+            style="--expanded-width: 164px"
+          >
+            <span class="icon-symbol">●</span
+            ><span class="icon-label">All checks pass</span>
+          </button>
+          <span class="topbar-status-divider" aria-hidden="true"></span>
+          <button
+            class="icon expandable-icon quick-save dirty"
+            id="quickSave"
+            title="Save project in this browser"
+            aria-label="Save project in this browser"
+            style="--expanded-width: 104px"
+          ></button>
+        </div>
+        <button class="pill primary" id="projectMenu">Project</button
         ><input type="file" id="file" hidden accept="audio/*" /><input
           type="file"
           id="showFile"
@@ -2622,6 +2651,40 @@
             : [],
           channels,
         };
+      }
+      function cachedExactPatchForProject() {
+        if (!fluxData) return null;
+        const cachedSource = localStorage.getItem("fluxDataStore");
+        if (!cachedSource) return null;
+        try {
+          const cached = JSON.parse(cachedSource),
+            cachedData =
+              cached?.format === "fluxline-datastore" ? cached.data : cached,
+            cachedPatch = Array.isArray(cached?.patch)
+              ? cached.patch.map(normalisePatchEntry)
+              : [];
+          if (
+            !cachedPatch.length ||
+            cachedPatch.some((entry) => entry.exact !== true) ||
+            JSON.stringify(cachedData) !== JSON.stringify(fluxData)
+          )
+            return null;
+          return cachedPatch;
+        } catch {
+          return null;
+        }
+      }
+      function upgradeLegacyProjectPatch() {
+        const current = Array.isArray(state.patch)
+            ? state.patch.map(normalisePatchEntry)
+            : [],
+          needsUpgrade =
+            !current.length || current.some((entry) => entry.exact !== true);
+        if (!needsUpgrade) return false;
+        const exactPatch = cachedExactPatchForProject();
+        if (!exactPatch) return false;
+        state.patch = structuredClone(exactPatch);
+        return true;
       }
       function patchEntry(type) {
         return state.patch.find((entry) => entry.type === type) || null;
@@ -4741,6 +4804,7 @@
           IMPORTED = {};
           appendCustomDefinitions();
         }
+        const upgradedLegacyPatch = upgradeLegacyProjectPatch();
         selectedEvent = null;
         selectedEvents.clear();
         selectedLane = state.patch?.[0]?.type + ":all";
@@ -4754,7 +4818,11 @@
         $("#importGate").classList.add("hidden");
         hydrate();
         autosave(true);
-        toast("Show loaded");
+        toast(
+          upgradedLegacyPatch
+            ? "Show loaded · exact Flux setup restored"
+            : "Show loaded",
+        );
       }
       function downloadProject(
         bundle = projectBundle(),

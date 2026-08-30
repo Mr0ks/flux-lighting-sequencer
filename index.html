@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="flux-sequencer-version" content="2026.08.30.3" />
+    <meta name="flux-sequencer-version" content="2026.08.30.4" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -902,7 +902,7 @@
         position: fixed;
         inset: 0;
         background: #000c;
-        z-index: 20;
+        z-index: 200;
         display: none;
         place-items: center;
       }
@@ -1835,15 +1835,15 @@
         <div class="launch-title">
           <h1>Your shows</h1>
           <p>
-            Create a show, open a browser save, or import a portable JSON file.
+            Create a show, open a browser save, or import a Flux Lua show.
           </p>
         </div>
         <div class="launch-actions">
-          <button class="launch-action" id="launchImportJson">
-            <b>Import website backup</b>
+          <button class="launch-action" id="launchImportLua">
+            <b>Import Lua show</b>
             <small
-              >Restore an editable show or browser backup
-              <code>.json</code> file.</small
+              >Continue editing the same <code>.lua</code> show used by
+              Roblox.</small
             >
           </button>
           <div class="launch-action primary" aria-hidden="true">
@@ -1868,11 +1868,14 @@
             <button class="pill danger" id="clearBrowserData">
               Delete all browser data
             </button>
+            <button class="pill" id="restoreBrowserBackup">
+              Restore update backup
+            </button>
             <div class="launch-error" id="launchError"></div>
           </div>
           <div style="display: flex; align-items: center; gap: 10px">
             <small style="color: var(--muted)"
-              >JSON is the editable backup; Lua is for Roblox playback.</small
+              >One Lua show works in Roblox and reopens here for editing.</small
             >
             <button class="pill" id="returnToEditor">Back to editor</button>
           </div>
@@ -1992,7 +1995,7 @@
           id="showFile"
           hidden
           accept=".json"
-        /><input type="file" id="luaFile" hidden accept=".lua,.txt" />
+        /><input type="file" id="luaFile" hidden accept=".lua,.luau,.txt" />
       </header>
       <main class="body">
         <aside class="side left">
@@ -2087,6 +2090,7 @@
         <div class="dialog-head">
           <h2 id="modalTitle">Export</h2>
           <button class="pill" id="close">Close</button
+          ><button class="pill" id="downloadOutput" hidden>Download Lua</button
           ><button class="pill primary" id="copy">Copy</button>
         </div>
         <p id="modalSub" style="color: #999"></p>
@@ -2156,16 +2160,16 @@
         <div class="project-row">
           <div class="project-icon">↑</div>
           <div class="project-copy">
-            <b>Import Roblox playback</b
-            ><small>Open a previously exported Flux <code>.lua</code> show</small>
+            <b>Import Lua show</b
+            ><small>Continue editing a previously exported Flux show</small>
           </div>
           <button class="project-action" id="importLua">Import</button>
         </div>
         <div class="project-row">
           <div class="project-icon">↓</div>
           <div class="project-copy">
-            <b>Export to Roblox</b
-            ><small>Generate the <code>.lua</code> ModuleScript used for playback</small>
+            <b>Export Lua show</b
+            ><small>Copy for Roblox or download it as your editable backup</small>
           </div>
           <button class="project-action primary" id="exportShow">Export</button>
         </div>
@@ -2581,7 +2585,8 @@
         activeSavedProjectId = null,
         lastNamedSaveSignature = null,
         saveFlashTimer = 0,
-        pendingRenameProjectId = null;
+        pendingRenameProjectId = null,
+        pendingLuaExport = null;
       const APP_CACHE_KEYS = [
         "fluxlineAutosave",
         "fluxlineAutosaveEnabled",
@@ -4675,17 +4680,64 @@
           );
         return "nil";
       }
-      function exportLua() {
-        const ev = [...state.events]
+      function encodeProjectMetadata(bundle) {
+        const bytes = new TextEncoder().encode(JSON.stringify(bundle));
+        let binary = "";
+        for (let index = 0; index < bytes.length; index += 0x8000)
+          binary += String.fromCharCode(
+            ...bytes.subarray(index, index + 0x8000),
+          );
+        return btoa(binary).match(/.{1,120}/g)?.join("\n") || "";
+      }
+      function decodeProjectMetadata(payload) {
+        const binary = atob(payload.replace(/\s+/g, "")),
+          bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1)
+          bytes[index] = binary.charCodeAt(index);
+        return JSON.parse(new TextDecoder().decode(bytes));
+      }
+      function embeddedLuaProject(source) {
+        const match = String(source).match(
+          /--\[\[FLUX_SEQUENCER_PROJECT_V1\s+([A-Za-z0-9+/=\s]+?)\s+FLUX_SEQUENCER_PROJECT_END\]\]/,
+        );
+        if (!match) return null;
+        const bundle = decodeProjectMetadata(match[1]);
+        if (
+          bundle?.format !== "fluxline-project" ||
+          bundle.version !== 1 ||
+          !bundle.state?.events
+        )
+          throw new Error("The embedded Flux project backup is invalid.");
+        return bundle;
+      }
+      function exportLua(bundle = projectBundle()) {
+        const projectState = bundle?.state || bundle,
+          metadata = encodeProjectMetadata(
+            bundle?.format === "fluxline-project"
+              ? bundle
+              : {
+                  format: "fluxline-project",
+                  version: 1,
+                  savedAt: new Date().toISOString(),
+                  state: projectState,
+                  fluxData: null,
+                  customBlocks: [],
+                  customColours: structuredClone(DEFAULT_COLOURS),
+                  activeColour: "#ffffff",
+                },
+          ),
+          ev = [...(projectState.events || [])]
           .sort((a, b) => a.time - b.time)
           .map(
             (e) =>
               `\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration || 0}, label = ${JSON.stringify(e.label || e.action)}, kind = ${JSON.stringify(e.kind || "output")}, selection = ${lua(e.selection)}, module = ${lua(e.module)}, channel = ${lua(e.channel)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`,
           )
           .join("\n");
-        return `-- Exported by Flux Sequencer\nreturn {\n\tversion = 3,\n\tname = ${JSON.stringify(state.name)},\n\tsongId = ${JSON.stringify(state.songId)},\n\tduration = ${state.duration},\n\tbpm = ${state.bpm},\n\tevents = {\n${ev}\n\t},\n}`;
+        return `--[[FLUX_SEQUENCER_PROJECT_V1\n${metadata}\nFLUX_SEQUENCER_PROJECT_END]]\n-- Roblox ignores the project backup above and runs the show below.\n-- Exported by Flux Sequencer\nreturn {\n\tversion = 4,\n\tname = ${JSON.stringify(projectState.name)},\n\tsongId = ${JSON.stringify(projectState.songId)},\n\tduration = ${projectState.duration},\n\tbpm = ${projectState.bpm},\n\tevents = {\n${ev}\n\t},\n}`;
       }
       function parseLuaShow(source) {
+        const embeddedProject = embeddedLuaProject(source);
+        if (embeddedProject) return embeddedProject;
         let i = source.indexOf("return");
         if (i < 0) throw new Error("This is not an exported Flux Lua show.");
         i += 6;
@@ -4827,23 +4879,56 @@
         };
       }
       function openModal(title, sub, text, copy = true) {
+        pendingLuaExport = null;
         $("#modalTitle").textContent = title;
         $("#modalSub").textContent = sub;
         $("#output").textContent = text;
         $("#copy").style.display = copy ? "" : "none";
+        $("#copy").textContent = "Copy";
+        $("#downloadOutput").hidden = true;
         $("#modal").classList.add("open");
       }
-      function save() {
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(
-          new Blob([JSON.stringify(state, null, 2)], {
-            type: "application/json",
-          }),
+      function luaFilename(projectName) {
+        return (
+          (projectName || "flux-show")
+            .replace(/[^a-z0-9]+/gi, "-")
+            .replace(/^-+|-+$/g, "")
+            .toLowerCase() + ".lua"
         );
-        a.download =
-          (state.name || "show").replace(/[^a-z0-9]+/gi, "-").toLowerCase() +
-          ".json";
-        a.click();
+      }
+      function downloadLuaShow(
+        bundle = projectBundle(),
+        projectName = bundle?.state?.name || state.name,
+      ) {
+        const text = exportLua(bundle),
+          anchor = document.createElement("a");
+        anchor.href = URL.createObjectURL(
+          new Blob([text], { type: "text/plain;charset=utf-8" }),
+        );
+        anchor.download = luaFilename(projectName);
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        setTimeout(() => URL.revokeObjectURL(anchor.href), 1500);
+        toast("Lua show downloaded");
+      }
+      function openLuaExport(
+        bundle = projectBundle(),
+        projectName = bundle?.state?.name || state.name,
+      ) {
+        pendingLuaExport = {
+          bundle,
+          name: projectName,
+          text: exportLua(bundle),
+        };
+        $("#modalTitle").textContent = "Export Lua show";
+        $("#modalSub").textContent =
+          "Copy it into a ModuleScript for Roblox, or download the same file as your editable show backup.";
+        $("#output").textContent = pendingLuaExport.text;
+        $("#copy").style.display = "";
+        $("#copy").textContent = "Copy Lua";
+        $("#downloadOutput").hidden = false;
+        $("#modal").classList.add("open");
       }
       function projectBundle() {
         return {
@@ -4933,25 +5018,6 @@
             ? "Show loaded · exact Flux setup restored"
             : "Show loaded",
         );
-      }
-      function downloadProject(
-        bundle = projectBundle(),
-        projectName = state.name,
-      ) {
-        const blob = new Blob([JSON.stringify(bundle, null, 2)], {
-            type: "application/json",
-          }),
-          a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download =
-          (projectName || "flux-show")
-            .replace(/[^a-z0-9]+/gi, "-")
-            .toLowerCase() + ".json";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-        toast("Project JSON exported");
       }
       function savedProjects() {
         try {
@@ -5252,7 +5318,7 @@
         $("#launchProjects").innerHTML = projects
           .map(
             (item) =>
-              `<div class="launch-project"><div><input class="launch-project-name" data-launch-name="${esc(item.id)}" aria-label="Rename ${esc(item.name)}" value="${esc(item.name)}"><small>${item.id === activeSavedProjectId ? "Currently open · " : ""}${esc(projectSummary(item.project))} · ${new Date(item.savedAt).toLocaleString()}</small></div><button class="project-action" data-launch-load="${esc(item.id)}">Open</button><button class="project-action" data-launch-export="${esc(item.id)}">Backup JSON</button><button class="project-action" data-launch-delete="${esc(item.id)}">Delete</button></div>`,
+              `<div class="launch-project"><div><input class="launch-project-name" data-launch-name="${esc(item.id)}" aria-label="Rename ${esc(item.name)}" value="${esc(item.name)}"><small>${item.id === activeSavedProjectId ? "Currently open · " : ""}${esc(projectSummary(item.project))} · ${new Date(item.savedAt).toLocaleString()}</small></div><button class="project-action" data-launch-load="${esc(item.id)}">Open</button><button class="project-action" data-launch-export="${esc(item.id)}">Export Lua</button><button class="project-action" data-launch-delete="${esc(item.id)}">Delete</button></div>`,
           )
           .join("");
         $$("[data-launch-name]").forEach((input) => {
@@ -5283,7 +5349,7 @@
               const item = savedProjects().find(
                 (saved) => saved.id === button.dataset.launchExport,
               );
-              if (item) downloadProject(item.project, item.name);
+              if (item) openLuaExport(item.project, item.name);
             }),
         );
         $$("[data-launch-delete]").forEach(
@@ -5586,7 +5652,11 @@
       $("#newShowName").onkeydown = (event) => {
         if (event.key === "Enter") createNewProject();
       };
-      $("#launchImportJson").onclick = () => {
+      $("#launchImportLua").onclick = () => {
+        $("#launchError").textContent = "";
+        $("#luaFile").click();
+      };
+      $("#restoreBrowserBackup").onclick = () => {
         $("#launchError").textContent = "";
         $("#showFile").click();
       };
@@ -5735,11 +5805,7 @@
           return;
         }
         $("#projectModal").classList.remove("open");
-        openModal(
-          "Export Flux show",
-          "Copy this into a ModuleScript inside Workspace.Fluxline.Shows.",
-          exportLua(),
-        );
+        openLuaExport();
       };
       $("#importLua").onclick = () => $("#luaFile").click();
       $("#luaFile").onchange = (e) => {
@@ -5748,11 +5814,22 @@
         const reader = new FileReader();
         reader.onload = () => {
           try {
-            loadProject(parseLuaShow(reader.result));
+            const bundle = parseLuaShow(reader.result);
+            loadProject(bundle);
+            if (!state.name?.trim())
+              state.name =
+                file.name.replace(/\.(?:lua|luau|txt)$/i, "") ||
+                "Imported show";
+            cacheProject();
             $("#projectModal").classList.remove("open");
-            toast("Flux Lua show imported");
+            toast(
+              bundle?.format === "fluxline-project"
+                ? "Editable Lua show restored"
+                : "Legacy Lua show imported",
+            );
           } catch (error) {
-            toast(error.message);
+            $("#launchError").textContent = error.message;
+            $("#launchGate").classList.remove("hidden");
           }
         };
         reader.readAsText(file);
@@ -5798,10 +5875,14 @@
       $("#autosaveInterval").onchange = (event) =>
         setAutosaveInterval(event.target.value);
       $("#close").onclick = () => $("#modal").classList.remove("open");
+      $("#downloadOutput").onclick = () => {
+        if (pendingLuaExport)
+          downloadLuaShow(pendingLuaExport.bundle, pendingLuaExport.name);
+      };
       $("#copy").onclick = () =>
         navigator.clipboard
           .writeText($("#output").textContent)
-          .then(() => toast("Copied"));
+          .then(() => toast(pendingLuaExport ? "Lua copied" : "Copied"));
       $("#modal").onclick = (e) => {
         if (e.target.id === "modal") $("#modal").classList.remove("open");
       };

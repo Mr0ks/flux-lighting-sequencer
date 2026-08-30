@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="flux-sequencer-version" content="2026.08.30.1" />
+    <meta name="flux-sequencer-version" content="2026.08.30.2" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -861,6 +861,37 @@
           12px ui-monospace,
           monospace;
       }
+      .release-status {
+        height: 34px;
+        padding: 0 12px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--panel2);
+        color: var(--muted);
+        font: 700 11px "Roboto Mono", ui-monospace, monospace;
+        white-space: nowrap;
+        cursor: default;
+        transition:
+          color 180ms ease,
+          border-color 180ms ease,
+          background-color 180ms ease,
+          transform 180ms ease;
+      }
+      .release-status.current {
+        color: #b7f7d2;
+        border-color: #0d7a47;
+        background: #073b25;
+      }
+      .release-status.outdated {
+        color: #ffb4ab;
+        border-color: #b3261e;
+        background: #4a1515;
+        cursor: pointer;
+      }
+      .release-status.outdated:hover {
+        background: #621d1d;
+        transform: translateY(-1px);
+      }
       .modal {
         position: fixed;
         inset: 0;
@@ -919,26 +950,6 @@
       .toast.show {
         opacity: 1;
         transform: translateX(-50%);
-      }
-      .update-notice {
-        position: fixed;
-        top: 18px;
-        left: 50%;
-        z-index: 230;
-        min-height: 42px;
-        padding: 0 18px;
-        transform: translateX(-50%);
-        border: 1px solid #666;
-        border-radius: 999px;
-        background: #f5f5f5;
-        color: #111;
-        box-shadow: 0 12px 36px #000a;
-        font-weight: 760;
-        cursor: pointer;
-        animation: md-dialog-in 220ms var(--md-emphasized, ease-out) both;
-      }
-      .update-notice[hidden] {
-        display: none;
       }
       @media (max-width: 1000px) {
         .topbar {
@@ -1227,6 +1238,56 @@
       }
       .project-modal.open {
         display: grid;
+      }
+      .update-modal {
+        z-index: 260;
+      }
+      .update-card {
+        width: min(620px, 94vw);
+      }
+      .update-version {
+        margin: -8px 0 22px;
+        color: var(--muted);
+        font: 12px "Roboto Mono", ui-monospace, monospace;
+      }
+      .update-options {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .update-option {
+        min-height: 112px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--panel2);
+        color: var(--text);
+        text-align: left;
+        cursor: pointer;
+      }
+      .update-option:hover {
+        border-color: #707075;
+        background: var(--panel3);
+      }
+      .update-option b,
+      .update-option small {
+        display: block;
+      }
+      .update-option b {
+        margin-bottom: 7px;
+        font-size: 15px;
+      }
+      .update-option small {
+        color: var(--muted);
+        line-height: 1.45;
+      }
+      .update-option.danger {
+        border-color: #71332f;
+      }
+      @media (max-width: 620px) {
+        .update-options {
+          grid-template-columns: 1fr;
+        }
       }
       .project-card {
         width: min(720px, 94vw);
@@ -2002,7 +2063,14 @@
           max="320"
           value="70"
         /><span class="zoom-readout" id="zoomReadout">70 px/s</span
-        ><span class="event-count" id="count">0 events</span>
+        ><span class="event-count" id="count">0 events</span
+        ><button
+          class="release-status"
+          id="releaseStatus"
+          title="Checking for updates"
+        >
+          Release · Checking
+        </button>
       </footer>
     </div>
     <div class="modal" id="modal">
@@ -2020,9 +2088,42 @@
       <span>🗑</span><span>Drop to delete</span>
     </div>
     <div class="toast" id="toast"></div>
-    <button class="update-notice" id="updateNotice" hidden>
-      New version ready · Reload
-    </button>
+    <div
+      class="project-modal update-modal"
+      id="updateModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="updateTitle"
+    >
+      <div class="project-card update-card">
+        <div class="project-head">
+          <div>
+            <h2 id="updateTitle">Flux Sequencer update ready</h2>
+            <p>
+              This version uses a fresh browser cache. Choose what should
+              happen to your current browser saves before updating.
+            </p>
+          </div>
+        </div>
+        <div class="update-version" id="updateVersion"></div>
+        <div class="update-options">
+          <button class="update-option" id="downloadAndUpdate">
+            <b>Download saves and update</b>
+            <small
+              >Downloads one importable JSON backup, clears the old cache,
+              then opens the new version.</small
+            >
+          </button>
+          <button class="update-option danger" id="eraseAndUpdate">
+            <b>Erase saves and update</b>
+            <small
+              >Deletes browser saves and setup data, then opens the new
+              version.</small
+            >
+          </button>
+        </div>
+      </div>
+    </div>
     <div class="project-modal" id="projectModal">
       <div class="project-card">
         <div class="project-head">
@@ -2839,28 +2940,32 @@
         t._h = setTimeout(() => t.classList.remove("show"), 1400);
       }
       let updateCheckInFlight = false,
-        lastUpdateCheck = 0;
-      function ensureFreshEntry() {
-        if (location.protocol === "file:") return false;
-        const token = Math.floor(Date.now() / 60_000).toString(36),
-          url = new URL(location.href);
-        if (url.searchParams.get("_fresh") === token) return false;
-        url.searchParams.delete("_refresh");
-        url.searchParams.delete("_version_check");
-        url.searchParams.set("_fresh", token);
-        autosave(true);
-        location.replace(url);
-        return true;
+        lastUpdateCheck = 0,
+        latestKnownVersion = APP_VERSION,
+        pendingUpdateVersion = "";
+      function setReleaseStatus(status, remoteVersion = APP_VERSION) {
+        const button = $("#releaseStatus");
+        if (!button) return;
+        button.classList.remove("current", "outdated");
+        if (status === "current") {
+          button.classList.add("current");
+          button.textContent = `● Release ${APP_VERSION}`;
+          button.title = "You are using the latest release";
+        } else if (status === "outdated") {
+          button.classList.add("outdated");
+          button.textContent = `● Release ${APP_VERSION} → ${remoteVersion}`;
+          button.title = `Release ${remoteVersion} is ready · click to update`;
+        } else {
+          button.textContent = `Release ${APP_VERSION} · Checking`;
+          button.title = "Checking for updates";
+        }
       }
-      function reloadLatest(remoteVersion) {
-        autosave(true);
-        sessionStorage.setItem("fluxlineUpdateAttempt", remoteVersion);
-        const url = new URL(location.href);
-        url.hash = "";
-        url.searchParams.set("v", remoteVersion);
-        url.searchParams.set("_refresh", Date.now());
-        toast(`Updating to ${remoteVersion}…`);
-        setTimeout(() => location.replace(url), 550);
+      function showUpdatePrompt() {
+        if (!latestKnownVersion || latestKnownVersion === APP_VERSION) return;
+        pendingUpdateVersion = latestKnownVersion;
+        $("#updateVersion").textContent =
+          `Installed ${APP_VERSION} → available ${pendingUpdateVersion}`;
+        $("#updateModal").classList.add("open");
       }
       async function checkForAppUpdate(force = false) {
         if (location.protocol === "file:" || updateCheckInFlight) return;
@@ -2879,21 +2984,14 @@
           const remoteVersion = document.documentElement.dataset.fluxLatestVersion;
           script.remove();
           if (!remoteVersion) return;
+          latestKnownVersion = remoteVersion;
           if (remoteVersion === APP_VERSION) {
-            sessionStorage.removeItem("fluxlineUpdateAttempt");
-            $("#updateNotice").hidden = true;
+            setReleaseStatus("current", remoteVersion);
             return;
           }
-          if (
-            sessionStorage.getItem("fluxlineUpdateAttempt") === remoteVersion
-          ) {
-            const notice = $("#updateNotice");
-            notice.textContent = `Version ${remoteVersion} ready · Reload`;
-            notice.hidden = false;
-            notice.onclick = () => reloadLatest(remoteVersion);
-          } else reloadLatest(remoteVersion);
+          setReleaseStatus("outdated", remoteVersion);
         } catch {
-          // Offline or mid-deploy: keep the current working version and retry later.
+          // Offline or mid-deploy: keep the installed release and retry later.
         } finally {
           updateCheckInFlight = false;
         }
@@ -4851,6 +4949,84 @@
           return [];
         }
       }
+      function browserBackupBundle() {
+        const cache = {};
+        APP_CACHE_KEYS.forEach((key) => {
+          const value = localStorage.getItem(key);
+          if (value !== null) cache[key] = value;
+        });
+        return {
+          format: "fluxline-browser-backup",
+          version: 1,
+          appVersion: APP_VERSION,
+          exportedAt: new Date().toISOString(),
+          savedShows: savedProjects(),
+          cache,
+        };
+      }
+      function downloadBrowserBackup() {
+        const blob = new Blob(
+            [JSON.stringify(browserBackupBundle(), null, 2)],
+            { type: "application/json" },
+          ),
+          anchor = document.createElement("a");
+        anchor.href = URL.createObjectURL(blob);
+        anchor.download = `flux-sequencer-saves-${new Date()
+          .toISOString()
+          .slice(0, 10)}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        setTimeout(() => URL.revokeObjectURL(anchor.href), 1500);
+      }
+      function restoreBrowserBackup(bundle) {
+        if (
+          bundle?.format !== "fluxline-browser-backup" ||
+          bundle.version !== 1
+        )
+          return false;
+        const cache = bundle.cache || {};
+        APP_CACHE_KEYS.forEach((key) => {
+          if (typeof cache[key] === "string")
+            localStorage.setItem(key, cache[key]);
+        });
+        if (
+          !localStorage.getItem("fluxlineSavedShows") &&
+          Array.isArray(bundle.savedShows)
+        )
+          localStorage.setItem(
+            "fluxlineSavedShows",
+            JSON.stringify(bundle.savedShows),
+          );
+        return true;
+      }
+      async function clearAppCache() {
+        APP_CACHE_KEYS.forEach((key) => localStorage.removeItem(key));
+        sessionStorage.removeItem("fluxlineUpdateAttempt");
+        if ("caches" in window) {
+          const names = await caches.keys();
+          await Promise.all(names.map((name) => caches.delete(name)));
+        }
+      }
+      async function completeManualUpdate(downloadFirst) {
+        if (!pendingUpdateVersion) return;
+        const buttons = [$("#downloadAndUpdate"), $("#eraseAndUpdate")];
+        buttons.forEach((button) => (button.disabled = true));
+        autosave(true);
+        if (downloadFirst) downloadBrowserBackup();
+        await clearAppCache();
+        const nextVersion = pendingUpdateVersion,
+          url = new URL(location.href);
+        url.hash = "";
+        url.searchParams.delete("_fresh");
+        url.searchParams.delete("_version_check");
+        url.searchParams.set("v", nextVersion);
+        url.searchParams.set("_refresh", Date.now());
+        $("#updateTitle").textContent = "Opening the new release…";
+        $("#updateVersion").textContent =
+          `Updating ${APP_VERSION} → ${nextVersion}`;
+        setTimeout(() => location.replace(url), downloadFirst ? 800 : 250);
+      }
       function openRenameProject(id) {
         const item = savedProjects().find((entry) => entry.id === id);
         if (!item) return;
@@ -5577,6 +5753,17 @@
         reader.onload = () => {
           try {
             const bundle = JSON.parse(reader.result);
+            if (restoreBrowserBackup(bundle)) {
+              activeSavedProjectId = null;
+              lastNamedSaveSignature = null;
+              projectOpen = false;
+              renderLauncher();
+              openInitialProject();
+              toast(
+                `${bundle.savedShows?.length || savedProjects().length} browser save${(bundle.savedShows?.length || savedProjects().length) === 1 ? "" : "s"} restored`,
+              );
+              return;
+            }
             loadProject(bundle);
             if (!state.name?.trim())
               state.name = f.name.replace(/\.json$/i, "") || "Imported show";
@@ -5592,6 +5779,9 @@
         e.target.value = "";
       };
       $("#quickSave").onclick = cacheProject;
+      $("#releaseStatus").onclick = showUpdatePrompt;
+      $("#downloadAndUpdate").onclick = () => completeManualUpdate(true);
+      $("#eraseAndUpdate").onclick = () => completeManualUpdate(false);
       $("#autosaveToggle").onclick = toggleAutosave;
       $("#autosaveInterval").onchange = (event) =>
         setAutosaveInterval(event.target.value);
@@ -5770,11 +5960,9 @@
       renderSavedColours();
       renderLauncher();
       openInitialProject();
-      const refreshingEntry = ensureFreshEntry();
-      if (!refreshingEntry) {
-        setTimeout(() => checkForAppUpdate(true), 900);
-        setInterval(checkForAppUpdate, 3 * 60_000);
-      }
+      setReleaseStatus("checking");
+      setTimeout(() => checkForAppUpdate(true), 500);
+      setInterval(checkForAppUpdate, 3 * 60_000);
     </script>
   </body>
 </html>

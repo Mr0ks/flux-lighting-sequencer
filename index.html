@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="flux-sequencer-version" content="2026.08.29.4" />
+    <meta name="flux-sequencer-version" content="2026.08.30.1" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -277,22 +277,14 @@
       }
       .brand {
         display: flex;
-        min-width: 330px;
+        min-width: 250px;
         align-items: center;
       }
       .brand-copy {
         min-width: 0;
         flex: 1;
       }
-      .brand-title-row {
-        display: flex;
-        min-width: 0;
-        align-items: center;
-        gap: 9px;
-      }
       .brand h1 {
-        min-width: 0;
-        flex: 1;
         font-size: 19px;
         margin: 0;
         font-weight: 750;
@@ -476,6 +468,23 @@
       }
       .patch-summary b {
         color: var(--text);
+      }
+      .patch-summary-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 5px;
+      }
+      .patch-summary-title {
+        min-width: 0;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .patch-summary .brand-saves {
+        height: 28px;
+        padding-inline: 11px;
       }
       .search-row {
         display: flex;
@@ -1827,16 +1836,7 @@
       <header class="topbar">
         <div class="brand">
           <div class="brand-copy">
-            <div class="brand-title-row">
-              <h1 id="currentShowName">Flux Sequencer</h1>
-              <button
-                class="brand-saves"
-                id="libraryMenu"
-                title="Open saved shows"
-              >
-                Shows
-              </button>
-            </div>
+            <h1 id="currentShowName">Flux Sequencer</h1>
             <p id="summary">Loading fixture patch…</p>
           </div>
         </div>
@@ -3387,7 +3387,8 @@
         $("#summary").textContent =
           `Flux Sequencer · ${state.patch.length} fixture types · ${exact ? `${total} fixtures` : "fixture inventory unavailable"}`;
         $("#patchSummary").innerHTML =
-          `<b>${state.name}</b><br>${state.patch.map((f) => `${f.type} ${f.exact === true ? f.count : "inventory unknown"}${f.channels?.length ? ` · ${f.channels.map((channel) => esc(channel.label)).join(" / ")}` : ""}`).join(" · ")}<br><span>${exact ? "" : "Legacy setup: physical group counts are not fixture inventory. Re-export in Roblox for the exact patch. "}Drag cues from the palette onto a compatible lane.</span>`;
+          `<div class="patch-summary-head"><b class="patch-summary-title">${esc(state.name || "Untitled show")}</b><button class="brand-saves" id="libraryMenu" title="Open saved shows">Shows</button></div>${state.patch.map((f) => `${f.type} ${f.exact === true ? f.count : "inventory unknown"}${f.channels?.length ? ` · ${f.channels.map((channel) => esc(channel.label)).join(" / ")}` : ""}`).join(" · ")}<br><span>${exact ? "" : "Legacy setup: physical group counts are not fixture inventory. Re-export in Roblox for the exact patch. "}Drag cues from the palette onto a compatible lane.</span>`;
+        $("#libraryMenu").onclick = openProjectLibrary;
       }
       function timelineWidth() {
         const visible = Math.max(
@@ -5135,6 +5136,14 @@
         $("#projectModal").classList.remove("open");
         $("#launchGate").classList.remove("hidden");
       }
+      function openFluxImportGate() {
+        $("#fluxJson").value = "";
+        $("#importError").textContent = "";
+        $("#demoFlux").textContent = fluxData
+          ? "Continue with saved setup"
+          : "Continue with demo patch";
+        $("#importGate").classList.remove("hidden");
+      }
       function createNewProject() {
         const name = $("#newShowName").value.trim();
         if (!name) {
@@ -5166,11 +5175,11 @@
         projectOpen = true;
         recoveryEditsSinceSave = 0;
         $("#launchGate").classList.add("hidden");
-        $("#importGate").classList.add("hidden");
         hydrate();
         cacheProject();
         autosave(true);
         $("#newShowName").value = "";
+        openFluxImportGate();
       }
       function openInitialProject() {
         const projects = savedProjects();
@@ -5511,7 +5520,6 @@
         $("#projectModal").classList.add("open");
         renderSavedShows();
       };
-      $("#libraryMenu").onclick = openProjectLibrary;
       $("#returnToEditor").onclick = () =>
         $("#launchGate").classList.add("hidden");
       $("#closeProject").onclick = () =>
@@ -5530,9 +5538,7 @@
       };
       $("#importDatastore").onclick = () => {
         $("#projectModal").classList.remove("open");
-        $("#fluxJson").value = "";
-        $("#importError").textContent = "";
-        $("#importGate").classList.remove("hidden");
+        openFluxImportGate();
       };
       $("#exportShow").onclick = () => {
         if (checks().length) {

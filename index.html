@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="flux-sequencer-version" content="2026.08.30.6" />
+    <meta name="flux-sequencer-version" content="2026.08.30.7" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -1987,9 +1987,6 @@
         <div class="launch-list" id="launchProjects"></div>
         <div class="launch-footer">
           <div>
-            <button class="pill danger" id="clearBrowserData">
-              Delete all browser data
-            </button>
             <button class="pill" id="restoreBrowserBackup">
               Restore update backup
             </button>
@@ -5920,7 +5917,6 @@
         $("#launchError").textContent = "";
         $("#showFile").click();
       };
-      $("#clearBrowserData").onclick = clearAllBrowserData;
       $("#clearBrowserDataProject").onclick = clearAllBrowserData;
       $("#fluxJson").oninput = () => {
         $("#importError").textContent = "";

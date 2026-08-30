@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="flux-sequencer-version" content="2026.08.30.4" />
+    <meta name="flux-sequencer-version" content="2026.08.30.5" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -268,6 +268,7 @@
         height: 100%;
       }
       .topbar {
+        position: relative;
         display: flex;
         align-items: center;
         gap: 10px;
@@ -275,15 +276,25 @@
         background: var(--panel);
         border-bottom: 1px solid var(--line);
       }
-      .brand {
-        display: flex;
-        min-width: 250px;
+      .topbar-left {
+        display: inline-flex;
+        flex: 0 0 auto;
         align-items: center;
-        gap: 10px;
+        gap: 7px;
+      }
+      .brand {
+        position: absolute;
+        z-index: 1;
+        left: 50%;
+        top: 50%;
+        width: min(370px, 27vw);
+        min-width: 0;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        pointer-events: none;
       }
       .brand-copy {
         min-width: 0;
-        flex: 1;
       }
       .brand h1 {
         font-size: 19px;
@@ -298,6 +309,9 @@
         margin: 3px 0 0;
         color: var(--muted);
         font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .brand-nav {
         display: inline-flex;
@@ -326,12 +340,6 @@
       }
       .spacer {
         flex: 1;
-      }
-      .topbar-statuses {
-        display: inline-flex;
-        flex: 0 0 auto;
-        align-items: center;
-        gap: 10px;
       }
       .topbar-status-divider {
         width: 1px;
@@ -422,7 +430,7 @@
         border-color: #0d7a47;
         background: #073b25;
       }
-      #checks.issue {
+      .issue {
         color: #ffb4ab;
         border-color: #8c1d18;
         background: #4a1515;
@@ -469,29 +477,6 @@
         position: relative;
         z-index: 6;
       }
-      .patch-summary {
-        padding: 15px 16px;
-        border-bottom: 1px solid var(--line);
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.55;
-      }
-      .patch-summary b {
-        color: var(--text);
-      }
-      .patch-summary-head {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 5px;
-      }
-      .patch-summary-title {
-        min-width: 0;
-        flex: 1;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
       .search-row {
         display: flex;
         gap: 8px;
@@ -506,12 +491,6 @@
         border-radius: 9px;
         padding: 10px;
         color: var(--text);
-      }
-      .swatch {
-        width: 40px;
-        border-radius: 10px;
-        background: #fff;
-        border: 1px solid #555;
       }
       .palette {
         padding: 8px 14px 24px;
@@ -898,6 +877,34 @@
         background: #621d1d;
         transform: translateY(-1px);
       }
+      .debug-status {
+        height: 34px;
+        padding: 0 13px;
+        border: 1px solid #0d7a47;
+        border-radius: 999px;
+        background: #073b25;
+        color: #b7f7d2;
+        font: 750 11px Inter, ui-sans-serif, system-ui, sans-serif;
+        white-space: nowrap;
+        cursor: pointer;
+        transition:
+          color 180ms ease,
+          border-color 180ms ease,
+          background-color 180ms ease,
+          transform 180ms ease;
+      }
+      .debug-status:hover {
+        transform: translateY(-1px);
+        background: #0a4b30;
+      }
+      .debug-status.issue {
+        color: #ffb4ab;
+        border-color: #8c1d18;
+        background: #4a1515;
+      }
+      .debug-status.issue:hover {
+        background: #621d1d;
+      }
       .modal {
         position: fixed;
         inset: 0;
@@ -957,6 +964,23 @@
         opacity: 1;
         transform: translateX(-50%);
       }
+      @media (max-width: 1400px) {
+        .transport {
+          gap: 9px;
+          padding-inline: 12px;
+        }
+        .transport label,
+        .transport .event-count,
+        .transport .zoom-readout {
+          display: none;
+        }
+        .transport .range {
+          width: 110px;
+        }
+        .transport .release-status {
+          margin-left: auto;
+        }
+      }
       @media (max-width: 1000px) {
         .topbar {
           gap: 7px;
@@ -969,7 +993,7 @@
           display: none;
         }
         .brand {
-          min-width: 190px;
+          width: min(260px, 26vw);
         }
         .transport {
           gap: 8px;
@@ -1904,14 +1928,22 @@
     </div>
     <div class="app">
       <header class="topbar">
+        <div class="topbar-left">
+          <button class="brand-nav-button" id="projectMenu">Project</button>
+          <button class="brand-nav-button" id="libraryMenu">Shows</button>
+          <button
+            class="icon expandable-icon quick-save dirty"
+            id="quickSave"
+            title="Save project in this browser"
+            aria-label="Save project in this browser"
+            style="--expanded-width: 104px"
+          ></button>
+        </div>
+        <span class="topbar-status-divider" aria-hidden="true"></span>
         <div class="brand">
           <div class="brand-copy">
             <h1 id="currentShowName">Flux Sequencer</h1>
             <p id="summary">Loading fixture patch…</p>
-          </div>
-          <div class="brand-nav">
-            <button class="brand-nav-button" id="projectMenu">Project</button>
-            <button class="brand-nav-button" id="libraryMenu">Shows</button>
           </div>
         </div>
         <button
@@ -1971,25 +2003,6 @@
         >
           <span class="icon-symbol">▦</span
           ><span class="icon-label">Blocks</span></button
-        ><div class="topbar-statuses">
-          <button
-            class="icon expandable-icon check"
-            id="checks"
-            title="Export checks"
-            style="--expanded-width: 164px"
-          >
-            <span class="icon-symbol">●</span
-            ><span class="icon-label">All checks pass</span>
-          </button>
-          <span class="topbar-status-divider" aria-hidden="true"></span>
-          <button
-            class="icon expandable-icon quick-save dirty"
-            id="quickSave"
-            title="Save project in this browser"
-            aria-label="Save project in this browser"
-            style="--expanded-width: 104px"
-          ></button>
-        </div>
         ><input type="file" id="file" hidden accept="audio/*" /><input
           type="file"
           id="showFile"
@@ -1999,15 +2012,8 @@
       </header>
       <main class="body">
         <aside class="side left">
-          <div class="patch-summary" id="patchSummary"></div>
           <div class="search-row">
-            <input id="search" placeholder="Search cues…" /><input
-              id="color"
-              class="swatch"
-              type="color"
-              value="#ffffff"
-              title="Active colour"
-            />
+            <input id="search" placeholder="Search cues…" />
           </div>
           <div class="palette" id="palette"></div>
         </aside>
@@ -2082,6 +2088,13 @@
           title="Checking for updates"
         >
           Release · Checking
+        </button
+        ><button
+          class="debug-status check"
+          id="checks"
+          title="Open debug report"
+        >
+          ● All checks pass
         </button>
       </footer>
     </div>
@@ -2586,7 +2599,8 @@
         lastNamedSaveSignature = null,
         saveFlashTimer = 0,
         pendingRenameProjectId = null,
-        pendingLuaExport = null;
+        pendingLuaExport = null,
+        diagnosticErrors = [];
       const APP_CACHE_KEYS = [
         "fluxlineAutosave",
         "fluxlineAutosaveEnabled",
@@ -3501,8 +3515,6 @@
         $("#currentShowName").textContent = state.name || "Untitled show";
         $("#summary").textContent =
           `Flux Sequencer · ${demo ? "Demo setup" : `${state.patch.length} fixture types`} · ${exact ? `${total} fixtures` : demo ? `${state.patch.length} example fixture types` : "fixture inventory unavailable"}`;
-        $("#patchSummary").innerHTML =
-          `<div class="patch-summary-head"><b class="patch-summary-title">${esc(state.name || "Untitled show")}</b></div>${state.patch.map((f) => `${f.type} ${f.exact === true ? f.count : demo ? `${f.count} demo` : "inventory unknown"}${f.channels?.length ? ` · ${f.channels.map((channel) => esc(channel.label)).join(" / ")}` : ""}`).join(" · ")}<br><span>${exact ? "" : demo ? "Demo setup: import Flux DataStore JSON to load your real fixtures. " : "Legacy setup: this older Flux export does not contain exact fixture inventory. Re-export it from Roblox. "}Drag cues from the palette onto a compatible lane.</span>`;
       }
       function timelineWidth() {
         const visible = Math.max(
@@ -4650,13 +4662,82 @@
         const label = bad.length
           ? `${bad.length} export issue${bad.length > 1 ? "s" : ""}`
           : "All checks pass";
-        b.innerHTML = expandableIconContent("●", label);
-        b.style.setProperty("--expanded-width", bad.length ? "174px" : "164px");
-        b.title = label;
+        b.textContent = `● ${label}`;
+        b.title = `${label} · open debug report`;
         b.setAttribute("aria-label", label);
         b.classList.toggle("check", !bad.length);
         b.classList.toggle("issue", !!bad.length);
         return bad;
+      }
+      function buildDebugReport() {
+        const invalidEvents = state.events.filter(
+            (event) =>
+              !valid(
+                event.target,
+                event.action,
+                event.native,
+                event.module,
+                event.channel,
+              ),
+          ),
+          exactSetup = state.patch.every(
+            (fixture) => fixture.exact === true,
+          ),
+          demoSetup =
+            !fluxData &&
+            state.patch.every((fixture) => fixture.exact !== true),
+          saved = savedProjects();
+        return JSON.stringify(
+          {
+            report: "Flux Sequencer debug report",
+            generatedAt: new Date().toISOString(),
+            application: {
+              release: APP_VERSION,
+              latestKnownRelease: latestKnownVersion,
+              releaseStatus:
+                latestKnownVersion === APP_VERSION ? "current" : "outdated",
+            },
+            project: {
+              open: projectOpen,
+              activeSavedProjectId,
+              autosaveEnabled,
+              autosaveEveryEdits: autosaveInterval,
+              editsSinceRecoverySave: recoveryEditsSinceSave,
+              savedProjectCount: saved.length,
+              savedProjects: saved.map((entry) => ({
+                id: entry.id,
+                name: entry.name,
+                savedAt: entry.savedAt,
+              })),
+            },
+            setup: {
+              mode: exactSetup ? "exact" : demoSetup ? "demo" : "legacy",
+              fluxDataStoreLoaded: Boolean(fluxData),
+              fixtureTypeCount: state.patch.length,
+              fixtureCount: exactSetup
+                ? state.patch.reduce(
+                    (total, fixture) => total + (+fixture.count || 0),
+                    0,
+                  )
+                : null,
+              selectedLane,
+              patch: state.patch,
+            },
+            validation: {
+              status: invalidEvents.length ? "failed" : "passed",
+              invalidEventCount: invalidEvents.length,
+              invalidEvents,
+            },
+            show: state,
+            fluxDataStore: fluxData,
+            customBlocks: CUSTOM_BLOCKS,
+            customColours: CUSTOM_COLOURS,
+            activeColour,
+            runtimeErrors: diagnosticErrors,
+          },
+          null,
+          2,
+        );
       }
       function lua(v) {
         if (v === null || v === undefined) return "nil";
@@ -5666,7 +5747,6 @@
         $("#importError").textContent = "";
       };
       $("#search").oninput = renderPalette;
-      $("#color").oninput = (event) => setActiveColour(event.target.value);
       $("#undo").onclick = undo;
       $("#redo").onclick = redo;
       $("#play").onclick = togglePlay;
@@ -5761,17 +5841,14 @@
       $("#checks").onclick = () => {
         const bad = checks();
         openModal(
-          "Export checks",
+          "Flux debug report",
           bad.length
-            ? "Fix these events before export."
-            : "Every event is supported by its target fixture.",
-          bad.length
-            ? bad
-                .map((e) => `${e.time}s · ${e.target} cannot use ${e.action}`)
-                .join("\n")
-            : "No problems found.",
-          false,
+            ? `${bad.length} validation issue${bad.length === 1 ? "" : "s"} found. Copy and paste this report when asking for help.`
+            : "All checks pass. Copy and paste this report when asking for help; it includes the exact fixtures, split channels, events, saves, release, and runtime errors.",
+          buildDebugReport(),
+          true,
         );
+        $("#copy").textContent = "Copy report";
       };
       $("#projectMenu").onclick = () => {
         $("#projectModal").classList.add("open");
@@ -6031,6 +6108,29 @@
         }
       });
       window.addEventListener("resize", drawWave);
+      window.addEventListener("error", (event) => {
+        diagnosticErrors.push({
+          at: new Date().toISOString(),
+          type: "error",
+          message: event.message || "Unknown runtime error",
+          source: event.filename
+            ? `${event.filename}:${event.lineno || 0}:${event.colno || 0}`
+            : "",
+        });
+        diagnosticErrors = diagnosticErrors.slice(-50);
+        checks();
+      });
+      window.addEventListener("unhandledrejection", (event) => {
+        diagnosticErrors.push({
+          at: new Date().toISOString(),
+          type: "unhandledrejection",
+          message: String(
+            event.reason?.message || event.reason || "Unknown rejection",
+          ),
+        });
+        diagnosticErrors = diagnosticErrors.slice(-50);
+        checks();
+      });
       window.addEventListener("beforeunload", () => autosave(true));
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "hidden") autosave(true);

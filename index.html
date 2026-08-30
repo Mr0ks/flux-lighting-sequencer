@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="flux-sequencer-version" content="2026.08.30.2" />
+    <meta name="flux-sequencer-version" content="2026.08.30.3" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -279,6 +279,7 @@
         display: flex;
         min-width: 250px;
         align-items: center;
+        gap: 10px;
       }
       .brand-copy {
         min-width: 0;
@@ -298,21 +299,30 @@
         color: var(--muted);
         font-size: 12px;
       }
-      .brand-saves {
+      .brand-nav {
+        display: inline-flex;
         flex: 0 0 auto;
-        height: 30px;
-        padding: 0 12px;
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        background: var(--panel2);
-        color: var(--text);
-        font-size: 12px;
-        font-weight: 740;
-        cursor: pointer;
+        align-items: center;
+        gap: 7px;
       }
-      .brand-saves:hover {
-        background: #292929;
-        border-color: #5a5a5a;
+      .brand-nav-button {
+        flex: 0 0 auto;
+        height: 36px;
+        padding: 0 15px;
+        border: 1px solid #f4f4f5;
+        border-radius: 999px;
+        background: #f4f4f5;
+        color: #111;
+        font-size: 13px;
+        font-weight: 760;
+        cursor: pointer;
+        transition:
+          background-color 160ms ease,
+          transform 160ms ease;
+      }
+      .brand-nav-button:hover {
+        background: #dcdcdf;
+        transform: translateY(-1px);
       }
       .spacer {
         flex: 1;
@@ -481,10 +491,6 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-      }
-      .patch-summary .brand-saves {
-        height: 28px;
-        padding-inline: 11px;
       }
       .search-row {
         display: flex;
@@ -1834,10 +1840,10 @@
         </div>
         <div class="launch-actions">
           <button class="launch-action" id="launchImportJson">
-            <b>Import project JSON</b>
+            <b>Import website backup</b>
             <small
-              >Import and save an editable <code>.json</code> show from any
-              device.</small
+              >Restore an editable show or browser backup
+              <code>.json</code> file.</small
             >
           </button>
           <div class="launch-action primary" aria-hidden="true">
@@ -1866,7 +1872,7 @@
           </div>
           <div style="display: flex; align-items: center; gap: 10px">
             <small style="color: var(--muted)"
-              >Shows autosave here. Export JSON for a portable copy.</small
+              >JSON is the editable backup; Lua is for Roblox playback.</small
             >
             <button class="pill" id="returnToEditor">Back to editor</button>
           </div>
@@ -1899,6 +1905,10 @@
           <div class="brand-copy">
             <h1 id="currentShowName">Flux Sequencer</h1>
             <p id="summary">Loading fixture patch…</p>
+          </div>
+          <div class="brand-nav">
+            <button class="brand-nav-button" id="projectMenu">Project</button>
+            <button class="brand-nav-button" id="libraryMenu">Shows</button>
           </div>
         </div>
         <button
@@ -1977,7 +1987,6 @@
             style="--expanded-width: 104px"
           ></button>
         </div>
-        <button class="pill primary" id="projectMenu">Project</button
         ><input type="file" id="file" hidden accept="audio/*" /><input
           type="file"
           id="showFile"
@@ -2129,7 +2138,7 @@
         <div class="project-head">
           <div>
             <h2>Project</h2>
-            <p>Manage your Flux library and sequencer shows.</p>
+            <p>Manage your Flux setup and Roblox playback files.</p>
           </div>
           <div class="spacer"></div>
           <button class="pill" id="closeProject">Close</button>
@@ -2143,20 +2152,20 @@
           </div>
           <button class="project-action" id="importDatastore">Import</button>
         </div>
-        <div class="project-section">Roblox Lua show</div>
+        <div class="project-section">Roblox playback (.lua)</div>
         <div class="project-row">
           <div class="project-icon">↑</div>
           <div class="project-copy">
-            <b>Import Flux show Lua</b
-            ><small>Open an exported ModuleScript <code>.lua</code> file</small>
+            <b>Import Roblox playback</b
+            ><small>Open a previously exported Flux <code>.lua</code> show</small>
           </div>
           <button class="project-action" id="importLua">Import</button>
         </div>
         <div class="project-row">
           <div class="project-icon">↓</div>
           <div class="project-copy">
-            <b>Export Flux show Lua</b
-            ><small>Generate the ModuleScript used by Roblox</small>
+            <b>Export to Roblox</b
+            ><small>Generate the <code>.lua</code> ModuleScript used for playback</small>
           </div>
           <button class="project-action primary" id="exportShow">Export</button>
         </div>
@@ -3480,13 +3489,15 @@
       }
       function patchSummary() {
         const exact = state.patch.every((fixture) => fixture.exact === true),
+          demo =
+            !fluxData &&
+            state.patch.every((fixture) => fixture.exact !== true),
           total = state.patch.reduce((a, f) => a + (+f.count || 0), 0);
         $("#currentShowName").textContent = state.name || "Untitled show";
         $("#summary").textContent =
-          `Flux Sequencer · ${state.patch.length} fixture types · ${exact ? `${total} fixtures` : "fixture inventory unavailable"}`;
+          `Flux Sequencer · ${demo ? "Demo setup" : `${state.patch.length} fixture types`} · ${exact ? `${total} fixtures` : demo ? `${state.patch.length} example fixture types` : "fixture inventory unavailable"}`;
         $("#patchSummary").innerHTML =
-          `<div class="patch-summary-head"><b class="patch-summary-title">${esc(state.name || "Untitled show")}</b><button class="brand-saves" id="libraryMenu" title="Open saved shows">Shows</button></div>${state.patch.map((f) => `${f.type} ${f.exact === true ? f.count : "inventory unknown"}${f.channels?.length ? ` · ${f.channels.map((channel) => esc(channel.label)).join(" / ")}` : ""}`).join(" · ")}<br><span>${exact ? "" : "Legacy setup: physical group counts are not fixture inventory. Re-export in Roblox for the exact patch. "}Drag cues from the palette onto a compatible lane.</span>`;
-        $("#libraryMenu").onclick = openProjectLibrary;
+          `<div class="patch-summary-head"><b class="patch-summary-title">${esc(state.name || "Untitled show")}</b></div>${state.patch.map((f) => `${f.type} ${f.exact === true ? f.count : demo ? `${f.count} demo` : "inventory unknown"}${f.channels?.length ? ` · ${f.channels.map((channel) => esc(channel.label)).join(" / ")}` : ""}`).join(" · ")}<br><span>${exact ? "" : demo ? "Demo setup: import Flux DataStore JSON to load your real fixtures. " : "Legacy setup: this older Flux export does not contain exact fixture inventory. Re-export it from Roblox. "}Drag cues from the palette onto a compatible lane.</span>`;
       }
       function timelineWidth() {
         const visible = Math.max(
@@ -5241,7 +5252,7 @@
         $("#launchProjects").innerHTML = projects
           .map(
             (item) =>
-              `<div class="launch-project"><div><input class="launch-project-name" data-launch-name="${esc(item.id)}" aria-label="Rename ${esc(item.name)}" value="${esc(item.name)}"><small>${item.id === activeSavedProjectId ? "Currently open · " : ""}${esc(projectSummary(item.project))} · ${new Date(item.savedAt).toLocaleString()}</small></div><button class="project-action" data-launch-load="${esc(item.id)}">Open</button><button class="project-action" data-launch-export="${esc(item.id)}">Export JSON</button><button class="project-action" data-launch-delete="${esc(item.id)}">Delete</button></div>`,
+              `<div class="launch-project"><div><input class="launch-project-name" data-launch-name="${esc(item.id)}" aria-label="Rename ${esc(item.name)}" value="${esc(item.name)}"><small>${item.id === activeSavedProjectId ? "Currently open · " : ""}${esc(projectSummary(item.project))} · ${new Date(item.savedAt).toLocaleString()}</small></div><button class="project-action" data-launch-load="${esc(item.id)}">Open</button><button class="project-action" data-launch-export="${esc(item.id)}">Backup JSON</button><button class="project-action" data-launch-delete="${esc(item.id)}">Delete</button></div>`,
           )
           .join("");
         $$("[data-launch-name]").forEach((input) => {
@@ -5696,6 +5707,7 @@
         $("#projectModal").classList.add("open");
         renderSavedShows();
       };
+      $("#libraryMenu").onclick = openProjectLibrary;
       $("#returnToEditor").onclick = () =>
         $("#launchGate").classList.add("hidden");
       $("#closeProject").onclick = () =>

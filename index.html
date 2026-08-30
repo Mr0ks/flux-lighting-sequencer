@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="flux-sequencer-version" content="2026.08.30.5" />
+    <meta name="flux-sequencer-version" content="2026.08.30.6" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -839,28 +839,68 @@
       .range {
         accent-color: white;
       }
-      .event-count {
+      .footer-statuses {
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        gap: 8px;
         margin-left: auto;
-        color: var(--muted);
-        font:
-          12px ui-monospace,
-          monospace;
       }
-      .release-status {
-        height: 34px;
-        padding: 0 12px;
-        border: 1px solid var(--line);
+      .footer-expandable {
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 0;
+        width: 36px;
+        height: 36px;
+        padding: 0 10px;
+        overflow: hidden;
         border-radius: 999px;
-        background: var(--panel2);
-        color: var(--muted);
-        font: 700 11px "Roboto Mono", ui-monospace, monospace;
         white-space: nowrap;
-        cursor: default;
+        cursor: pointer;
         transition:
+          width 220ms cubic-bezier(0.2, 0, 0, 1),
+          gap 220ms cubic-bezier(0.2, 0, 0, 1),
           color 180ms ease,
           border-color 180ms ease,
           background-color 180ms ease,
           transform 180ms ease;
+      }
+      .footer-expandable:is(:hover, :focus-visible) {
+        width: var(--expanded-width, 160px);
+        gap: 8px;
+        transform: translateY(-1px);
+      }
+      .status-icon {
+        display: grid;
+        flex: 0 0 16px;
+        width: 16px;
+        height: 16px;
+        place-items: center;
+        line-height: 1;
+      }
+      .status-label {
+        max-width: 0;
+        overflow: hidden;
+        opacity: 0;
+        transform: translateX(-5px);
+        font-size: 11px;
+        font-weight: 750;
+        transition:
+          max-width 220ms cubic-bezier(0.2, 0, 0, 1),
+          opacity 140ms ease,
+          transform 220ms cubic-bezier(0.2, 0, 0, 1);
+      }
+      .footer-expandable:is(:hover, :focus-visible) .status-label {
+        max-width: 230px;
+        opacity: 1;
+        transform: none;
+      }
+      .release-status {
+        border: 1px solid var(--line);
+        background: var(--panel2);
+        color: var(--muted);
+        font: 700 11px "Roboto Mono", ui-monospace, monospace;
       }
       .release-status.current {
         color: #b7f7d2;
@@ -871,27 +911,16 @@
         color: #ffb4ab;
         border-color: #b3261e;
         background: #4a1515;
-        cursor: pointer;
       }
       .release-status.outdated:hover {
         background: #621d1d;
         transform: translateY(-1px);
       }
       .debug-status {
-        height: 34px;
-        padding: 0 13px;
         border: 1px solid #0d7a47;
-        border-radius: 999px;
         background: #073b25;
         color: #b7f7d2;
         font: 750 11px Inter, ui-sans-serif, system-ui, sans-serif;
-        white-space: nowrap;
-        cursor: pointer;
-        transition:
-          color 180ms ease,
-          border-color 180ms ease,
-          background-color 180ms ease,
-          transform 180ms ease;
       }
       .debug-status:hover {
         transform: translateY(-1px);
@@ -945,6 +974,80 @@
           12px/1.55 ui-monospace,
           monospace;
       }
+      .debug-summary {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 18px;
+      }
+      .debug-summary[hidden] {
+        display: none;
+      }
+      .debug-stat,
+      .debug-section {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--panel2);
+      }
+      .debug-stat {
+        min-width: 0;
+        padding: 14px;
+      }
+      .debug-stat span {
+        display: block;
+        margin-bottom: 5px;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 760;
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+      }
+      .debug-stat b {
+        display: block;
+        overflow: hidden;
+        font-size: 15px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .debug-stat.good b {
+        color: #b7f7d2;
+      }
+      .debug-stat.bad b {
+        color: #ffb4ab;
+      }
+      .debug-section {
+        grid-column: 1 / -1;
+        padding: 16px;
+      }
+      .debug-section h3 {
+        margin: 0 0 10px;
+        font-size: 13px;
+      }
+      .debug-list {
+        display: grid;
+        gap: 8px;
+      }
+      .debug-row {
+        display: grid;
+        grid-template-columns: minmax(120px, 0.8fr) minmax(0, 2fr);
+        gap: 14px;
+        padding-top: 8px;
+        border-top: 1px solid var(--line);
+      }
+      .debug-row:first-child {
+        padding-top: 0;
+        border-top: 0;
+      }
+      .debug-row span {
+        color: var(--muted);
+        overflow-wrap: anywhere;
+      }
+      .debug-help {
+        grid-column: 1 / -1;
+        margin: 2px 2px 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
       .toast {
         position: fixed;
         left: 50%;
@@ -970,15 +1073,11 @@
           padding-inline: 12px;
         }
         .transport label,
-        .transport .event-count,
         .transport .zoom-readout {
           display: none;
         }
         .transport .range {
           width: 110px;
-        }
-        .transport .release-status {
-          margin-left: auto;
         }
       }
       @media (max-width: 1000px) {
@@ -1004,8 +1103,7 @@
         .transport::-webkit-scrollbar {
           display: none;
         }
-        .transport label,
-        .event-count {
+        .transport label {
           display: none;
         }
         .transport .range {
@@ -2081,32 +2179,40 @@
           max="320"
           value="70"
         /><span class="zoom-readout" id="zoomReadout">70 px/s</span
-        ><span class="event-count" id="count">0 events</span
-        ><button
-          class="release-status"
-          id="releaseStatus"
-          title="Checking for updates"
-        >
-          Release · Checking
-        </button
-        ><button
-          class="debug-status check"
-          id="checks"
-          title="Open debug report"
-        >
-          ● All checks pass
-        </button>
+        ><div class="footer-statuses">
+          <button
+            class="footer-expandable release-status"
+            id="releaseStatus"
+            title="Checking for updates"
+            style="--expanded-width: 190px"
+          >
+            <span class="status-icon">↻</span
+            ><span class="status-label">Checking release</span>
+          </button>
+          <button
+            class="footer-expandable debug-status check"
+            id="checks"
+            title="Open diagnostics"
+            style="--expanded-width: 158px"
+          >
+            <span class="status-icon">●</span
+            ><span class="status-label">All checks pass</span>
+          </button>
+        </div>
       </footer>
     </div>
     <div class="modal" id="modal">
       <div class="dialog">
         <div class="dialog-head">
           <h2 id="modalTitle">Export</h2>
-          <button class="pill" id="close">Close</button
+          <button class="pill" id="toggleDebugOutput" hidden>
+            Show debug script</button
           ><button class="pill" id="downloadOutput" hidden>Download Lua</button
-          ><button class="pill primary" id="copy">Copy</button>
+          ><button class="pill primary" id="copy">Copy</button
+          ><button class="pill" id="close">Close</button>
         </div>
         <p id="modalSub" style="color: #999"></p>
+        <div class="debug-summary" id="debugSummary" hidden></div>
         <pre id="output"></pre>
       </div>
     </div>
@@ -2130,6 +2236,8 @@
               happen to your current browser saves before updating.
             </p>
           </div>
+          <div class="spacer"></div>
+          <button class="pill" id="cancelUpdate">Not now</button>
         </div>
         <div class="update-version" id="updateVersion"></div>
         <div class="update-options">
@@ -2977,14 +3085,26 @@
         button.classList.remove("current", "outdated");
         if (status === "current") {
           button.classList.add("current");
-          button.textContent = `● Release ${APP_VERSION}`;
-          button.title = "You are using the latest release";
+          button.innerHTML = footerStatusContent(
+            "●",
+            `Release ${APP_VERSION}`,
+          );
+          button.style.setProperty("--expanded-width", "184px");
+          button.title = "Latest release · no update will run automatically";
         } else if (status === "outdated") {
           button.classList.add("outdated");
-          button.textContent = `● Release ${APP_VERSION} → ${remoteVersion}`;
-          button.title = `Release ${remoteVersion} is ready · click to update`;
+          button.innerHTML = footerStatusContent(
+            "●",
+            `Update ${APP_VERSION} → ${remoteVersion}`,
+          );
+          button.style.setProperty("--expanded-width", "248px");
+          button.title = `Release ${remoteVersion} is available · click to choose whether to update`;
         } else {
-          button.textContent = `Release ${APP_VERSION} · Checking`;
+          button.innerHTML = footerStatusContent(
+            "↻",
+            `Checking release ${APP_VERSION}`,
+          );
+          button.style.setProperty("--expanded-width", "210px");
           button.title = "Checking for updates";
         }
       }
@@ -3726,8 +3846,6 @@
         initEventInteractions();
         $("#timeline").onpointerdown = startMarquee;
         drawHead();
-        $("#count").textContent =
-          `${state.events.length} event${state.events.length === 1 ? "" : "s"}`;
         checks();
       }
       function eventHtml(e, row = 0) {
@@ -4662,12 +4780,63 @@
         const label = bad.length
           ? `${bad.length} export issue${bad.length > 1 ? "s" : ""}`
           : "All checks pass";
-        b.textContent = `● ${label}`;
-        b.title = `${label} · open debug report`;
+        b.innerHTML = footerStatusContent("●", label);
+        b.style.setProperty(
+          "--expanded-width",
+          bad.length ? "184px" : "158px",
+        );
+        b.title = `${label} · open diagnostics`;
         b.setAttribute("aria-label", label);
         b.classList.toggle("check", !bad.length);
         b.classList.toggle("issue", !!bad.length);
         return bad;
+      }
+      function footerStatusContent(icon, label) {
+        return `<span class="status-icon">${icon}</span><span class="status-label">${esc(label)}</span>`;
+      }
+      function debugSummaryMarkup() {
+        const invalidEvents = checks(),
+          exactSetup = state.patch.every((fixture) => fixture.exact === true),
+          totalFixtures = exactSetup
+            ? state.patch.reduce(
+                (total, fixture) => total + (+fixture.count || 0),
+                0,
+              )
+            : null,
+          setupLabel = exactSetup
+            ? `${totalFixtures} exact fixtures`
+            : fluxData
+              ? "Legacy inventory"
+              : "Demo setup",
+          fixtureRows = state.patch
+            .map((fixture) => {
+              const count =
+                  fixture.exact === true
+                    ? `${fixture.count} fixture${fixture.count === 1 ? "" : "s"}`
+                    : "Inventory unavailable",
+                channels = fixture.channels?.length
+                  ? fixture.channels
+                      .map((channel) => channel.label || channel.key)
+                      .join(" · ")
+                  : (
+                      fixture.capabilities?.length
+                        ? fixture.capabilities
+                        : CAPS[fixture.type] || []
+                    ).join(" · ") ||
+                    "No channels reported";
+              return `<div class="debug-row"><b>${esc(fixture.type)}</b><span>${esc(count)} · ${esc(channels)}</span></div>`;
+            })
+            .join(""),
+          issueRows = [
+            ...invalidEvents.map(
+              (event) =>
+                `${event.time}s · ${event.target} cannot use ${event.action}`,
+            ),
+            ...diagnosticErrors.map(
+              (error) => `${error.type}: ${error.message}`,
+            ),
+          ];
+        return `<div class="debug-stat ${invalidEvents.length ? "bad" : "good"}"><span>Checks</span><b>${invalidEvents.length ? `${invalidEvents.length} issue${invalidEvents.length === 1 ? "" : "s"}` : "Passed"}</b></div><div class="debug-stat"><span>Setup</span><b>${esc(setupLabel)}</b></div><div class="debug-stat"><span>Events</span><b>${state.events.length}</b></div><div class="debug-stat"><span>Release</span><b>${esc(APP_VERSION)}</b></div><div class="debug-stat ${diagnosticErrors.length ? "bad" : "good"}"><span>Runtime</span><b>${diagnosticErrors.length ? `${diagnosticErrors.length} error${diagnosticErrors.length === 1 ? "" : "s"}` : "Clean"}</b></div><section class="debug-section"><h3>Fixtures and channels</h3><div class="debug-list">${fixtureRows || '<span>No fixtures loaded.</span>'}</div></section><section class="debug-section"><h3>Problems</h3><div class="debug-list">${issueRows.length ? issueRows.map((issue) => `<div class="debug-row"><b>Issue</b><span>${esc(issue)}</span></div>`).join("") : '<span style="color:var(--muted)">No validation or runtime problems found.</span>'}</div></section><p class="debug-help">Need to share every technical detail? Press <b>Show debug script</b>, then copy it.</p>`;
       }
       function buildDebugReport() {
         const invalidEvents = state.events.filter(
@@ -4964,6 +5133,11 @@
         $("#modalTitle").textContent = title;
         $("#modalSub").textContent = sub;
         $("#output").textContent = text;
+        $("#output").hidden = false;
+        $("#debugSummary").hidden = true;
+        $("#debugSummary").innerHTML = "";
+        $("#toggleDebugOutput").hidden = true;
+        $("#toggleDebugOutput").textContent = "Show debug script";
         $("#copy").style.display = copy ? "" : "none";
         $("#copy").textContent = "Copy";
         $("#downloadOutput").hidden = true;
@@ -5006,6 +5180,11 @@
         $("#modalSub").textContent =
           "Copy it into a ModuleScript for Roblox, or download the same file as your editable show backup.";
         $("#output").textContent = pendingLuaExport.text;
+        $("#output").hidden = false;
+        $("#debugSummary").hidden = true;
+        $("#debugSummary").innerHTML = "";
+        $("#toggleDebugOutput").hidden = true;
+        $("#toggleDebugOutput").textContent = "Show debug script";
         $("#copy").style.display = "";
         $("#copy").textContent = "Copy Lua";
         $("#downloadOutput").hidden = false;
@@ -5841,14 +6020,17 @@
       $("#checks").onclick = () => {
         const bad = checks();
         openModal(
-          "Flux debug report",
+          "Diagnostics",
           bad.length
-            ? `${bad.length} validation issue${bad.length === 1 ? "" : "s"} found. Copy and paste this report when asking for help.`
-            : "All checks pass. Copy and paste this report when asking for help; it includes the exact fixtures, split channels, events, saves, release, and runtime errors.",
-          buildDebugReport(),
-          true,
+            ? `${bad.length} validation issue${bad.length === 1 ? "" : "s"} needs attention.`
+            : "Your show and fixture setup are ready.",
+          "",
+          false,
         );
-        $("#copy").textContent = "Copy report";
+        $("#output").hidden = true;
+        $("#debugSummary").innerHTML = debugSummaryMarkup();
+        $("#debugSummary").hidden = false;
+        $("#toggleDebugOutput").hidden = false;
       };
       $("#projectMenu").onclick = () => {
         $("#projectModal").classList.add("open");
@@ -5946,12 +6128,36 @@
       };
       $("#quickSave").onclick = cacheProject;
       $("#releaseStatus").onclick = showUpdatePrompt;
+      $("#cancelUpdate").onclick = () =>
+        $("#updateModal").classList.remove("open");
+      $("#updateModal").onclick = (event) => {
+        if (event.target.id === "updateModal")
+          $("#updateModal").classList.remove("open");
+      };
       $("#downloadAndUpdate").onclick = () => completeManualUpdate(true);
       $("#eraseAndUpdate").onclick = () => completeManualUpdate(false);
       $("#autosaveToggle").onclick = toggleAutosave;
       $("#autosaveInterval").onchange = (event) =>
         setAutosaveInterval(event.target.value);
       $("#close").onclick = () => $("#modal").classList.remove("open");
+      $("#toggleDebugOutput").onclick = () => {
+        const output = $("#output"),
+          summary = $("#debugSummary"),
+          showingScript = !output.hidden;
+        if (showingScript) {
+          output.hidden = true;
+          summary.hidden = false;
+          $("#copy").style.display = "none";
+          $("#toggleDebugOutput").textContent = "Show debug script";
+        } else {
+          output.textContent = buildDebugReport();
+          output.hidden = false;
+          summary.hidden = true;
+          $("#copy").style.display = "";
+          $("#copy").textContent = "Copy debug script";
+          $("#toggleDebugOutput").textContent = "Hide debug script";
+        }
+      };
       $("#downloadOutput").onclick = () => {
         if (pendingLuaExport)
           downloadLuaShow(pendingLuaExport.bundle, pendingLuaExport.name);

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="flux-sequencer-version" content="2026.08.30.8" />
+    <meta name="flux-sequencer-version" content="2026.08.30.9" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -2206,7 +2206,7 @@
             title="Checking for updates"
             style="--expanded-width: 190px"
           >
-            <span class="status-icon">↻</span
+            <span class="status-icon">V</span
             ><span class="status-label">Checking release</span>
           </button>
           <button
@@ -2215,7 +2215,7 @@
             title="Open diagnostics"
             style="--expanded-width: 158px"
           >
-            <span class="status-icon">●</span
+            <span class="status-icon">✓</span
             ><span class="status-label">All checks pass</span>
           </button>
         </div>
@@ -3138,7 +3138,7 @@
         if (status === "current") {
           button.classList.add("current");
           button.innerHTML = footerStatusContent(
-            "●",
+            "V",
             `Release ${APP_VERSION}`,
           );
           button.style.setProperty("--expanded-width", "184px");
@@ -3146,14 +3146,14 @@
         } else if (status === "outdated") {
           button.classList.add("outdated");
           button.innerHTML = footerStatusContent(
-            "●",
+            "V",
             `Update ${APP_VERSION} → ${remoteVersion}`,
           );
           button.style.setProperty("--expanded-width", "248px");
           button.title = `Release ${remoteVersion} is available · click to choose whether to update`;
         } else {
           button.innerHTML = footerStatusContent(
-            "↻",
+            "V",
             `Checking release ${APP_VERSION}`,
           );
           button.style.setProperty("--expanded-width", "210px");
@@ -4977,7 +4977,7 @@
         const label = bad.length
           ? `${bad.length} export issue${bad.length > 1 ? "s" : ""}`
           : "All checks pass";
-        b.innerHTML = footerStatusContent("●", label);
+        b.innerHTML = footerStatusContent(bad.length ? "×" : "✓", label);
         b.style.setProperty(
           "--expanded-width",
           bad.length ? "184px" : "158px",

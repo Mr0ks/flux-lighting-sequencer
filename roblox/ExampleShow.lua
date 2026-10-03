@@ -9,6 +9,7 @@ return {
 		{ t = 0, target = "profile:all", action = "level", value = 1, duration = 0.5 },
 		{ t = 2, target = "profile:all", action = "pan", value = 45, duration = 1 },
 		{ t = 4, target = "profile:all", action = "tilt", value = -25, duration = 1 },
+		{ t = 5.5, target = "profile:all", action = "flash", value = "fade-out", duration = 1 },
 		{ t = 7, target = "profile:all", action = "level", value = 0, duration = 1 },
 	},
 }

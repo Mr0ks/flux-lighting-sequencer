@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="flux-sequencer-version" content="2026.08.30.7" />
+    <meta name="flux-sequencer-version" content="2026.08.30.8" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -563,6 +563,7 @@
       }
       .wave-wrap {
         position: relative;
+        overflow: hidden;
         background: #0c0c0c;
         border-bottom: 1px solid var(--line);
         cursor: pointer;
@@ -1089,7 +1090,29 @@
           grid-template-columns: 230px 1fr;
         }
         .right {
-          display: none;
+          display: block;
+          position: fixed;
+          right: 12px;
+          bottom: 76px;
+          width: min(360px, calc(100vw - 24px));
+          max-height: min(68vh, 620px);
+          padding: 18px;
+          border: 1px solid var(--line);
+          border-radius: var(--md-radius-lg);
+          background: var(--panel);
+          box-shadow: var(--md-shadow-3);
+          opacity: 0;
+          pointer-events: none;
+          transform: translateX(calc(100% + 24px));
+          transition:
+            transform 220ms var(--md-emphasized),
+            opacity 160ms var(--md-standard);
+          z-index: 80;
+        }
+        body.mobile-inspector-open .right {
+          opacity: 1;
+          pointer-events: auto;
+          transform: none;
         }
         .brand {
           width: min(260px, 26vw);
@@ -2488,6 +2511,11 @@
               <option value="level:0">Turn off</option>
               <option value="reset:0">Reset</option>
             </optgroup>
+            <optgroup label="Flash">
+              <option value="flash:snap">Flash · on/off</option>
+              <option value="flash:fade-out">Flash · fade off</option>
+              <option value="flash:fade-both">Flash · fade in/out</option>
+            </optgroup>
             <optgroup label="Colour">
               <option value="color:#ffffff">Set colour</option>
             </optgroup>
@@ -2578,6 +2606,15 @@
         blinder: ["intensity"],
         atomic: ["intensity", "strobe"],
         display: ["intensity", "color", "strobe"],
+        "follow spotlight": [
+          "intensity",
+          "color",
+          "strobe",
+          "pan",
+          "tilt",
+          "iris",
+          "shutter",
+        ],
       };
       const BASE_DEFINITIONS = [
         [
@@ -2588,6 +2625,14 @@
             ["Fade on", "level", 1, 1],
             ["Fade off", "level", 0, 1],
             ["Reset", "reset", 0],
+          ],
+        ],
+        [
+          "Flash",
+          [
+            ["Flash · on/off", "flash", "snap", 1],
+            ["Flash · fade off", "flash", "fade-out", 1],
+            ["Flash · fade in/out", "flash", "fade-both", 1],
           ],
         ],
         [
@@ -2936,15 +2981,22 @@
             ]),
           ]);
       }
-      function buildImportedLibrary(data) {
+      function buildImportedLibrary(data, fixtureTypes = null) {
         DEFINITIONS = structuredClone(BASE_DEFINITIONS);
         IMPORTED = {};
+        const available = new Set(
+          fixtureTypes ||
+            (state.patch || []).map((fixture) =>
+              String(fixture.type || "").toLowerCase(),
+            ),
+        );
         for (const [scope, action, singular] of [
           ["positions", "flux-position", "Position"],
           ["macros", "flux-macro", "Macro"],
           ["effects", "flux-effect", "Effect"],
         ])
           for (const [fixture, records] of Object.entries(data[scope] || {})) {
+            if (!available.has(String(fixture).toLowerCase())) continue;
             const items = [];
             for (const [name, payload] of Object.entries(records || {})) {
               const id = scope + "|" + fixture + "|" + name;
@@ -2981,8 +3033,6 @@
           throw new Error(
             "Legacy Flux export detected. Restart Play mode and export again from the updated Roblox GUI; the new JSON contains an exact fixture patch.",
           );
-        fluxData = data;
-        buildImportedLibrary(data);
         const exportedPatch = Array.isArray(parsed.patch)
           ? parsed.patch.map(normalisePatchEntry)
           : [],
@@ -3009,6 +3059,11 @@
         });
         if (!state.patch.length)
           throw new Error("No Flux fixtures were found.");
+        fluxData = data;
+        buildImportedLibrary(
+          data,
+          state.patch.map((fixture) => fixture.type),
+        );
         selectedLane = state.patch[0].type + ":all";
         if (persist)
           localStorage.setItem("fluxDataStore", JSON.stringify(parsed));
@@ -3271,7 +3326,16 @@
           delete e._offset;
           e.id = uid();
           e.time = snapTime(position + saved._offset);
-          if (!valid(e.target, e.action, e.native, e.module, e.channel))
+          if (
+            !valid(
+              e.target,
+              e.action,
+              e.native,
+              e.module,
+              e.channel,
+              e.actions,
+            )
+          )
             continue;
           state.events.push(e);
           ids.push(e.id);
@@ -3484,6 +3548,7 @@
             cue.native,
             laneModule(target),
             laneChannel(target),
+            cue.actions,
           );
           track.classList.add(ok ? "drop-ok" : "drop-bad");
           lastTrack = track;
@@ -3568,12 +3633,14 @@
           return `<div class="section-title">${section}</div><div class="blocks">${visible
             .map(([label, action, value, duration]) => {
               const native = IMPORTED[value] || null,
+                custom = CUSTOM_BLOCKS.find((block) => block.id === value),
                 blocked = !valid(
                   selectedLane,
                   action,
                   native,
                   laneModule(selectedLane),
                   laneChannel(selectedLane),
+                  custom?.actions,
                 ),
                 colourCue = action === "color",
                 kind = action.startsWith("flux-")
@@ -3609,12 +3676,16 @@
       }
       function syncPaletteAvailability() {
         $$(".block").forEach((button) => {
+          const custom = CUSTOM_BLOCKS.find(
+            (block) => block.id === button.dataset.value,
+          );
           const blocked = !valid(
             selectedLane,
             button.dataset.action,
             IMPORTED[button.dataset.value] || null,
             laneModule(selectedLane),
             laneChannel(selectedLane),
+            custom?.actions,
           );
           button.classList.toggle("blocked", blocked);
           button.setAttribute("aria-disabled", String(blocked));
@@ -3645,15 +3716,24 @@
         ev.preventDefault();
         const r = element.getBoundingClientRect(),
           time = wave
-            ? ((ev.clientX - r.left) / r.width) * state.duration
+            ? ($("#scroller").scrollLeft + ev.clientX - r.left) / px
             : (ev.clientX - r.left) / px;
         seek(snapTime(time));
+      }
+      let waveFrame = 0;
+      function scheduleWaveDraw() {
+        if (waveFrame) return;
+        waveFrame = requestAnimationFrame(() => {
+          waveFrame = 0;
+          drawWave();
+        });
       }
       function syncRulerScroll() {
         const ruler = $("#ruler"),
           scroller = $("#scroller");
         if (ruler && scroller)
           ruler.style.transform = `translate3d(${-scroller.scrollLeft}px,0,0)`;
+        scheduleWaveDraw();
       }
       function gridMetrics() {
         const snapUnit = autoSnapUnit(),
@@ -3848,21 +3928,92 @@
       function eventHtml(e, row = 0) {
         return `<div class="event ${selectedEvent?.id === e.id ? "selected" : selectedEvents.has(e.id) ? "multi" : ""}" data-id="${e.id}" data-kind="${e.kind}" style="top:${9 + row * 42}px;left:${e.time * px}px;width:${eventWidth(e)}px">${e.label}<span class="resize-handle" title="Drag to resize"></span></div>`;
       }
+      const RUNTIME_NATIVE_ATTRIBUTES = new Set([
+        "intensity",
+        "hue",
+        "red",
+        "green",
+        "blue",
+        "pan",
+        "tilt",
+        "spin",
+        "pitch",
+        "beam intensity",
+        "gobo intensity",
+        "iris",
+        "width",
+        "shutter",
+      ]);
+      function nativeMetadata(native) {
+        const payload = native?.payload;
+        let meta = payload?.meta;
+        if (!Array.isArray(meta) && Array.isArray(payload))
+          meta = payload[1]?.meta;
+        if (!Array.isArray(meta)) return [];
+        return meta
+          .flat(Infinity)
+          .filter((item) => item && typeof item === "object" && item.attribute);
+      }
       function valid(
         target,
         action,
         native = null,
         module = null,
         channel = null,
+        actions = null,
       ) {
         if (target === "pyrotechnics") return action === "pyro";
         if (action === "pyro") return false;
-        if (action === "block") return true;
         const type = target.split(":")[0];
-        if (action.startsWith("flux-")) return native?.fixture === type;
+        const fixture = patchEntry(type);
+        if (!fixture || fixture.count <= 0) return false;
+        if (action === "block")
+          return (
+            Array.isArray(actions) &&
+            actions.length > 0 &&
+            actions.every(
+              (child) =>
+                child.action === "pyro" ||
+                valid(
+                  target,
+                  child.action,
+                  child.native,
+                  module,
+                  channel,
+                  child.actions,
+                ),
+            )
+          );
+        if (action.startsWith("flux-")) {
+          const metas = nativeMetadata(native);
+          return (
+            String(native?.fixture || "").toLowerCase() === type &&
+            metas.length > 0 &&
+            metas.every((meta) => {
+              if (
+                String(meta.fixture || type).toLowerCase() !== type ||
+                !RUNTIME_NATIVE_ATTRIBUTES.has(
+                  String(meta.attribute || "").toLowerCase(),
+                )
+              )
+                return false;
+              if (meta.module == null) return true;
+              const channels = fixture.channels || [],
+                matchingChannel =
+                  (!channels.length && String(meta.module) === "1") ||
+                  channels.some(
+                    (entry) => String(entry.module) === String(meta.module),
+                  );
+              return (
+                matchingChannel &&
+                (module == null || String(module) === String(meta.module))
+              );
+            })
+          );
+        }
         return (
           capabilities(type, module, channel).includes(
-            action === "level" ? "intensity" : action,
+            action === "level" || action === "flash" ? "intensity" : action,
           ) || action === "reset"
         );
       }
@@ -3878,6 +4029,7 @@
             armed.native,
             laneModule(target),
             laneChannel(target),
+            armed.actions,
           )
         ) {
           toast("That cue belongs to a different fixture type");
@@ -4076,6 +4228,7 @@
                   s.e.native,
                   laneModule(key),
                   laneChannel(key),
+                  s.e.actions,
                 ),
               );
             track.classList.add(ok ? "drop-ok" : "drop-bad");
@@ -4222,6 +4375,7 @@
               x.e.native,
               laneModule(key),
               laneChannel(key),
+              x.e.actions,
             ),
           );
           track.classList.add(ok ? "drop-ok" : "drop-bad");
@@ -4511,6 +4665,10 @@
       }
       function renderInspector() {
         const root = $("#inspector");
+        document.body.classList.toggle(
+          "mobile-inspector-open",
+          Boolean(selectedEvent || selectedEvents.size || armed?.action === "color"),
+        );
         if (
           armed?.action === "color" &&
           !selectedEvent &&
@@ -4582,6 +4740,7 @@
         }
         const e = selectedEvent,
           isColor = e.action === "color",
+          isFlash = e.action === "flash",
           isPyro = e.action === "pyro",
           isNative = e.action.startsWith("flux-"),
           isBlock = e.action === "block",
@@ -4597,7 +4756,9 @@
               `<option value="${l.key}" ${e.target === l.key ? "selected" : ""}>${l.label} · ${l.detail}</option>`,
           )
           .join("");
-        const valueEditor = isColor
+        const valueEditor = isFlash
+          ? `<div class="field"><label>Flash shape</label><select id="evValue"><option value="snap" ${e.value === "snap" ? "selected" : ""}>On, then off</option><option value="fade-out" ${e.value === "fade-out" ? "selected" : ""}>On, then fade off</option><option value="fade-both" ${e.value === "fade-both" ? "selected" : ""}>Fade on, then fade off</option></select><small class="field-hint">The light returns to off at the end of this block.</small></div>`
+          : isColor
           ? `<div class="field"><label>Colour</label><div class="row"><input id="evValue" type="color" value="${e.value}"><input id="evHex" value="${e.value}"></div></div>`
           : range
             ? `<div class="field"><label>${esc(valueInfo.label)}</label><input id="evRange" type="range" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"><input id="evValue" type="number" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"><small class="field-hint">${esc(valueInfo.hint)}</small></div>`
@@ -4612,7 +4773,8 @@
           e.module = laneModule(e.target);
           e.channel = laneChannel(e.target);
           if ($("#evValue"))
-            e.value = isColor ? $("#evValue").value : +$("#evValue").value;
+            e.value =
+              isColor || isFlash ? $("#evValue").value : +$("#evValue").value;
           renderTimeline();
         };
         ["evTime", "evDuration", "evTarget", "evValue"].forEach((id) => {
@@ -4679,6 +4841,19 @@
         const h = $("#head");
         if (h) h.style.left = 210 + position * px + "px";
         $("#time").innerHTML = format(position);
+        if (playing) {
+          const scroller = $("#scroller"),
+            headX = 210 + position * px,
+            visibleLeft = scroller.scrollLeft + 210,
+            visibleRight = scroller.scrollLeft + scroller.clientWidth - 54;
+          if (headX > visibleRight)
+            scroller.scrollLeft = Math.max(
+              0,
+              headX - scroller.clientWidth + 90,
+            );
+          else if (headX < visibleLeft)
+            scroller.scrollLeft = Math.max(0, headX - 210);
+        }
       }
       function stop() {
         playing = false;
@@ -4735,25 +4910,39 @@
       }
       function drawWave() {
         const c = $("#wave"),
-          box = $("#waveWrap");
+          box = $("#waveWrap"),
+          scroller = $("#scroller");
         c.width = Math.max(1, box.clientWidth * devicePixelRatio);
         c.height = Math.max(1, box.clientHeight * devicePixelRatio);
         const x = c.getContext("2d");
         x.scale(devicePixelRatio, devicePixelRatio);
         const w = box.clientWidth,
-          h = box.clientHeight;
+          h = box.clientHeight,
+          scrollLeft = scroller?.scrollLeft || 0,
+          contentWidth = Math.max(1, timelineWidth());
         x.clearRect(0, 0, w, h);
         x.strokeStyle = "#fff";
         x.globalAlpha = 0.65;
         x.beginPath();
         if (audioBuffer) {
           const d = audioBuffer.getChannelData(0),
-            step = Math.max(1, Math.floor(d.length / w));
+            samplesPerPixel = d.length / contentWidth;
           for (let i = 0; i < w; i++) {
             let lo = 1,
               hi = -1;
-            for (let j = 0; j < step; j++) {
-              const v = d[i * step + j] || 0;
+            const first = Math.max(
+                0,
+                Math.floor((scrollLeft + i) * samplesPerPixel),
+              ),
+              last = Math.min(
+                d.length,
+                Math.max(
+                  first + 1,
+                  Math.ceil((scrollLeft + i + 1) * samplesPerPixel),
+                ),
+              );
+            for (let j = first; j < last; j++) {
+              const v = d[j] || 0;
               lo = Math.min(lo, v);
               hi = Math.max(hi, v);
             }
@@ -4762,7 +4951,10 @@
           }
         } else {
           for (let i = 0; i < w; i += 3) {
-            const a = Math.sin(i * 0.11) * 0.08 + Math.sin(i * 0.037) * 0.05;
+            const timelineX = scrollLeft + i,
+              a =
+                Math.sin(timelineX * 0.11) * 0.08 +
+                Math.sin(timelineX * 0.037) * 0.05;
             x.moveTo(i, h * (0.5 - a));
             x.lineTo(i, h * (0.5 + a));
           }
@@ -4771,7 +4963,15 @@
       }
       function checks() {
         const bad = state.events.filter(
-          (e) => !valid(e.target, e.action, e.native, e.module, e.channel),
+          (e) =>
+            !valid(
+              e.target,
+              e.action,
+              e.native,
+              e.module,
+              e.channel,
+              e.actions,
+            ),
         );
         const b = $("#checks");
         const label = bad.length
@@ -4844,6 +5044,7 @@
                 event.native,
                 event.module,
                 event.channel,
+                event.actions,
               ),
           ),
           exactSetup = state.patch.every(
@@ -5820,18 +6021,23 @@
       }
       function syncBlockValue() {
         const [action, value] = $("#blockAction").value.split(":");
-        const textValue = action === "pyro";
+        const textValue = action === "pyro" || action === "flash";
         $("#blockValue").type =
           action === "color" ? "color" : textValue ? "text" : "number";
         $("#blockValue").step = action === "color" || textValue ? "" : ".01";
         $("#blockValue").value = action === "color" ? activeColour : value;
+        if (action === "flash" && +$("#blockDuration").value <= 0)
+          $("#blockDuration").value = "1";
       }
       function addBuilderAction() {
         const option = $("#blockAction").selectedOptions[0],
           [action] = $("#blockAction").value.split(":"),
           raw = $("#blockValue").value,
           duration = Math.max(0, +$("#blockDuration").value || 0),
-          value = action === "color" || action === "pyro" ? raw : +raw;
+          value =
+            action === "color" || action === "pyro" || action === "flash"
+              ? raw
+              : +raw;
         builderActions.push({
           label: option.textContent,
           action,

@@ -19,6 +19,7 @@ for editing.
 | `roblox/Client.lua` | Compact in-game Flux Shows interface |
 | `roblox/Config.lua` | Owner/whitelist and Flux kit configuration |
 | `roblox/ExampleShow.lua` | Example show ModuleScript |
+| `roblox/Installer.lua` | One-command installer for the complete Workspace folder |
 
 The repository contains the complete source for this project. The Flux lighting
 kit itself is a separate dependency and is not redistributed here.
@@ -35,7 +36,7 @@ kit itself is a separate dependency and is not redistributed here.
 5. Drag cues onto compatible fixture lanes, or click a cue and click the
    timeline repeatedly to place it.
 6. Open **Project → Export Lua show**. Copy the Lua or download the `.lua` file.
-7. In Studio, create a ModuleScript inside `FluxlinePlayer/Shows`, then replace
+7. In Studio, create a ModuleScript inside `Workspace.Fluxline.Shows`, then replace
    its source with the exported Lua.
 8. Play-test, open **Flux Shows**, select the show, and press play.
 
@@ -44,37 +45,56 @@ show. The exported `songId` tells Roblox which permitted audio asset to play.
 
 ## Install the Roblox playback folder
 
-Download and unzip the project, then create this structure in Roblox Studio:
+The easiest method creates the complete distributable folder, including
+[TopbarPlus v3.4.0](https://create.roblox.com/store/asset/92368439343389/TopbarPlus).
+
+1. In Studio, enable **Game Settings → Security → Allow HTTP Requests**.
+2. Open **View → Command Bar**.
+3. Open `roblox/Installer.lua` from this repository, copy all of it, paste it
+   into the Command Bar, and press Enter.
+4. Edit `Workspace.Fluxline.Config` and add the Roblox user IDs allowed to
+   control or export shows.
+5. Disable HTTP requests again if the rest of your experience does not use
+   them.
+
+The installer downloads the transparent source files from this repository,
+inserts the official TopbarPlus asset, and creates:
 
 ```text
-ServerScriptService
-└── FluxlinePlayer (Folder)
-    ├── Server (Script)                ← roblox/Server.lua
-    ├── Config (ModuleScript)          ← roblox/Config.lua
-    └── Shows (Folder)
-        └── ExampleShow (ModuleScript) ← roblox/ExampleShow.lua
-
-StarterPlayer
-└── StarterPlayerScripts
-    └── FluxlineClient (LocalScript)   ← roblox/Client.lua
+Workspace
+└── Fluxline (Folder)
+    ├── Server (Script, RunContext Server)
+    ├── Client (Script, RunContext Client)
+    ├── Config (ModuleScript)
+    ├── Shows (Folder)
+    │   └── ExampleShow (ModuleScript)
+    └── TopbarPlus (Folder)
+        └── Icon (official TopbarPlus package)
 ```
 
-For each arrow above, open the matching repository file, copy all of its source,
-and paste it into the Roblox instance with the listed class and name.
+An existing `Workspace.Fluxline` is renamed to a timestamped backup instead of
+being deleted. Advanced users can also build this tree manually from the
+reviewable files in `roblox/`.
 
 Edit `Config` before testing:
 
 ```lua
 return {
-    -- The experience owner is always permitted.
     Whitelist = { 123456789 }, -- additional Roblox user IDs
     KitName = "kit",           -- folder under flux kit/kits
+    FluxDataStoreName = "flux kit",
+    FluxShowKey = "show",
+    FluxScopes = { "groups", "positions", "macros", "effects", "keybinds" },
+    AudioPreloadLeadTime = 0.75,
+    RemoteCooldown = 0.08,
+    MaxShowEvents = 10000,
 }
 ```
 
 The server searches Workspace for a model named `flux kit`, then uses
 `flux kit/kits/<KitName>`. Keep the Flux fixture hierarchy intact. The game
-owner is automatically authorized; everyone else must be in `Whitelist`.
+owner is automatically authorized for user-owned experiences; add the operator
+to `Whitelist` for group-owned experiences.
 
 ## Publish your own GitHub Pages copy
 
@@ -111,8 +131,9 @@ choose what happens to browser saves, and explicitly start the update.
   gobo intensity
 - Wash: intensity, RGB/hue, strobe, pan, tilt, iris, shutter
 - Magic Blade / Magic Panel: intensity, RGB/hue, strobe, pan, tilt
-- JDC1: main, centre-pixel and outer-tube channels; intensity, colour, strobe,
-  and tilt where supported by the imported setup
+- JDC1: one whole-fixture lane plus independent centre-pixel (module 2) and
+  outer-tube (module 3) lanes; intensity, colour, strobe, and tilt only where
+  reported by the imported setup
 - Q7 / Line / Display: intensity, RGB/hue, strobe
 - Laser: intensity, RGB/hue, strobe, pan, tilt, iris, width, spin, pitch, shutter
 - PAR: intensity, RGB/hue, strobe, shutter
@@ -120,11 +141,22 @@ choose what happens to browser saves, and explicitly start the update.
 - Atomic: intensity, strobe
 - Pyro: sparks, haze, fire, confetti, CO2, fireworks, bubbles
 
+Every intensity-capable fixture also supports duration-based flashes: immediate
+on/off, immediate on with fade-off, or fade-in/fade-out.
+
 ## Contributing
 
 Issues and pull requests are welcome. When changing the interface, test cue
 placement, dragging, resizing, zoom/grid alignment, imports, Lua round-tripping,
-and diagnostics before opening a pull request.
+and diagnostics before opening a pull request. Do not commit private DataStore
+exports or copyrighted Flux kit source.
+
+Run `npm test` for the source and fixture-contract checks, then perform a Studio
+play-test before publishing.
+
+TopbarPlus is maintained separately by ForeverHD and licensed under MPL-2.0.
+The installer retrieves the official model; this repository does not fork or
+modify its source.
 
 ## License
 

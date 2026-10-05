@@ -114,9 +114,24 @@ local function setLevel(model, value, duration, filter)
 	value = math.clamp(tonumber(value) or 0, 0, 1)
 	eachEmitter(model, function(d)
 		emitterSerial[d] = (emitterSerial[d] or 0) + 1
-		if not base[d] then base[d] = d.Brightness > 0 and d.Brightness or (d:IsA("Beam") and 1 or 4) end
-		d.Enabled = true
-		tween(d, duration, { Brightness = base[d] * value })
+		local serial = emitterSerial[d]
+		if not base[d] then
+			local configured = d:GetAttribute("FluxlineBaseBrightness")
+			base[d] = type(configured) == "number" and math.max(0, configured)
+				or (d.Brightness > 0 and d.Brightness or 1)
+		end
+		local seconds = math.max(0, tonumber(duration) or 0)
+		if value > 0 or seconds > 0 then d.Enabled = true end
+		tween(d, seconds, { Brightness = base[d] * value })
+		if value == 0 then
+			if seconds == 0 then
+				d.Enabled = false
+			else
+				task.delay(seconds, function()
+					if emitterSerial[d] == serial and d.Brightness <= .001 then d.Enabled = false end
+				end)
+			end
+		end
 	end, filter)
 end
 

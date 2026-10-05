@@ -75,6 +75,8 @@ assert.match(server, /module == 3.*Outer tube/);
 assert.match(server, /audioReady/);
 assert.match(server, /workspace:GetServerTimeNow\(\) - started/);
 assert.match(server, /emitterSerialIsCurrent/);
+assert.match(server, /FluxlineBaseBrightness/);
+assert.doesNotMatch(server, /d:IsA\("Beam"\) and 1 or 4/);
 assert.match(client, /PREPARING AUDIO/);
 assert.match(client, /ContentProvider:PreloadAsync\(\{ localSound \}\)/);
 assert.match(client, /workspace:GetServerTimeNow\(\) - data.started/);
@@ -85,6 +87,10 @@ assert.match(html, /custom\?\.actions/);
 assert.match(html, /fixtureTypes = null/);
 assert.match(html, /Flash · fade in\/out/);
 assert.match(html, /samplesPerPixel = d.length \/ contentWidth/);
+assert.match(html, /resize-handle resize-left/);
+assert.match(html, /resize-handle resize-right/);
+assert.match(html, /queueZoom\(Math\.exp\(-e\.deltaY \* 0\.007\)/);
+assert.match(html, /duration > 0\) return Math\.max\(24, duration \* px\)/);
 assert.doesNotMatch(html, /\.flux\.json/i);
 
 const inlineScripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]

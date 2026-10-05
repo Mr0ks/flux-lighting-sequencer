@@ -85,7 +85,8 @@ return {
     FluxDataStoreName = "flux kit",
     FluxShowKey = "show",
     FluxScopes = { "groups", "positions", "macros", "effects", "keybinds" },
-    AudioPreloadLeadTime = 0.75,
+    AudioReadyTimeout = 2,    -- maximum preload wait for the requesting client
+    AudioStartLeadTime = 0.2, -- shared scheduled start after clients are ready
     RemoteCooldown = 0.08,
     MaxShowEvents = 10000,
 }

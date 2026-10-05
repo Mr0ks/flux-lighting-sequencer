@@ -104,9 +104,26 @@ local function cancelTweens()
 	end
 end
 
+local function isFluxReplica(model, object)
+	local current = object
+	while current and current ~= model do
+		if current:GetAttribute("FluxRaycastReplica") then return true end
+		current = current.Parent
+	end
+	return false
+end
+
+-- Flux's source emitters live below `use`. Other descendants may be visual
+-- followers created by optimisation scripts. Driving those followers as well
+-- as their sources multiplies the output (most noticeably on Line and JDC1).
 local function eachEmitter(model, callback, filter)
-	for _, d in model:GetDescendants() do
-		if (d:IsA("Light") or d:IsA("Beam")) and (not filter or filter(d)) then callback(d) end
+	local root = model:FindFirstChild("use") or model
+	for _, d in root:GetDescendants() do
+		if (d:IsA("Light") or d:IsA("Beam"))
+			and not isFluxReplica(model, d)
+			and (not filter or filter(d)) then
+			callback(d)
+		end
 	end
 end
 
@@ -114,24 +131,14 @@ local function setLevel(model, value, duration, filter)
 	value = math.clamp(tonumber(value) or 0, 0, 1)
 	eachEmitter(model, function(d)
 		emitterSerial[d] = (emitterSerial[d] or 0) + 1
-		local serial = emitterSerial[d]
 		if not base[d] then
 			local configured = d:GetAttribute("FluxlineBaseBrightness")
 			base[d] = type(configured) == "number" and math.max(0, configured)
-				or (d.Brightness > 0 and d.Brightness or 1)
+				or (d.Brightness > 0 and d.Brightness)
+				or (d:IsA("Beam") and .25 or 1)
 		end
 		local seconds = math.max(0, tonumber(duration) or 0)
-		if value > 0 or seconds > 0 then d.Enabled = true end
 		tween(d, seconds, { Brightness = base[d] * value })
-		if value == 0 then
-			if seconds == 0 then
-				d.Enabled = false
-			else
-				task.delay(seconds, function()
-					if emitterSerial[d] == serial and d.Brightness <= .001 then d.Enabled = false end
-				end)
-			end
-		end
 	end, filter)
 end
 
@@ -189,11 +196,17 @@ end
 
 local function setColor(model, rgb, duration, filter)
 	local color = readColor(rgb)
-	for _, d in model:GetDescendants() do
-		if (not filter or filter(d)) then
-			if d:IsA("Light") then tween(d, duration, { Color = color })
-			elseif d:IsA("Beam") then d.Color = ColorSequence.new(color)
-			elseif (d:IsA("BasePart") or d:IsA("MeshPart")) and (d.Name == "lamp" or d.Name == "panel") then tween(d, duration, { Color = color }) end
+	eachEmitter(model, function(d)
+		if d:IsA("Light") then tween(d, duration, { Color = color })
+		else d.Color = ColorSequence.new(color) end
+	end, filter)
+	local root = model:FindFirstChild("use") or model
+	for _, d in root:GetDescendants() do
+		if not isFluxReplica(model, d)
+			and (not filter or filter(d))
+			and (d:IsA("BasePart") or d:IsA("MeshPart"))
+			and (d.Name == "lamp" or d.Name == "panel") then
+			tween(d, duration, { Color = color })
 		end
 	end
 end
@@ -312,7 +325,7 @@ local function applyNativeAttribute(model, meta, value, duration)
 			if d:IsA("Light") then tween(d, duration, { Angle = 1 + n * 119 })
 			elseif d:IsA("Beam") then tween(d, duration, { Width0 = .02 + n * 2, Width1 = .02 + n * 2 }) end
 		end, filter)
-	elseif attribute == "shutter" then eachEmitter(model, function(d) d.Enabled = nativeNumber(value, 0) > 0 end, filter)
+	elseif attribute == "shutter" then setLevel(model, nativeNumber(value, 0) > 0 and 1 or 0, duration, filter)
 	end
 end
 
@@ -423,7 +436,8 @@ local function apply(event, token)
 	end
 	local action, value, duration = event.action, event.value, tonumber(event.duration) or 0
 	for _, model in fixtures(event.target, event.selection) do
-	local channelFilter = event.channel ~= nil
+	local namedChannel = event.channel == "beam" or event.channel == "gobo"
+	local channelFilter = namedChannel
 		and namedChannelFilter(model, event.channel)
 		or moduleFilter(model, event.module)
 	if action == "level" or action == "intensity" then setLevel(model, value, duration, channelFilter)
@@ -444,7 +458,7 @@ local function apply(event, token)
 			if d:IsA("Light") then tween(d, duration, { Angle = 1 + n * 119 })
 			elseif d:IsA("Beam") then tween(d, duration, { Width0 = .02 + n * 2, Width1 = .02 + n * 2 }) end
 		end, channelFilter)
-	elseif action == "shutter" then eachEmitter(model, function(d) d.Enabled = value ~= 0 end, channelFilter)
+	elseif action == "shutter" then setLevel(model, value ~= 0 and 1 or 0, duration, channelFilter)
 	elseif action == "strobe" then
 		local hz = math.clamp(tonumber(value) or 10, 1, 30)
 		task.spawn(function()

@@ -127,15 +127,42 @@ local function eachEmitter(model, callback, filter)
 	end
 end
 
+-- These are Flux's own fixture brightness multipliers from
+-- components.scripts.shared.brightness. A normalized sequencer level of 1
+-- means "Flux full", not Roblox Light.Brightness = 1. Keeping this table here
+-- also makes playback deterministic when the protected Flux controller has
+-- not touched an emitter yet (its edit-time Brightness is normally zero).
+local FLUX_BRIGHTNESS = {
+	profile = 2,
+	wash = 2,
+	["magic blade"] = .29,
+	["magic panel"] = .08,
+	jdc1 = .17,
+	q7 = 2,
+	["follow spotlight"] = 2,
+	line = .25,
+	par = 2,
+	blinder = .25,
+	atomic = 2,
+	display = .25,
+}
+
+local function nativeBaseBrightness(model, emitter)
+	local configured = emitter:GetAttribute("FluxlineBaseBrightness")
+	if type(configured) == "number" then return math.max(0, configured) end
+	local fixtureType = model.Parent and model.Parent.Name:lower()
+	local native = fixtureType and FLUX_BRIGHTNESS[fixtureType]
+	if native ~= nil then return native end
+	if emitter.Brightness > 0 then return emitter.Brightness end
+	return emitter:IsA("Beam") and .25 or 1
+end
+
 local function setLevel(model, value, duration, filter)
 	value = math.clamp(tonumber(value) or 0, 0, 1)
 	eachEmitter(model, function(d)
 		emitterSerial[d] = (emitterSerial[d] or 0) + 1
 		if not base[d] then
-			local configured = d:GetAttribute("FluxlineBaseBrightness")
-			base[d] = type(configured) == "number" and math.max(0, configured)
-				or (d.Brightness > 0 and d.Brightness)
-				or (d:IsA("Beam") and .25 or 1)
+			base[d] = nativeBaseBrightness(model, d)
 		end
 		local seconds = math.max(0, tonumber(duration) or 0)
 		tween(d, seconds, { Brightness = base[d] * value })

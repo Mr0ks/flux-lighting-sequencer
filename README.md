@@ -97,6 +97,15 @@ The server searches Workspace for a model named `flux kit`, then uses
 owner is automatically authorized for user-owned experiences; add the operator
 to `Whitelist` for group-owned experiences.
 
+Flux remains the authority for fixture hardware settings. The runtime reads
+baseline intensity from Flux's `components.scripts.shared.brightness` module
+and scales it by the sequencer's normalized 0–1 cue value. Iris and beam-width
+cues likewise scale each emitter's existing Flux-defined values. Fluxline does
+not set light range, face, shadows, enabled state, or optimizer output. For a
+custom fixture without a Flux brightness entry, set the
+`FluxlineBaseBrightness` attribute on its model or emitter; otherwise intensity
+playback is deliberately skipped instead of inventing a value.
+
 ## Publish your own GitHub Pages copy
 
 No build command or web server is required.

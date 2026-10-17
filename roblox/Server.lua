@@ -16,8 +16,11 @@ local activeToken = 0
 local base = setmetatable({}, { __mode = "k" })
 local activeTweens = setmetatable({}, { __mode = "k" })
 local emitterSerial = setmetatable({}, { __mode = "k" })
+local physicalBase = setmetatable({}, { __mode = "k" })
 local lastRequest = setmetatable({}, { __mode = "k" })
 local pendingAudio = nil
+local cachedFluxBrightness = nil
+local warnedBrightness = {}
 
 local function allowed(player)
 	if player.UserId == game.CreatorId then return true end
@@ -127,34 +130,38 @@ local function eachEmitter(model, callback, filter)
 	end
 end
 
--- These are Flux's own fixture brightness multipliers from
--- components.scripts.shared.brightness. A normalized sequencer level of 1
--- means "Flux full", not Roblox Light.Brightness = 1. Keeping this table here
--- also makes playback deterministic when the protected Flux controller has
--- not touched an emitter yet (its edit-time Brightness is normally zero).
-local FLUX_BRIGHTNESS = {
-	profile = 2,
-	wash = 2,
-	["magic blade"] = .29,
-	["magic panel"] = .08,
-	jdc1 = .17,
-	q7 = 2,
-	["follow spotlight"] = 2,
-	line = .25,
-	par = 2,
-	blinder = .25,
-	atomic = 2,
-	display = .25,
-}
+local function readFluxBrightness()
+	if cachedFluxBrightness ~= nil then return cachedFluxBrightness end
+	cachedFluxBrightness = {}
+	local kit = findKit()
+	local flux = kit and kit.Parent and kit.Parent.Parent
+	local scripts = flux and flux:FindFirstChild("components") and flux.components:FindFirstChild("scripts")
+	local shared = scripts and scripts:FindFirstChild("shared")
+	local module = shared and shared:FindFirstChild("brightness")
+	if module and module:IsA("ModuleScript") then
+		local ok, configured = pcall(require, module)
+		if ok and type(configured) == "table" then cachedFluxBrightness = configured
+		else warn("Fluxline could not read Flux brightness settings: " .. tostring(configured)) end
+	else
+		warn("Fluxline could not find Flux components.scripts.shared.brightness")
+	end
+	return cachedFluxBrightness
+end
 
 local function nativeBaseBrightness(model, emitter)
 	local configured = emitter:GetAttribute("FluxlineBaseBrightness")
 	if type(configured) == "number" then return math.max(0, configured) end
-	local fixtureType = model.Parent and model.Parent.Name:lower()
-	local native = fixtureType and FLUX_BRIGHTNESS[fixtureType]
-	if native ~= nil then return native end
+	configured = model:GetAttribute("FluxlineBaseBrightness")
+	if type(configured) == "number" then return math.max(0, configured) end
 	if emitter.Brightness > 0 then return emitter.Brightness end
-	return emitter:IsA("Beam") and .25 or 1
+	local fixtureType = model.Parent and model.Parent.Name:lower()
+	local native = fixtureType and readFluxBrightness()[fixtureType]
+	if native ~= nil then return native end
+	if not warnedBrightness[fixtureType or model.Name] then
+		warnedBrightness[fixtureType or model.Name] = true
+		warn(("Fluxline skipped %s intensity because Flux defines no baseline brightness; set FluxlineBaseBrightness on its fixture or emitter"):format(fixtureType or model.Name))
+	end
+	return nil
 end
 
 local function setLevel(model, value, duration, filter)
@@ -164,6 +171,7 @@ local function setLevel(model, value, duration, filter)
 		if not base[d] then
 			base[d] = nativeBaseBrightness(model, d)
 		end
+		if base[d] == nil then return end
 		local seconds = math.max(0, tonumber(duration) or 0)
 		tween(d, seconds, { Brightness = base[d] * value })
 	end, filter)
@@ -349,8 +357,12 @@ local function applyNativeAttribute(model, meta, value, duration)
 	elseif attribute == "iris" or attribute == "width" then
 		local n = math.clamp(nativeNumber(value, 0) / 100, 0, 1)
 		eachEmitter(model, function(d)
-			if d:IsA("Light") then tween(d, duration, { Angle = 1 + n * 119 })
-			elseif d:IsA("Beam") then tween(d, duration, { Width0 = .02 + n * 2, Width1 = .02 + n * 2 }) end
+			if not physicalBase[d] then
+				physicalBase[d] = d:IsA("Light") and { Angle = d.Angle }
+					or { Width0 = d.Width0, Width1 = d.Width1 }
+			end
+			if d:IsA("Light") then tween(d, duration, { Angle = physicalBase[d].Angle * n })
+			elseif d:IsA("Beam") then tween(d, duration, { Width0 = physicalBase[d].Width0 * n, Width1 = physicalBase[d].Width1 * n }) end
 		end, filter)
 	elseif attribute == "shutter" then setLevel(model, nativeNumber(value, 0) > 0 and 1 or 0, duration, filter)
 	end
@@ -482,8 +494,12 @@ local function apply(event, token)
 	elseif action == "iris" or action == "width" then
 		local n = math.clamp(tonumber(value) or 0, 0, 1)
 		eachEmitter(model, function(d)
-			if d:IsA("Light") then tween(d, duration, { Angle = 1 + n * 119 })
-			elseif d:IsA("Beam") then tween(d, duration, { Width0 = .02 + n * 2, Width1 = .02 + n * 2 }) end
+			if not physicalBase[d] then
+				physicalBase[d] = d:IsA("Light") and { Angle = d.Angle }
+					or { Width0 = d.Width0, Width1 = d.Width1 }
+			end
+			if d:IsA("Light") then tween(d, duration, { Angle = physicalBase[d].Angle * n })
+			elseif d:IsA("Beam") then tween(d, duration, { Width0 = physicalBase[d].Width0 * n, Width1 = physicalBase[d].Width1 * n }) end
 		end, channelFilter)
 	elseif action == "shutter" then setLevel(model, value ~= 0 and 1 or 0, duration, channelFilter)
 	elseif action == "strobe" then

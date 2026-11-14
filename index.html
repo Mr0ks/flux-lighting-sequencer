@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="flux-sequencer-version" content="2026.11.14.3" />
+    <meta name="flux-sequencer-version" content="2026.11.14.4" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -2316,7 +2316,7 @@
           <div class="project-icon">{ }</div>
           <div class="project-copy">
             <b>Import DataStore JSON</b
-            ><small>Paste a fresh export from the Roblox GUI</small>
+            ><small>Refresh Flux groups and presets in the current project</small>
           </div>
           <button class="project-action" id="importDatastore">Import</button>
         </div>
@@ -3129,7 +3129,23 @@
       function importFlux() {
         try {
           const parsed = parsePastedJson($("#fluxJson").value);
+          const previousLane = selectedLane;
           configureFluxExport(parsed.value);
+          const lanes = new Map(laneList().map((lane) => [lane.key, lane]));
+          let retained = 0;
+          for (const cue of state.events) {
+            const lane = lanes.get(cue.target);
+            if (cue.target.includes(":group:")) {
+              if (lane?.selection?.length) cue.selection = [...lane.selection];
+              else retained += 1;
+            }
+            if (cue.native?.scope && cue.native.fixture && cue.native.name) {
+              const key = [cue.native.scope, cue.native.fixture, cue.native.name].join("|");
+              if (Object.hasOwn(IMPORTED, key)) cue.native = structuredClone(IMPORTED[key]);
+              else retained += 1;
+            }
+          }
+          if (lanes.has(previousLane)) selectedLane = previousLane;
           projectOpen = true;
           $("#launchGate").classList.add("hidden");
           $("#importGate").classList.add("hidden");
@@ -3139,7 +3155,7 @@
           toast(
             parsed.ignoredTrailingText
               ? "Flux library loaded · trailing pasted text ignored"
-              : "Flux library loaded",
+              : retained ? "Flux refreshed · missing items kept their previous settings" : "Flux refreshed · timeline kept",
           );
         } catch (error) {
           $("#importError").textContent = error.message;
@@ -3832,6 +3848,20 @@
               selection,
             });
           }
+        }
+        const known = new Set(lanes.map((lane) => lane.key));
+        for (const cue of state.events || []) {
+          if (known.has(cue.target) || cue.target === "pyrotechnics:all") continue;
+          known.add(cue.target);
+          lanes.push({
+            key: cue.target,
+            type: cue.target.split(":")[0],
+            label: cue.target,
+            detail: "Missing from current Flux setup",
+            selection: cue.selection,
+            module: cue.module,
+            channel: cue.channel,
+          });
         }
         return lanes;
       }

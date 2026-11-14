@@ -4903,7 +4903,16 @@
           : range
             ? `<div class="field"><label>${esc(valueInfo.label)}</label><input id="evRange" type="range" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"><input id="evValue" type="number" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"><small class="field-hint">${esc(valueInfo.hint)}</small></div>`
             : `<div class="field"><label>${esc(valueInfo.label)}</label><input id="evValue" type="number" step=".01" value="${e.value}"><small class="field-hint">${esc(valueInfo.hint)}</small></div>`;
-        root.innerHTML = `<h2>${e.label}</h2><p class="sub">${isBlock ? `${e.actions?.length || 0} actions fire together` : e.native ? e.native.fixture + " · " + e.native.scope : e.target + " · " + e.action}</p><div class="row"><div class="field"><label>Time</label><input id="evTime" type="number" step=".001" value="${e.time}"></div><div class="field"><label>Duration</label><input id="evDuration" type="number" step=".05" min="0" value="${e.duration || 0}"></div></div>${showValue ? valueEditor : ""}${isColor ? inspectorColourChoices(e.value, "event") : ""}${isBlock ? `<div class="section-title">Block actions</div>${e.actions.map((a) => `<p class="sub">${esc(a.label)} · ${esc(VALUE_INFO[a.action]?.label || a.action)}: ${esc(a.value)}${a.duration ? ` · ${a.duration}s` : ""}</p>`).join("")}` : ""}<div class="field"><label>Target</label><select id="evTarget">${targets}<option value="pyrotechnics" ${e.target === "pyrotechnics" ? "selected" : ""}>Pyrotechnics</option></select></div><div class="inspector-actions"><button class="pill" id="copyOne">Copy</button><button class="pill" id="duplicateOne">Duplicate</button><button class="pill danger" id="delete">Delete</button></div>`;
+        const total = e.duration || 0;
+        const oldFade = Math.min(total * .35, 1);
+        const attack = e.value === "fade-in" ? total : e.value === "fade-both" ? oldFade : 0;
+        const release = ["fade-out", "fade-both"].includes(e.value) ? oldFade : 0;
+        const phases = e.flashTiming || [attack, Math.max(0, total - attack - release), release];
+        const phaseTotal = phases.reduce((sum, seconds) => sum + seconds, 0);
+        const flashEditor = isFlash ? ["Fade in", "Hold", "Fade out"].map((name, index) =>
+          `<div class="field"><label for="flashPhase${index}">${name} (seconds)</label><input id="flashPhase${index}" type="number" min="0" step=".001" value="${phaseTotal ? +(phases[index] * total / phaseTotal).toFixed(3) : 0}"></div>`
+        ).join("") : "";
+        root.innerHTML = `<h2>${e.label}</h2><p class="sub">${isBlock ? `${e.actions?.length || 0} actions fire together` : e.native ? e.native.fixture + " · " + e.native.scope : e.target + " · " + e.action}</p><div class="row"><div class="field"><label>Time</label><input id="evTime" type="number" step=".001" value="${e.time}"></div><div class="field"><label>Duration</label><input id="evDuration" type="number" step=".05" min="0" value="${e.duration || 0}"></div></div>${showValue ? valueEditor : ""}${flashEditor}${isColor ? inspectorColourChoices(e.value, "event") : ""}${isBlock ? `<div class="section-title">Block actions</div>${e.actions.map((a) => `<p class="sub">${esc(a.label)} · ${esc(VALUE_INFO[a.action]?.label || a.action)}: ${esc(a.value)}${a.duration ? ` · ${a.duration}s` : ""}</p>`).join("")}` : ""}<div class="field"><label>Target</label><select id="evTarget">${targets}<option value="pyrotechnics" ${e.target === "pyrotechnics" ? "selected" : ""}>Pyrotechnics</option></select></div><div class="inspector-actions"><button class="pill" id="copyOne">Copy</button><button class="pill" id="duplicateOne">Duplicate</button><button class="pill danger" id="delete">Delete</button></div>`;
         const change = () => {
           commit();
           e.time = snapTime(+$("#evTime").value);
@@ -4921,6 +4930,26 @@
           const x = $("#" + id);
           if (x) x.onchange = change;
         });
+        if (isFlash) {
+          for (let index = 0; index < 3; index++) {
+            $("#flashPhase" + index).onchange = () => {
+              commit();
+              e.flashTiming = phases.map((_, i) => Math.max(0, +$("#flashPhase" + i).value || 0));
+              e.duration = e.flashTiming.reduce((sum, seconds) => sum + seconds, 0);
+              renderTimeline();
+              renderInspector();
+              autosave();
+            };
+          }
+          const shape = $("#evValue");
+          const changeShape = shape.onchange;
+          shape.onchange = () => {
+            changeShape();
+            delete e.flashTiming;
+            renderInspector();
+            autosave();
+          };
+        }
         if ($("#evRange")) {
           $("#evRange").oninput = (x) => {
             $("#evValue").value = x.target.value;
@@ -5318,7 +5347,7 @@
           .sort((a, b) => a.time - b.time)
           .map(
             (e) =>
-              `\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration || 0}, label = ${JSON.stringify(e.label || e.action)}, kind = ${JSON.stringify(e.kind || "output")}, selection = ${lua(e.selection)}, module = ${lua(e.module)}, channel = ${lua(e.channel)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`,
+              `\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration || 0}, flashTiming = ${lua(e.flashTiming)}, label = ${JSON.stringify(e.label || e.action)}, kind = ${JSON.stringify(e.kind || "output")}, selection = ${lua(e.selection)}, module = ${lua(e.module)}, channel = ${lua(e.channel)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`,
           )
           .join("\n");
         return `--[[FLUX_SEQUENCER_PROJECT_V1\n${metadata}\nFLUX_SEQUENCER_PROJECT_END]]\n-- Roblox ignores the project backup above and runs the show below.\n-- Exported by Flux Sequencer\nreturn {\n\tversion = 4,\n\tname = ${JSON.stringify(projectState.name)},\n\tsongId = ${JSON.stringify(projectState.songId)},\n\tduration = ${projectState.duration},\n\tbpm = ${projectState.bpm},\n\tevents = {\n${ev}\n\t},\n}`;
@@ -5445,6 +5474,7 @@
             action: String(raw.action || "reset"),
             value: raw.value,
             duration: Math.max(0, +raw.duration || 0),
+            flashTiming: raw.flashTiming,
             label: String(raw.label || raw.action || "Cue"),
             kind: String(raw.kind || "output"),
             selection: raw.selection || laneSelection(raw.target),

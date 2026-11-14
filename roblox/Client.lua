@@ -599,7 +599,7 @@ function NativePlayback.cue(data)
 					if from==nil then from=nativeRead(target,definition,attribute,fixture) end
 					if duration>0 then assert(from~=nil,"Flux does not expose a numeric start value for "..attribute) end
 					jobs[attribute]={kind=kind,definition=definition,attribute=attribute,from=from or value,value=value,
-						start=started,duration=duration,action=event.action,mode=event.value,generation=nativeGeneration}
+						start=started,duration=duration,flashTiming=event.flashTiming,action=event.action,mode=event.value,generation=nativeGeneration}
 				end
 			end
 		end
@@ -619,6 +619,17 @@ game:GetService("RunService").Heartbeat:Connect(function()
 			if job.action=="flash" then
 				local release=(job.mode=="fade-out" or job.mode=="fade-both") and math.min(duration*.35,1) or 0
 				local attack=job.mode=="fade-in" and duration or job.mode=="fade-both" and math.min(duration*.35,1) or 0
+				local timing=job.flashTiming
+				if type(timing)=="table" then
+					local fadeIn=math.max(0,tonumber(timing[1]) or 0)
+					local hold=math.max(0,tonumber(timing[2]) or 0)
+					local fadeOut=math.max(0,tonumber(timing[3]) or 0)
+					local total=fadeIn+hold+fadeOut
+					if total>0 then
+						attack=duration*fadeIn/total
+						release=duration*fadeOut/total
+					end
+				end
 				value=attack>0 and math.min(1,elapsed/attack) or 1
 				if release>0 and elapsed>=duration-release then value=math.max(0,(duration-elapsed)/release) end
 				if done then value=0 end

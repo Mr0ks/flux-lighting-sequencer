@@ -1,11 +1,12 @@
 # Flux Sequencer
 
+**[Launch Flux Sequencer](https://mr0ks.github.io/flux-lighting-sequencer/)**
+
 Open-source browser sequencer and Roblox playback bridge for Flux lighting rigs.
 The editor imports a Flux fixture setup, sequences lighting cues against music,
 and exports one `.lua` show file that Roblox can play and the website can reopen
 for editing.
 
-[Open the sequencer](https://mr0ks.github.io/flux-lighting-sequencer/) ·
 [Download the complete project](https://github.com/Mr0ks/flux-lighting-sequencer/archive/refs/heads/main.zip)
 
 ## What is included

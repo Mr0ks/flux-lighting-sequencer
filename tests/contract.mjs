@@ -97,7 +97,7 @@ assert.match(installer, /92368439343389/);
 assert.match(html, /function nativeMetadata/);
 assert.match(html, /custom\?\.actions/);
 assert.match(html, /fixtureTypes = null/);
-assert.ok(html.includes('["Fade", "flash", "snap", 1]'));
+assert.ok(html.includes('["Fade", "flash", "fade-out", 1]'));
 assert.match(html, /samplesPerPixel = d.length \/ contentWidth/);
 assert.match(html, /resize-handle resize-left/);
 assert.match(html, /resize-handle resize-right/);

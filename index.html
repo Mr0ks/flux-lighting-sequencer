@@ -2530,7 +2530,7 @@
         <div class="builder-grid">
           <select id="blockAction">
             <optgroup label="Output">
-              <option value="flash:snap">Fade</option>
+              <option value="flash:fade-out">Fade</option>
               <option value="level:1">Turn on</option>
               <option value="level:0">Turn off</option>
               <option value="reset:0">Reset</option>
@@ -2643,7 +2643,7 @@
           [
             ["On", "level", 1],
             ["Off", "level", 0],
-            ["Fade", "flash", "snap", 1],
+            ["Fade", "flash", "fade-out", 1],
             ["Reset", "reset", 0],
           ],
         ],
@@ -4441,7 +4441,7 @@
           document.body.classList.remove("timeline-dragging");
           if (moved) {
             commit();
-            item.duration = +next.toFixed(3);
+            resizeCue(item, +next.toFixed(3));
             autosave();
           }
           renderTimeline();
@@ -4658,7 +4658,7 @@
         if (!s?.resize) return;
         commit();
         s.item.time = +s.nextTime.toFixed(3);
-        s.item.duration = +s.next.toFixed(3);
+        resizeCue(s.item, +s.next.toFixed(3));
         interactSession = null;
         autosave();
         renderTimeline();
@@ -4795,6 +4795,23 @@
           },
         ).join("")}</div>`;
       }
+      function fadePhases(e) {
+        const total = e.duration || 0;
+        const oldFade = Math.min(total * .35, 1);
+        const attack = e.value === "fade-in" ? total : e.value === "fade-both" ? oldFade : 0;
+        const release = ["fade-out", "fade-both"].includes(e.value) ? oldFade : 0;
+        return e.flashTiming || [attack, Math.max(0, total - attack - release), release];
+      }
+
+      function resizeCue(e, duration) {
+        if (e.action === "flash") {
+          const [attack, hold] = fadePhases(e);
+          duration = Math.max(duration, attack + hold);
+          e.flashTiming = [attack, hold, duration - attack - hold];
+        }
+        e.duration = duration;
+      }
+
       function renderInspector() {
         const root = $("#inspector");
         document.body.classList.toggle(
@@ -4836,7 +4853,7 @@
             if (x.target.value === "") return;
             commit();
             list.forEach(
-              (e) => (e.duration = Math.max(0, +x.target.value || 0)),
+              (e) => resizeCue(e, Math.max(0, +x.target.value || 0)),
             );
             renderAll();
           };
@@ -4895,20 +4912,15 @@
           : range
             ? `<div class="field"><label>${esc(valueInfo.label)}</label><input id="evRange" type="range" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"><input id="evValue" type="number" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"><small class="field-hint">${esc(valueInfo.hint)}</small></div>`
             : `<div class="field"><label>${esc(valueInfo.label)}</label><input id="evValue" type="number" step=".01" value="${e.value}"><small class="field-hint">${esc(valueInfo.hint)}</small></div>`;
-        const total = e.duration || 0;
-        const oldFade = Math.min(total * .35, 1);
-        const attack = e.value === "fade-in" ? total : e.value === "fade-both" ? oldFade : 0;
-        const release = ["fade-out", "fade-both"].includes(e.value) ? oldFade : 0;
-        const phases = e.flashTiming || [attack, Math.max(0, total - attack - release), release];
-        const phaseTotal = phases.reduce((sum, seconds) => sum + seconds, 0);
+        const phases = fadePhases(e);
         const flashEditor = isFlash ? ["Fade in", "Hold", "Fade out"].map((name, index) =>
-          `<div class="field"><label for="flashPhase${index}">${name} (seconds)</label><input id="flashPhase${index}" type="number" min="0" step=".001" value="${phaseTotal ? +(phases[index] * total / phaseTotal).toFixed(3) : 0}"></div>`
+          `<div class="field"><label for="flashPhase${index}">${name} (seconds)</label><input id="flashPhase${index}" type="number" min="0" step=".001" value="${+phases[index].toFixed(3)}"></div>`
         ).join("") : "";
         root.innerHTML = `<h2>${e.label}</h2><p class="sub">${isBlock ? `${e.actions?.length || 0} actions fire together` : e.native ? e.native.fixture + " · " + e.native.scope : e.target + " · " + e.action}</p><div class="row"><div class="field"><label>Time</label><input id="evTime" type="number" step=".001" value="${e.time}"></div><div class="field"><label>Duration</label><input id="evDuration" type="number" step=".05" min="0" value="${e.duration || 0}"></div></div>${showValue ? valueEditor : ""}${flashEditor}${isColor ? inspectorColourChoices(e.value, "event") : ""}${isBlock ? `<div class="section-title">Block actions</div>${e.actions.map((a) => `<p class="sub">${esc(a.label)} · ${esc(VALUE_INFO[a.action]?.label || a.action)}: ${esc(a.value)}${a.duration ? ` · ${a.duration}s` : ""}</p>`).join("")}` : ""}<div class="field"><label>Target</label><select id="evTarget">${targets}<option value="pyrotechnics" ${e.target === "pyrotechnics" ? "selected" : ""}>Pyrotechnics</option></select></div><div class="inspector-actions"><button class="pill" id="copyOne">Copy</button><button class="pill" id="duplicateOne">Duplicate</button><button class="pill danger" id="delete">Delete</button></div>`;
         const change = () => {
           commit();
           e.time = snapTime(+$("#evTime").value);
-          e.duration = Math.max(0, +$("#evDuration").value);
+          if (+$("#evDuration").value !== e.duration) resizeCue(e, Math.max(0, +$("#evDuration").value));
           e.target = $("#evTarget").value;
           e.selection = laneSelection(e.target);
           e.module = laneModule(e.target);

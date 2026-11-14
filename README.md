@@ -86,7 +86,7 @@ return {
     FluxDataStoreName = "flux kit",
     FluxShowKey = "show",
     FluxScopes = { "groups", "positions", "macros", "effects", "keybinds" },
-    AudioReadyTimeout = 2,    -- maximum preload wait for the requesting client
+    AudioReadyTimeout = 10,   -- preload wait; runtime uses a minimum of 10 seconds
     AudioStartLeadTime = 0.2, -- shared scheduled start after clients are ready
     RemoteCooldown = 0.08,
     MaxShowEvents = 10000,
@@ -98,14 +98,24 @@ The server searches Workspace for a model named `flux kit`, then uses
 owner is automatically authorized for user-owned experiences; add the operator
 to `Whitelist` for group-owned experiences.
 
-Flux remains the authority for fixture hardware settings. The runtime reads
-baseline intensity from Flux's `components.scripts.shared.brightness` module
-and scales it by the sequencer's normalized 0–1 cue value. Iris and beam-width
-cues likewise scale each emitter's existing Flux-defined values. Fluxline does
-not set light range, face, shadows, enabled state, or optimizer output. For a
-custom fixture without a Flux brightness entry, set the
-`FluxlineBaseBrightness` attribute on its model or emitter; otherwise intensity
-playback is deliberately skipped instead of inventing a value.
+Flux remains the authority for fixture hardware settings. Timeline cues call
+Flux's native per-module update functions on clients, so the visible lens and
+light output follow the same renderer as the panel. Shows no longer write
+brightness or motor transforms directly. Separate attributes have independent
+timelines; a later Off replaces an unfinished intensity fade.
+
+Saved effects and positions use the native commands captured from Flux v4.07.
+They run the current game preset by name, preserving its native behavior. An
+overlapping cue stops the show's conflicting effect before applying its value;
+Stop clears show fades and stops effects started by the show. Audio must load
+before playback starts. Missing saved presets are reported before playback.
+
+Current limits: timed/delayed native macros are refused because Flux's exposed
+Kill command does not cancel their queued steps. Instant snap-only macros are
+supported. Pyrotechnic commands are not yet verified on the native route and
+are also refused, rather than falling back to direct hardware writes. Late-join
+state reconstruction and fixture types absent from the test rig remain unverified.
+See [the playback audit](docs/native-playback-audit.md) for test coverage.
 
 ## Publish your own GitHub Pages copy
 
@@ -150,7 +160,7 @@ choose what happens to browser saves, and explicitly start the update.
 - PAR: intensity, RGB/hue, strobe, shutter
 - Blinder: intensity
 - Atomic: intensity, strobe
-- Pyro: sparks, haze, fire, confetti, CO2, fireworks, bubbles
+- Pyro: editor catalog only; native runtime dispatch is not yet verified
 
 Every intensity-capable fixture also supports duration-based flashes: immediate
 on/off, immediate on with fade-off, or fade-in/fade-out.

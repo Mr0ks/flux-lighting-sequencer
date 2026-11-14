@@ -1,6 +1,5 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local DataStoreService = game:GetService("DataStoreService")
 local HttpService = game:GetService("HttpService")
@@ -13,14 +12,9 @@ remote.Name = "FluxlineSequencer"
 remote.Parent = ReplicatedStorage
 
 local activeToken = 0
-local base = setmetatable({}, { __mode = "k" })
-local activeTweens = setmetatable({}, { __mode = "k" })
-local emitterSerial = setmetatable({}, { __mode = "k" })
-local physicalBase = setmetatable({}, { __mode = "k" })
+local playRequest = 0
 local lastRequest = setmetatable({}, { __mode = "k" })
 local pendingAudio = nil
-local cachedFluxBrightness = nil
-local warnedBrightness = {}
 
 local function allowed(player)
 	if player.UserId == game.CreatorId then return true end
@@ -30,7 +24,7 @@ end
 local function findKit()
 	for _, d in workspace:GetDescendants() do
 		if d.Name == "flux kit" and d:FindFirstChild("kits") then
-			return d.kits:FindFirstChild(Config.KitName) or d.kits:FindFirstChildWhichIsA("Folder")
+			return d.kits:FindFirstChild(Config.KitName)
 		end
 	end
 end
@@ -85,430 +79,127 @@ local function fixtures(target, selection)
 	return matches
 end
 
-local function tween(object, duration, goal)
-	local previous = activeTweens[object]
-	if previous then previous:Cancel() end
-	if duration and duration > 0 then
-		local created = TweenService:Create(object, TweenInfo.new(duration, Enum.EasingStyle.Linear), goal)
-		activeTweens[object] = created
-		created.Completed:Once(function()
-			if activeTweens[object] == created then activeTweens[object] = nil end
-		end)
-		created:Play()
-	else
-		for key, value in goal do object[key] = value end
-	end
+-- Native presets use the same remotes as Flux's panel. Ordinary timeline cues
+-- use the shared Flux renderer on each client, preserving authored durations.
+local nativeEffects = {}
+
+local function nativeDirect()
+	local kit=assert(findKit(), "Configured Flux kit is missing")
+	return kit.components.remotes.direct
 end
 
-local function cancelTweens()
-	for object, current in activeTweens do
-		current:Cancel()
-		activeTweens[object] = nil
-	end
-end
+local function effectKey(fixture,name) return fixture.."\0"..name end
 
-local function isFluxReplica(model, object)
-	local current = object
-	while current and current ~= model do
-		if current:GetAttribute("FluxRaycastReplica") then return true end
-		current = current.Parent
-	end
-	return false
-end
-
--- Flux's source emitters live below `use`. Other descendants may be visual
--- followers created by optimisation scripts. Driving those followers as well
--- as their sources multiplies the output (most noticeably on Line and JDC1).
-local function eachEmitter(model, callback, filter)
-	local root = model:FindFirstChild("use") or model
-	for _, d in root:GetDescendants() do
-		if (d:IsA("Light") or d:IsA("Beam"))
-			and not isFluxReplica(model, d)
-			and (not filter or filter(d)) then
-			callback(d)
+local function stopNativeEffects(kind, attributes)
+	local off={}
+	for key,effect in pairs(nativeEffects) do
+		local overlaps=not attributes
+		if attributes then
+			for _,meta in effect.metas do if attributes[meta.attribute] then overlaps=true end end
+		end
+		if (not kind or kind==effect.fixture) and overlaps then
+			table.insert(off,{effect.fixture,effect.name})
+			nativeEffects[key]=nil
 		end
 	end
+	if #off>0 then nativeDirect().effects:FireAllClients(off,"off") end
 end
 
-local function readFluxBrightness()
-	if cachedFluxBrightness ~= nil then return cachedFluxBrightness end
-	cachedFluxBrightness = {}
-	local kit = findKit()
-	local flux = kit and kit.Parent and kit.Parent.Parent
-	local scripts = flux and flux:FindFirstChild("components") and flux.components:FindFirstChild("scripts")
-	local shared = scripts and scripts:FindFirstChild("shared")
-	local module = shared and shared:FindFirstChild("brightness")
-	if module and module:IsA("ModuleScript") then
-		local ok, configured = pcall(require, module)
-		if ok and type(configured) == "table" then cachedFluxBrightness = configured
-		else warn("Fluxline could not read Flux brightness settings: " .. tostring(configured)) end
-	else
-		warn("Fluxline could not find Flux components.scripts.shared.brightness")
+local function eventAttributes(event)
+	local action=event.action
+	if action=="level" or action=="intensity" or action=="flash" or action=="strobe" then
+		return {["intensity"]=true,["beam intensity"]=event.channel~="gobo",["gobo intensity"]=event.channel~="beam"}
+	elseif action=="color" then return {red=true,green=true,blue=true,hue=true}
+	elseif action=="reset" then return nil end
+	return {[action]=true}
+end
+
+local function nativeMetas(payload)
+	assert(type(payload)=="table","Missing native preset payload")
+	local result={}
+	local function walk(value)
+		if type(value)~="table" then return end
+		if value.attribute or value.effect then table.insert(result,value);return end
+		for _,child in pairs(value) do if type(child)=="table" then walk(child) end end
 	end
-	return cachedFluxBrightness
+	walk(payload.meta or (payload[2] and payload[2].meta))
+	return result
 end
 
-local function nativeBaseBrightness(model, emitter)
-	local configured = emitter:GetAttribute("FluxlineBaseBrightness")
-	if type(configured) == "number" then return math.max(0, configured) end
-	configured = model:GetAttribute("FluxlineBaseBrightness")
-	if type(configured) == "number" then return math.max(0, configured) end
-	if emitter.Brightness > 0 then return emitter.Brightness end
-	local fixtureType = model.Parent and model.Parent.Name:lower()
-	local native = fixtureType and readFluxBrightness()[fixtureType]
-	if native ~= nil then return native end
-	if not warnedBrightness[fixtureType or model.Name] then
-		warnedBrightness[fixtureType or model.Name] = true
-		warn(("Fluxline skipped %s intensity because Flux defines no baseline brightness; set FluxlineBaseBrightness on its fixture or emitter"):format(fixtureType or model.Name))
-	end
-	return nil
-end
-
-local function setLevel(model, value, duration, filter)
-	value = math.clamp(tonumber(value) or 0, 0, 1)
-	eachEmitter(model, function(d)
-		emitterSerial[d] = (emitterSerial[d] or 0) + 1
-		if not base[d] then
-			base[d] = nativeBaseBrightness(model, d)
-		end
-		if base[d] == nil then return end
-		local seconds = math.max(0, tonumber(duration) or 0)
-		tween(d, seconds, { Brightness = base[d] * value })
-	end, filter)
-end
-
-local function captureEmitterSerial(model, filter)
-	local captured = {}
-	eachEmitter(model, function(d) captured[d] = emitterSerial[d] or 0 end, filter)
-	return captured
-end
-
--- A flash owns the affected emitters only until another cue touches them.
--- This prevents an older flash's delayed off from cancelling a newer cue.
-local function flash(model, mode, duration, filter, token)
-	local total = math.max(.05, tonumber(duration) or 1)
-	mode = tostring(mode or "snap")
-	local attack = mode == "fade-in" and total
-		or (mode == "fade-both" and math.min(total * .35, 1) or 0)
-	local release = (mode == "fade-out" or mode == "fade-both") and math.min(total * .35, 1) or 0
-	if attack > 0 then setLevel(model, 0, 0, filter) end
-	setLevel(model, 1, attack, filter)
-	local captured = captureEmitterSerial(model, filter)
-	task.spawn(function()
-		task.wait(math.max(0, total - release))
-		if activeToken ~= token then return end
-		setLevel(model, 0, release, function(emitter)
-			return captured[emitter] ~= nil and captured[emitter] == emitterSerial[emitter]
-		end)
-	end)
-end
-
-local function readColor(value)
-	if typeof(value) == "Color3" then return value end
-	if type(value) == "string" then
-		local hex = value:match("^#?(%x%x%x%x%x%x)$")
-		if hex then
-			return Color3.fromRGB(
-				tonumber(hex:sub(1, 2), 16),
-				tonumber(hex:sub(3, 4), 16),
-				tonumber(hex:sub(5, 6), 16)
-			)
-		end
-	end
-	if type(value) == "table" then
-		return Color3.fromRGB(
-			tonumber(value[1] or value.r) or 255,
-			tonumber(value[2] or value.g) or 255,
-			tonumber(value[3] or value.b) or 255
-		)
-	end
-	return Color3.new(1, 1, 1)
-end
-
-local function setColor(model, rgb, duration, filter)
-	local color = readColor(rgb)
-	eachEmitter(model, function(d)
-		if d:IsA("Light") then tween(d, duration, { Color = color })
-		else d.Color = ColorSequence.new(color) end
-	end, filter)
-	local root = model:FindFirstChild("use") or model
-	for _, d in root:GetDescendants() do
-		if not isFluxReplica(model, d)
-			and (not filter or filter(d))
-			and (d:IsA("BasePart") or d:IsA("MeshPart"))
-			and (d.Name == "lamp" or d.Name == "panel") then
-			tween(d, duration, { Color = color })
-		end
-	end
-end
-
-local function motor(model, name)
-	local use = model:FindFirstChild("use")
-	local motors = use and use:FindFirstChild("motors")
-	local found = motors and motors:FindFirstChild(name, true)
-	return found and found:IsA("Motor6D") and found or nil
-end
-
-local AXIS = { pan = Vector3.new(0,1,0), tilt = Vector3.new(1,0,0), spin = Vector3.new(0,0,1), pitch = Vector3.new(1,0,0) }
-local function move(model, action, value, duration)
-	local m = motor(model, action == "pitch" and "tilt" or action)
-	if not m then return end
-	if not base[m] then base[m] = m.Transform end
-	local v = AXIS[action] * math.rad(tonumber(value) or 0)
-	tween(m, duration, { Transform = base[m] * CFrame.Angles(v.X, v.Y, v.Z) })
-end
-
-local function moduleFilter(model, module)
-	if module == nil then return nil end
-	local use = model:FindFirstChild("use")
-	local pixels = use and use:FindFirstChild("pixels")
-	local channel = pixels and pixels:FindFirstChild(tostring(module))
-	if not channel then return function() return false end end
-	return function(object)
-		return object == channel or object:IsDescendantOf(channel)
-	end
-end
-
-local function namedChannelFilter(model, channel)
-	if channel == nil then return nil end
-	local use = model:FindFirstChild("use")
-	local lamps = use and use:FindFirstChild("lamps")
-	local root
-	if channel == "beam" then
-		root = lamps and lamps:FindFirstChild("beam")
-	elseif channel == "gobo" then
-		root = lamps and lamps:FindFirstChild("gobo")
-	end
-	if not root then return function() return false end end
-	return function(object)
-		return object == root or object:IsDescendantOf(root)
-	end
-end
-
-local SPEED_SECONDS = {
-	snap = 0,
-	fade = 1,
-	dim = 1,
-	color = 2,
-	movement = 2,
-	iris = 1.5,
-	strobe = .12,
-}
-
-local function combineFilter(first, second)
-	if not first then return second end
-	if not second then return first end
-	return function(object) return first(object) and second(object) end
-end
-
-local function nativeFilter(model, meta)
-	local filter = moduleFilter(model, meta.module)
-	if type(meta.selection) ~= "table" or #meta.selection == 0 then return filter end
-	local use = model:FindFirstChild("use")
-	local pixels = use and use:FindFirstChild("pixels")
-	local channel = pixels and pixels:FindFirstChild(tostring(meta.module))
-	if not channel then return function() return false end end
-	local selected = {}
-	for _, number in meta.selection do selected[tonumber(number)] = true end
-	return combineFilter(filter, function(object)
-		for _, pixel in channel:GetChildren() do
-			if selected[tonumber(pixel.Name)] and (object == pixel or object:IsDescendantOf(pixel)) then return true end
-		end
-		return false
-	end)
-end
-
-local function componentColor(model, filter, component, value)
-	value = math.clamp((tonumber(value) or 0) / 100, 0, 1)
-	eachEmitter(model, function(emitter)
-		local current = emitter:IsA("Beam") and emitter.Color.Keypoints[1].Value or emitter.Color
-		local color
-		if component == "hue" then
-			local _, saturation, brightness = current:ToHSV()
-			color = Color3.fromHSV(value, math.max(saturation, 1), math.max(brightness, 1))
-		elseif component == "red" then color = Color3.new(value, current.G, current.B)
-		elseif component == "green" then color = Color3.new(current.R, value, current.B)
-		else color = Color3.new(current.R, current.G, value) end
-		if emitter:IsA("Beam") then emitter.Color = ColorSequence.new(color) else emitter.Color = color end
-	end, filter)
-end
-
-local function nativeNumber(value, fallback)
-	local direct = tonumber(value)
-	if direct ~= nil then return direct end
-	local symbolic = type(value) == "string" and value:lower() or ""
-	if symbolic:match("^h[%s_-]") or symbolic:find("high", 1, true) then return 100 end
-	if symbolic:match("^l[%s_-]") or symbolic:find("low", 1, true) then return 0 end
-	return fallback or 0
-end
-
-local function applyNativeAttribute(model, meta, value, duration)
-	local attribute = tostring(meta.attribute or ""):lower()
-	local filter = nativeFilter(model, meta)
-	if attribute == "intensity" then setLevel(model, nativeNumber(value, 0) / 100, duration, filter)
-	elseif attribute == "hue" or attribute == "red" or attribute == "green" or attribute == "blue" then componentColor(model, filter, attribute, nativeNumber(value, 0))
-	elseif attribute == "pan" or attribute == "tilt" or attribute == "spin" or attribute == "pitch" then move(model, attribute, nativeNumber(value, 0), duration)
-	elseif attribute == "beam intensity" then setLevel(model, nativeNumber(value, 0) / 100, duration, combineFilter(filter, function(d) return d:GetFullName():lower():find(".beam", 1, true) ~= nil end))
-	elseif attribute == "gobo intensity" then setLevel(model, nativeNumber(value, 0) / 100, duration, combineFilter(filter, function(d) return d:GetFullName():lower():find(".gobo", 1, true) ~= nil end))
-	elseif attribute == "iris" or attribute == "width" then
-		local n = math.clamp(nativeNumber(value, 0) / 100, 0, 1)
-		eachEmitter(model, function(d)
-			if not physicalBase[d] then
-				physicalBase[d] = d:IsA("Light") and { Angle = d.Angle }
-					or { Width0 = d.Width0, Width1 = d.Width1 }
+local function validateNativeShow(events)
+	local scopes={}
+	local function check(event)
+		if event.action=="block" then for _,child in event.actions or {} do check(child) end;return end
+		local scope=({["flux-effect"]="effects",["flux-position"]="positions",["flux-macro"]="macros"})[event.action]
+		if scope then
+			local native=assert(event.native,"Missing native preset data")
+			if not scopes[scope] then
+				scopes[scope]=DataStoreService:GetDataStore(Config.FluxDataStoreName,scope):GetAsync(Config.FluxShowKey) or {}
 			end
-			if d:IsA("Light") then tween(d, duration, { Angle = physicalBase[d].Angle * n })
-			elseif d:IsA("Beam") then tween(d, duration, { Width0 = physicalBase[d].Width0 * n, Width1 = physicalBase[d].Width1 * n }) end
-		end, filter)
-	elseif attribute == "shutter" then setLevel(model, nativeNumber(value, 0) > 0 and 1 or 0, duration, filter)
-	end
-end
-
-local function nativeMeta(payload)
-	if type(payload) ~= "table" then return {} end
-	if type(payload.meta) == "table" then return payload.meta end
-	if type(payload[2]) == "table" and type(payload[2].meta) == "table" then
-		local flattened = {}
-		for _, layer in payload[2].meta do
-			if type(layer) == "table" then
-				if layer.attribute then table.insert(flattened, layer)
-				else for _, item in layer do if type(item) == "table" then table.insert(flattened, item) end end end
+			local fixture=native.fixture or tostring(event.target):match("^([^:]+):")
+			local installed=scopes[scope][fixture]
+			assert(installed and installed[native.name],"Flux "..scope.." preset is missing: "..tostring(fixture).." / "..tostring(native.name)..". Refresh the sequencer's Flux import.")
+			-- Use the current game preset for conflict ownership as well as execution.
+			event.native=table.clone(native)
+			event.native.payload=installed[native.name]
+			if scope=="macros" then
+				for _,meta in nativeMetas(installed[native.name]) do
+					assert(not meta.delay and not meta.effect and meta.speed=="snap",
+						"Timed Flux macro '"..native.name.."' cannot yet be safely cancelled by Stop. Use timeline cues or a native effect instead.")
+				end
 			end
-		end
-		return flattened
-	end
-	return {}
-end
-
-local function speedSeconds(speed)
-	if type(speed) == "number" then return math.max(.02, (101 - math.clamp(speed, 1, 100)) / 50) end
-	return SPEED_SECONDS[tostring(speed)] or 1
-end
-
-local function waveform(form, phase)
-	local turn = (phase / (math.pi * 2)) % 1
-	if form == "ramp+" or form == "ramp" then return turn
-	elseif form == "ramp-" then return 1 - turn
-	elseif form == "pwm" then return turn < .5 and 1 or 0
-	elseif form == "phase 1" then return turn < .5 and 1 or 0
-	elseif form == "phase 2" then return turn < .5 and 0 or 1
-	elseif form == "flat+" then return 1
-	elseif form == "cosine" then return (math.cos(phase) + 1) / 2
-	elseif form == "bump" then return math.max(0, math.sin(phase)) ^ 2
-	elseif form == "swing" then return math.abs(math.sin(phase))
-	elseif form == "random" or form == "rand" then return (math.noise(phase * 3.1) + 1) / 2
-	else return (math.sin(phase) + 1) / 2 end
-end
-
-local function applyNative(event, token)
-	local native = event.native
-	if type(native) ~= "table" then return end
-	local metas = nativeMeta(native.payload)
-	local models = fixtures(event.target, event.selection)
-	if event.action == "flux-effect" then
-		local duration = math.max(.05, tonumber(event.duration) or 4)
-		for modelIndex, model in models do
-			for _, meta in metas do
-				task.spawn(function()
-					local started = os.clock()
-					local cycle = speedSeconds(meta.speed)
-					local phaseRange = type(meta.phase) == "table" and meta.phase or { 0, 360 }
-					local lowHigh = type(meta.lh) == "table" and meta.lh or { 0, 100 }
-					local low = nativeNumber(lowHigh[1], 0)
-					local high = nativeNumber(lowHigh[2], 100)
-					local offset = #models > 1 and (modelIndex - 1) / #models or 0
-					while activeToken == token and os.clock() - started <= duration do
-						local elapsed = os.clock() - started
-						local degrees = (tonumber(phaseRange[1]) or 0) + ((tonumber(phaseRange[2]) or 360) - (tonumber(phaseRange[1]) or 0)) * offset
-						local phase = elapsed / cycle * math.pi * 2 + math.rad(degrees)
-						applyNativeAttribute(model, meta, low + (high - low) * waveform(tostring(meta.form), phase), 0)
-						RunService.Heartbeat:Wait()
-					end
-				end)
-			end
-		end
-	else
-		for _, model in models do
-			for _, meta in metas do
-				task.spawn(function()
-					local delayValue = type(meta.delay) == "number" and meta.delay or (meta.delay and speedSeconds(meta.delay) or 0)
-					if delayValue > 0 then task.wait(delayValue) end
-					if activeToken ~= token then return end
-					local points = type(meta.points) == "table" and meta.points or { nil, 0 }
-					local value = points[2]
-					if value == nil then value = points[1] end
-					applyNativeAttribute(model, meta, value or 0, speedSeconds(meta.speed))
-				end)
-			end
+		elseif event.action=="pyro" or tostring(event.action):sub(1,5)=="flux-" then
+			error("Native command is not verified for "..tostring(event.action))
 		end
 	end
+	for _,event in events do check(event) end
 end
 
-local function apply(event, token)
-	if type(event.action) == "string" and event.action:sub(1, 5) == "flux-" then
-		applyNative(event, token)
-		return
-	end
-	if event.action == "block" and type(event.actions) == "table" then
-		for _, child in event.actions do
-			local nested = table.clone(child)
-			nested.target = nested.target or event.target
-			nested.selection = nested.selection or event.selection
-			nested.module = nested.module or event.module
-			nested.channel = nested.channel or event.channel
-			apply(nested, token)
+local function apply(event, token, started)
+	if event.action=="block" then
+		for _,child in event.actions or {} do
+			local nested=table.clone(child)
+			for _,key in {"target","selection","module","channel"} do if nested[key]==nil then nested[key]=event[key] end end
+			apply(nested,token,started)
 		end
 		return
 	end
-	if event.action == "pyro" then
-		local kit = findKit()
-		local folder = kit and kit.fixtures.pyrotechnics:FindFirstChild(tostring(event.value))
-		if not folder then return end
-		for _, d in folder:GetDescendants() do
-			if d:IsA("ParticleEmitter") then d:Emit(math.max(1, d:GetAttribute("FluxlineEmitCount") or 30)) end
-		end
-		return
-	end
-	local action, value, duration = event.action, event.value, tonumber(event.duration) or 0
-	for _, model in fixtures(event.target, event.selection) do
-	local namedChannel = event.channel == "beam" or event.channel == "gobo"
-	local channelFilter = namedChannel
-		and namedChannelFilter(model, event.channel)
-		or moduleFilter(model, event.module)
-	if action == "level" or action == "intensity" then setLevel(model, value, duration, channelFilter)
-	elseif action == "flash" then flash(model, value, duration, channelFilter, token)
-	elseif action == "reset" then setLevel(model, 0, duration, channelFilter); if not event.module then move(model, "pan", 0, duration); move(model, "tilt", 0, duration) end
-	elseif action == "color" then
-		local colorFilter = channelFilter
-		if event.module == nil and model.Parent and model.Parent.Name == "jdc1" then
-			colorFilter = moduleFilter(model, 2)
-		end
-		setColor(model, value, duration, colorFilter)
-	elseif action == "pan" or action == "tilt" or action == "spin" or action == "pitch" then move(model, action, value, duration)
-	elseif action == "beam intensity" then setLevel(model, value, duration, function(d) return (not channelFilter or channelFilter(d)) and d:GetFullName():lower():find(".beam", 1, true) ~= nil end)
-	elseif action == "gobo intensity" then setLevel(model, value, duration, function(d) return (not channelFilter or channelFilter(d)) and d:GetFullName():lower():find(".gobo", 1, true) ~= nil end)
-	elseif action == "iris" or action == "width" then
-		local n = math.clamp(tonumber(value) or 0, 0, 1)
-		eachEmitter(model, function(d)
-			if not physicalBase[d] then
-				physicalBase[d] = d:IsA("Light") and { Angle = d.Angle }
-					or { Width0 = d.Width0, Width1 = d.Width1 }
+	local kind=tostring(event.target):match("^([^:]+):")
+	assert(kind,"Invalid show target")
+	if event.action=="flux-effect" then
+		local native=assert(event.native,"Effect data missing")
+		local fixture=native.fixture or kind
+		local metas=nativeMetas(native.payload)
+		local attributes={}
+		for _,meta in metas do attributes[meta.attribute]=true end
+		stopNativeEffects(fixture,attributes)
+		remote:FireAllClients("nativeCancel",{kind=fixture,attributes=attributes})
+		local key=effectKey(fixture,native.name)
+		local effect={fixture=fixture,name=native.name,metas=metas}
+		nativeEffects[key]=effect
+		nativeDirect().effects:FireAllClients({{fixture,native.name}},"on")
+		task.delay(math.max(0,(started or workspace:GetServerTimeNow())+(tonumber(event.duration) or 0)-workspace:GetServerTimeNow()),function()
+			if activeToken==token and nativeEffects[key]==effect then
+				nativeEffects[key]=nil
+				nativeDirect().effects:FireAllClients({{fixture,native.name}},"off")
 			end
-			if d:IsA("Light") then tween(d, duration, { Angle = physicalBase[d].Angle * n })
-			elseif d:IsA("Beam") then tween(d, duration, { Width0 = physicalBase[d].Width0 * n, Width1 = physicalBase[d].Width1 * n }) end
-		end, channelFilter)
-	elseif action == "shutter" then setLevel(model, value ~= 0 and 1 or 0, duration, channelFilter)
-	elseif action == "strobe" then
-		local hz = math.clamp(tonumber(value) or 10, 1, 30)
-		task.spawn(function()
-			local untilTime = os.clock() + math.max(duration, .1)
-			local on = false
-			while activeToken == token and os.clock() < untilTime do on = not on; setLevel(model, on and 1 or 0, 0, channelFilter); task.wait(1/(hz*2)) end
-			if activeToken == token then setLevel(model, 1, 0, channelFilter) end
 		end)
-	end
+	elseif event.action=="flux-position" or event.action=="flux-macro" then
+		local native=assert(event.native)
+		local fixture=native.fixture or kind
+		local attributes={}
+		for _,meta in nativeMetas(native.payload) do if meta.attribute then attributes[meta.attribute]=true end end
+		stopNativeEffects(fixture,attributes)
+		remote:FireAllClients("nativeCancel",{kind=fixture,attributes=attributes})
+		findKit().components.remotes.call.functions:FireAllClients(event.action=="flux-position" and "position" or "macro",fixture,native.name)
+	elseif event.action=="pyro" or tostring(event.action):sub(1,5)=="flux-" then
+		error("Native dispatch is not verified for "..tostring(event.action).."; cue was not approximated")
+	else
+		stopNativeEffects(kind,eventAttributes(event))
+		remote:FireAllClients("nativeCue",{event=event,kitName=Config.KitName,started=started,token=token})
 	end
 end
+
 
 local FIXTURE_CAPABILITIES = {
 	profile = { "intensity", "color", "strobe", "pan", "tilt", "iris", "shutter", "spin", "beam intensity", "gobo intensity" },
@@ -560,7 +251,7 @@ local function discoverPatch()
 				local label = "Pixels"
 				if folder.Name == "jdc1" and module == 2 then label = "Centre pixels"
 				elseif folder.Name == "jdc1" and module == 3 then label = "Outer tube"
-				else label = ("Pixels Â· module %s"):format(tostring(module)) end
+				else label = ("Pixels · module %s"):format(tostring(module)) end
 				local allowed = {}
 				for _, capability in fixture.capabilities do allowed[capability] = true end
 				local capabilities = {}
@@ -650,14 +341,17 @@ local function listShows()
 end
 
 local function stop()
+	playRequest += 1
 	activeToken += 1
 	pendingAudio = nil
-	cancelTweens()
+	stopNativeEffects()
 	remote:FireAllClients("stopped")
 end
 
 local function play(player, id)
 	if not allowed(player) then return end
+	playRequest += 1
+	local request = playRequest
 	local module = Shows:FindFirstChild(id)
 	if not module or not module:IsA("ModuleScript") then return end
 	local ok, show = pcall(require, module)
@@ -667,6 +361,13 @@ local function play(player, id)
 		return
 	end
 
+	local valid, validationError = pcall(validateNativeShow, show.events)
+	if request ~= playRequest then return end
+	if not valid then
+		stop()
+		remote:FireClient(player,"playbackError",tostring(validationError))
+		return
+	end
 	stop()
 	local token = activeToken
 	local songId = tostring(show.songId or ""):match("%d+")
@@ -674,24 +375,35 @@ local function play(player, id)
 	local requestId = nil
 	if hasAudio then
 		requestId = HttpService:GenerateGUID(false)
-		pendingAudio = { id = requestId, ready = {}, requester = player }
+		pendingAudio = { id = requestId, ready = {}, failed = {}, requester = player }
 		remote:FireAllClients("prepareAudio", {
 			id = id,
 			name = show.name or id,
 			songId = songId,
 			requestId = requestId,
 		})
-		local deadline = os.clock() + math.max(.25, tonumber(Config.AudioReadyTimeout) or 2)
+		local deadline = os.clock() + math.max(10, tonumber(Config.AudioReadyTimeout) or 10)
 		while activeToken == token and os.clock() < deadline do
-			if pendingAudio and pendingAudio.id == requestId and pendingAudio.ready[player] then break end
+			if pendingAudio and pendingAudio.id == requestId and (pendingAudio.ready[player] or pendingAudio.failed[player]) then break end
 			RunService.Heartbeat:Wait()
 		end
 		if activeToken ~= token then return end
+		if not pendingAudio or not pendingAudio.ready[player] then
+			stop()
+			remote:FireClient(player,"playbackError","Audio could not load. Check the song's permission for this experience, then try again.")
+			return
+		end
 	end
 
 	local events = table.clone(show.events)
+	local authoredOrder = {}
+	for index, event in events do
+		authoredOrder[event] = index
+	end
 	table.sort(events, function(a, b)
-		return (tonumber(a.t) or 0) < (tonumber(b.t) or 0)
+		local aTime, bTime = tonumber(a.t) or 0, tonumber(b.t) or 0
+		if aTime == bTime then return authoredOrder[a] < authoredOrder[b] end
+		return aTime < bTime
 	end)
 
 	local started = workspace:GetServerTimeNow() + math.max(.05, tonumber(Config.AudioStartLeadTime) or .2)
@@ -712,16 +424,31 @@ local function play(player, id)
 		while activeToken == token and nextEvent <= #events do
 			local showTime = math.max(0, workspace:GetServerTimeNow() - started)
 			while nextEvent <= #events and (tonumber(events[nextEvent].t) or 0) <= showTime do
-				apply(events[nextEvent], token)
+				local event = events[nextEvent]
+				local success, failure = pcall(apply, event, token, started + (tonumber(event.t) or 0))
+				if not success then
+					stop()
+					remote:FireAllClients("playbackError", tostring(failure))
+					warn("Flux Shows stopped: " .. tostring(failure))
+					return
+				end
 				nextEvent += 1
 			end
 			RunService.Heartbeat:Wait()
 		end
+		local endsAt = started + math.max(0, tonumber(show.duration) or 0)
+		for _, event in events do endsAt = math.max(endsAt, started + (tonumber(event.t) or 0) + (tonumber(event.duration) or 0)) end
+		while activeToken == token and workspace:GetServerTimeNow() < endsAt do RunService.Heartbeat:Wait() end
+		if activeToken == token then stop() end
 	end)
 end
 
 remote.OnServerEvent:Connect(function(player, action, value)
 	if type(action) ~= "string" then return end
+	if action == "audioFailed" then
+		if pendingAudio and tostring(value) == pendingAudio.id then pendingAudio.failed[player] = true end
+		return
+	end
 	if action == "audioReady" then
 		if pendingAudio and tostring(value) == pendingAudio.id then
 			pendingAudio.ready[player] = true
@@ -729,6 +456,13 @@ remote.OnServerEvent:Connect(function(player, action, value)
 		return
 	end
 	if not allowed(player) then return end
+	if action == "nativeFault" then
+		if type(value) == "table" and value.token == activeToken then
+			stop()
+			remote:FireAllClients("playbackError", tostring(value.message):sub(1,300))
+		end
+		return
+	end
 	local now = os.clock()
 	local cooldown = math.max(0, tonumber(Config.RemoteCooldown) or .08)
 	if lastRequest[player] and now - lastRequest[player] < cooldown then return end

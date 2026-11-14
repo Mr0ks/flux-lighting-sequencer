@@ -17,7 +17,8 @@ local pendingStart = nil
 local audioGeneration = 0
 
 local function syncLocalAudio(data)
-	if not data or not data.songId then return end
+	if not data or not data.songId or pendingStart ~= data then return end
+	pendingStart = nil
 	audioGeneration += 1
 	local generation = audioGeneration
 	task.spawn(function()
@@ -31,15 +32,15 @@ local function syncLocalAudio(data)
 end
 
 local COLORS = {
-	background = Color3.fromRGB(13, 13, 13),
-	surface = Color3.fromRGB(25, 25, 25),
-	surfaceHigh = Color3.fromRGB(35, 35, 35),
-	line = Color3.fromRGB(57, 57, 57),
-	text = Color3.fromRGB(245, 245, 245),
-	muted = Color3.fromRGB(166, 166, 166),
+	background = Color3.fromRGB(11, 11, 12),
+	surface = Color3.fromRGB(19, 19, 20),
+	surfaceHigh = Color3.fromRGB(40, 40, 43),
+	line = Color3.fromRGB(57, 57, 60),
+	text = Color3.fromRGB(241, 241, 243),
+	muted = Color3.fromRGB(170, 168, 175),
 	white = Color3.fromRGB(255, 255, 255),
 	black = Color3.fromRGB(8, 8, 8),
-	success = Color3.fromRGB(186, 255, 199),
+	success = Color3.fromRGB(213, 213, 218),
 }
 
 local function create(className, properties, parent)
@@ -97,7 +98,7 @@ local panel = create("Frame", {
 	ClipsDescendants = true,
 }, gui)
 round(panel, 24)
-outline(panel, Color3.fromRGB(71, 71, 71))
+outline(panel)
 create("UISizeConstraint", {
 	MinSize = Vector2.new(300, 300),
 	MaxSize = Vector2.new(412, 384),
@@ -122,7 +123,7 @@ create("TextLabel", {
 	BackgroundTransparency = 1,
 	Text = "F",
 	TextColor3 = COLORS.black,
-	Font = Enum.Font.GothamBlack,
+	Font = Enum.Font.RobotoMono,
 	TextSize = 17,
 }, mark)
 
@@ -151,7 +152,7 @@ local title = create("TextLabel", {
 local statusPill = create("Frame", {
 	Size = UDim2.fromOffset(78, 28),
 	Position = UDim2.new(1, -122, 0, 19),
-	BackgroundColor3 = Color3.fromRGB(24, 42, 29),
+	BackgroundColor3 = Color3.fromRGB(29, 29, 31),
 	BorderSizePixel = 0,
 }, header)
 round(statusPill, 14)
@@ -360,7 +361,7 @@ icon:setEnabled(false)
 
 local function setStatus(text, playing)
 	statusText.Text = text
-	statusPill.BackgroundColor3 = playing and Color3.fromRGB(48, 48, 48) or Color3.fromRGB(24, 42, 29)
+	statusPill.BackgroundColor3 = playing and Color3.fromRGB(40, 40, 43) or Color3.fromRGB(24, 42, 29)
 	statusText.TextColor3 = playing and COLORS.text or COLORS.success
 	statusDot.BackgroundColor3 = playing and COLORS.white or COLORS.success
 end
@@ -419,7 +420,7 @@ local function render(shows)
 			BorderSizePixel = 0,
 			Text = "PLAY",
 			TextColor3 = COLORS.black,
-			Font = Enum.Font.GothamBold,
+			Font = Enum.Font.RobotoMono,
 			TextSize = 10,
 		}, button)
 		round(playChip, 12)
@@ -450,7 +451,216 @@ exportButton.Activated:Connect(function()
 	remote:FireServer("export")
 end)
 
+-- Uses Flux's own per-module update functions; never writes lamps, beams or motors directly.
+local NativePlayback = {}
+local nativeJobs = {}
+local nativeKit, nativeShared
+local nativeGeneration = 0
+local nativeValues = setmetatable({}, {__mode="k"})
+
+local function nativeContext(kitName)
+	if nativeKit and nativeKit.Parent and nativeKit.Name == kitName then return nativeKit, nativeShared end
+	for _, folder in workspace:GetDescendants() do
+		if folder.Name == "flux kit" and folder:FindFirstChild("kits") then
+			local kit = folder.kits:FindFirstChild(kitName)
+			if kit then
+				nativeKit, nativeShared = kit, require(folder.components.scripts.shared)
+				return nativeKit, nativeShared
+			end
+		end
+	end
+	error("Configured Flux kit is unavailable: " .. tostring(kitName))
+end
+
+local function nativeOrdered(folder)
+	local decorated={}
+	for index,model in folder:GetChildren() do
+		if model:IsA("Model") then table.insert(decorated,{model=model,index=index}) end
+	end
+	table.sort(decorated, function(a,b)
+		local an,bn=tonumber(a.model.Name),tonumber(b.model.Name)
+		if an and bn and an~=bn then return an<bn end
+		if an~=nil and bn==nil then return true end
+		if an==nil and bn~=nil then return false end
+		if a.model.Name~=b.model.Name then return a.model.Name<b.model.Name end
+		return a.index<b.index
+	end)
+	local result={}
+	for _,entry in decorated do table.insert(result,entry.model) end
+	return result
+end
+
+function NativePlayback.stop()
+	nativeGeneration += 1
+	table.clear(nativeJobs)
+	table.clear(nativeValues)
+end
+
+local function nativeRead(target, definition, attribute, fixture)
+	if attribute == "pan" or attribute == "tilt" then
+		return math.deg(target.motors[attribute].CurrentAngle) / 100
+	end
+	local value = definition.getVal(target, attribute)
+	if type(value) ~= "number" then return nil end
+	if attribute:find("intensity", 1, true) then return 1-value end
+	if attribute == "iris" then
+		local zoom=fixture.zoom
+		assert(zoom and zoom[2]~=zoom[1], "Flux iris range unavailable")
+		return (value-zoom[1])/(zoom[2]-zoom[1])
+	end
+	if attribute == "shutter" then return value*4 end
+	return value
+end
+
+local function nativeSet(target, definition, attribute, value)
+	definition.update[attribute](target, value)
+end
+
+local function nativeAttributes(event, definition)
+	local action=event.action
+	local values={}
+	if action=="color" then
+		local v=event.value
+		local c
+		if typeof(v)=="Color3" then c=v
+		elseif type(v)=="string" then c=Color3.fromHex(v:gsub("#", ""))
+		elseif type(v)=="table" then c=Color3.fromRGB(v[1] or v.r or 255,v[2] or v.g or 255,v[3] or v.b or 255) end
+		assert(c,"Invalid color cue")
+		values={red=c.R,green=c.G,blue=c.B}
+	elseif action=="level" or action=="intensity" or action=="flash" or action=="reset" or action=="strobe" then
+		local v=action=="reset" and 0 or (action=="flash" or action=="strobe") and 1 or math.clamp(tonumber(event.value) or 0,0,1)
+		if event.channel=="beam" then values["beam intensity"]=v
+		elseif event.channel=="gobo" then values["gobo intensity"]=v
+		else
+			for _,a in {"intensity","beam intensity","gobo intensity"} do if definition.update[a] then values[a]=v end end
+		end
+		if action=="reset" and not event.module and not event.channel then
+			if definition.update.pan then values.pan=0 end
+			if definition.update.tilt then values.tilt=0 end
+		end
+	else
+		local v=assert(tonumber(event.value),"Cue requires a numeric value")
+		if action=="pan" or action=="tilt" or action=="spin" or action=="pitch" then v/=100 end
+		values[action]=v
+	end
+	return values
+end
+
+function NativePlayback.cancel(kind, attributes)
+	for target, jobs in pairs(nativeJobs) do
+		for attribute, job in pairs(jobs) do
+			if job.kind==kind and (not attributes or attributes[attribute]) then jobs[attribute]=nil end
+		end
+		if next(jobs)==nil then nativeJobs[target]=nil end
+	end
+	-- A native preset may change values outside this scheduler.
+	table.clear(nativeValues)
+end
+
+function NativePlayback.cue(data)
+	local event=data.event
+	NativePlayback.token=data.token
+	local kit,shared=nativeContext(data.kitName)
+	local kind,selector=tostring(event.target):match("^([^:]+):(.+)$")
+	assert(kind,"Invalid cue target")
+	local fixture=assert(shared.fixt[kind],"Unknown Flux fixture: "..kind)
+	local folder=assert(kit.fixtures.main:FindFirstChild(kind),"Fixture not installed: "..kind)
+	local selected={}
+	for _,item in event.selection or {} do
+		local id=type(item)=="table" and (item[1] or item.fixture or item.index) or item
+		selected[tostring(id)]=true
+	end
+	local hasSelection=next(selected)~=nil
+	local count=0
+	local now=workspace:GetServerTimeNow()
+	local started=data.started or now
+	for index,model in nativeOrdered(folder) do
+		if not model:IsA("Model") then continue end
+		if hasSelection and not selected[tostring(index)] then continue end
+		if not hasSelection and selector~="all" and selector~="channel" and selector~="group" and selector~=tostring(index) and selector~=model.Name then continue end
+		for module,definition in pairs(fixture.module) do
+			if event.module and tostring(event.module)~=tostring(module) then continue end
+			local targets={}
+			if definition.kind=="p" then
+				local pixels=model.use:FindFirstChild("pixels")
+				local channel=pixels and pixels:FindFirstChild(tostring(module))
+				if channel then targets=channel:GetChildren() end
+			else targets={model.use} end
+			local values=nativeAttributes(event,definition)
+			for attribute,value in pairs(values) do
+				if not definition.update[attribute] then continue end
+				for _,target in targets do
+					count+=1
+					local jobs=nativeJobs[target] or {}
+					nativeJobs[target]=jobs
+					local duration=math.max(0,tonumber(event.duration) or 0)
+					local previous=nativeValues[target]
+					local from=previous and previous[attribute]
+					if from==nil then from=nativeRead(target,definition,attribute,fixture) end
+					if duration>0 then assert(from~=nil,"Flux does not expose a numeric start value for "..attribute) end
+					jobs[attribute]={kind=kind,definition=definition,attribute=attribute,from=from or value,value=value,
+						start=started,duration=duration,action=event.action,mode=event.value,generation=nativeGeneration}
+				end
+			end
+		end
+	end
+	assert(count>0,"No native Flux controls match cue: "..tostring(event.label or event.action))
+end
+
+game:GetService("RunService").Heartbeat:Connect(function()
+	local now=workspace:GetServerTimeNow()
+	for target,jobs in pairs(nativeJobs) do
+		for attribute,job in pairs(jobs) do
+			local elapsed=math.max(0,now-job.start)
+			local duration=job.duration
+			local progress=duration>0 and math.clamp(elapsed/duration,0,1) or 1
+			local value=job.from+(job.value-job.from)*progress
+			local done=progress>=1
+			if job.action=="flash" then
+				local release=(job.mode=="fade-out" or job.mode=="fade-both") and math.min(duration*.35,1) or 0
+				local attack=job.mode=="fade-in" and duration or job.mode=="fade-both" and math.min(duration*.35,1) or 0
+				value=attack>0 and math.min(1,elapsed/attack) or 1
+				if release>0 and elapsed>=duration-release then value=math.max(0,(duration-elapsed)/release) end
+				if done then value=0 end
+			elseif job.action=="strobe" then
+				value=done and job.from or (math.floor(elapsed*math.clamp(tonumber(job.mode) or 10,1,30)*2)%2==0 and 1 or 0)
+			end
+			local ok,err=pcall(nativeSet,target,job.definition,attribute,value)
+			if ok then
+				local values=nativeValues[target] or {}
+				nativeValues[target]=values
+				values[attribute]=value
+			end
+			if not ok then
+				warn("Flux Shows native playback: "..tostring(err))
+				game.ReplicatedStorage.FluxlineSequencer:FireServer("nativeFault",{token=NativePlayback.token,message=tostring(err)})
+			end
+			if done or not ok then jobs[attribute]=nil end
+		end
+		if next(jobs)==nil then nativeJobs[target]=nil end
+	end
+end)
+
+
 remote.OnClientEvent:Connect(function(action, data)
+	if action == "nativeCue" then
+		local ok, failure = pcall(NativePlayback.cue, data)
+		if not ok then
+			NativePlayback.stop()
+			warn("Flux Shows: " .. tostring(failure))
+			setStatus("CUE FAILED", false)
+			remote:FireServer("nativeFault", {token=data.token, message=tostring(failure)})
+		end
+		return
+	elseif action == "nativeCancel" then
+		NativePlayback.cancel(data.kind, data.attributes)
+		return
+	elseif action == "playbackError" then
+		NativePlayback.stop()
+		setStatus("SHOW FAILED", false)
+		title.Text = tostring(data)
+		return
+	end
 	if action == "authorized" then
 		icon:setEnabled(true)
 	elseif action == "shows" then
@@ -471,8 +681,13 @@ remote.OnClientEvent:Connect(function(action, data)
 			local ok, message = pcall(function()
 				ContentProvider:PreloadAsync({ localSound })
 			end)
-			if not ok then warn("Fluxline client audio preload failed:", message) end
 			if audioRequestId ~= requestId then return end
+			if not ok or not localSound.IsLoaded then
+				warn("Fluxline client audio failed to load:", data.songId, message)
+				setStatus("AUDIO FAILED", false)
+				remote:FireServer("audioFailed", requestId)
+				return
+			end
 			remote:FireServer("audioReady", requestId)
 			if pendingStart and pendingStart.requestId == requestId then syncLocalAudio(pendingStart) end
 		end)
@@ -481,8 +696,9 @@ remote.OnClientEvent:Connect(function(action, data)
 		eyebrow.Text = "NOW PLAYING"
 		setStatus("PLAYING", true)
 		pendingStart = data
-		if data.songId then syncLocalAudio(data) end
+		if data.songId and localSound.IsLoaded then syncLocalAudio(data) end
 	elseif action == "stopped" then
+		NativePlayback.stop()
 		audioGeneration += 1
 		audioRequestId = nil
 		pendingStart = nil

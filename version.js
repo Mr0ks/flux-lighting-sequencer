@@ -1,2 +1,2 @@
 // Bump this together with the flux-sequencer-version meta tag in index.html.
-document.documentElement.dataset.fluxLatestVersion = "2026.11.14.1";
+document.documentElement.dataset.fluxLatestVersion = "2026.11.14.2";

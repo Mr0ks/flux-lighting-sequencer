@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="flux-sequencer-version" content="2026.11.14.1" />
+    <meta name="flux-sequencer-version" content="2026.11.14.2" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -3883,6 +3883,7 @@
         ev.preventDefault();
         const timeline = ev.currentTarget;
         const box = $("#marquee");
+        const scroller = $("#scroller");
         const pointerId = ev.pointerId;
         const x0 = ev.clientX;
         const y0 = ev.clientY;
@@ -3895,10 +3896,16 @@
           if (!moved && Math.abs(e.clientX - x0) + Math.abs(e.clientY - y0) < 5)
             return;
           moved = true;
-          const left = Math.min(x0, e.clientX);
-          const right = Math.max(x0, e.clientX);
-          const top = Math.min(y0, e.clientY);
-          const bottom = Math.max(y0, e.clientY);
+          const bounds = scroller.getBoundingClientRect();
+          const label = track.previousElementSibling.getBoundingClientRect();
+          const gridLeft = Math.max(bounds.left + scroller.clientLeft, label.right);
+          const gridRight = Math.max(gridLeft, bounds.left + scroller.clientLeft + scroller.clientWidth);
+          const gridTop = bounds.top + scroller.clientTop;
+          const gridBottom = gridTop + scroller.clientHeight;
+          const left = Math.max(gridLeft, Math.min(x0, e.clientX));
+          const right = Math.min(gridRight, Math.max(x0, e.clientX));
+          const top = Math.max(gridTop, Math.min(y0, e.clientY));
+          const bottom = Math.min(gridBottom, Math.max(y0, e.clientY));
           box.style.display = "block";
           box.style.left = left + "px";
           box.style.top = top + "px";
@@ -3958,7 +3965,7 @@
       function renderTimeline() {
         const w = timelineWidth();
         applyGridStyles($("#timeline"));
-        let html = `<div class="playhead" id="head"></div><div class="marquee" id="marquee"></div>`;
+        let html = `<div class="playhead" id="head"></div>`;
         for (const lane of laneList()) {
           const caps = capabilities(lane.type, lane.module, lane.channel);
           html += laneMarkup(
@@ -6660,5 +6667,6 @@
       setTimeout(() => checkForAppUpdate(true), 500);
       setInterval(checkForAppUpdate, 3 * 60_000);
     </script>
+    <div class="marquee" id="marquee" aria-hidden="true"></div>
   </body>
 </html>

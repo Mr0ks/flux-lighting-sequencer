@@ -2535,10 +2535,6 @@
               <option value="reset:0">Reset</option>
             </optgroup>
             <optgroup label="Flash">
-              <option value="flash:snap">Flash · on/off</option>
-              <option value="flash:fade-out">Flash · fade off</option>
-              <option value="flash:fade-in">Flash · fade on, then off</option>
-              <option value="flash:fade-both">Flash · fade in/out</option>
             </optgroup>
             <optgroup label="Colour">
               <option value="color:#ffffff">Set colour</option>
@@ -2550,6 +2546,7 @@
               <option value="pitch:0">Pitch</option>
             </optgroup>
             <optgroup label="Beam / lens">
+              <option value="flash:snap">Fade</option>
               <option value="strobe:10">Strobe</option>
               <option value="iris:1">Iris</option>
               <option value="shutter:1">Shutter</option>
@@ -2654,10 +2651,6 @@
         [
           "Flash",
           [
-            ["Flash · on/off", "flash", "snap", 1],
-            ["Flash · fade off", "flash", "fade-out", 1],
-            ["Flash · fade on, then off", "flash", "fade-in", 1],
-            ["Flash · fade in/out", "flash", "fade-both", 1],
           ],
         ],
         [
@@ -2679,6 +2672,7 @@
         [
           "Beam / lens",
           [
+            ["Fade", "flash", "snap", 1],
             ["Strobe", "strobe", 10, 1],
             ["Iris", "iris", 1, 0.5],
             ["Shutter", "shutter", 1],
@@ -4897,7 +4891,7 @@
           )
           .join("");
         const valueEditor = isFlash
-          ? `<div class="field"><label>Flash shape</label><select id="evValue"><option value="snap" ${e.value === "snap" ? "selected" : ""}>On, then off</option><option value="fade-out" ${e.value === "fade-out" ? "selected" : ""}>On, then fade off</option><option value="fade-in" ${e.value === "fade-in" ? "selected" : ""}>Fade on, then off</option><option value="fade-both" ${e.value === "fade-both" ? "selected" : ""}>Fade on, then fade off</option></select><small class="field-hint">The light returns to off at the end of this block.</small></div>`
+          ? ""
           : isColor
           ? `<div class="field"><label>Colour</label><div class="row"><input id="evValue" type="color" value="${e.value}"><input id="evHex" value="${e.value}"></div></div>`
           : range
@@ -4941,14 +4935,6 @@
               autosave();
             };
           }
-          const shape = $("#evValue");
-          const changeShape = shape.onchange;
-          shape.onchange = () => {
-            changeShape();
-            delete e.flashTiming;
-            renderInspector();
-            autosave();
-          };
         }
         if ($("#evRange")) {
           $("#evRange").oninput = (x) => {

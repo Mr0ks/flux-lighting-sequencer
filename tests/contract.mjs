@@ -74,7 +74,7 @@ assert.match(server, /module == 2.*Centre pixels/);
 assert.match(server, /module == 3.*Outer tube/);
 assert.match(server, /audioReady/);
 assert.match(server, /workspace:GetServerTimeNow\(\) - started/);
-assert.match(server, /emitterSerialIsCurrent/);
+assert.match(server, /captured\[emitter\] == emitterSerial\[emitter\]/);
 assert.match(server, /FluxlineBaseBrightness/);
 assert.match(server, /local function readFluxBrightness/);
 assert.match(server, /FindFirstChild\("brightness"\)/);

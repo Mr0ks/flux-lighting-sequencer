@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="flux-sequencer-version" content="2026.11.14.2" />
+    <meta name="flux-sequencer-version" content="2026.11.14.3" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -2537,6 +2537,7 @@
             <optgroup label="Flash">
               <option value="flash:snap">Flash · on/off</option>
               <option value="flash:fade-out">Flash · fade off</option>
+              <option value="flash:fade-in">Flash · fade on, then off</option>
               <option value="flash:fade-both">Flash · fade in/out</option>
             </optgroup>
             <optgroup label="Colour">
@@ -2655,6 +2656,7 @@
           [
             ["Flash · on/off", "flash", "snap", 1],
             ["Flash · fade off", "flash", "fade-out", 1],
+            ["Flash · fade on, then off", "flash", "fade-in", 1],
             ["Flash · fade in/out", "flash", "fade-both", 1],
           ],
         ],
@@ -4865,7 +4867,7 @@
           )
           .join("");
         const valueEditor = isFlash
-          ? `<div class="field"><label>Flash shape</label><select id="evValue"><option value="snap" ${e.value === "snap" ? "selected" : ""}>On, then off</option><option value="fade-out" ${e.value === "fade-out" ? "selected" : ""}>On, then fade off</option><option value="fade-both" ${e.value === "fade-both" ? "selected" : ""}>Fade on, then fade off</option></select><small class="field-hint">The light returns to off at the end of this block.</small></div>`
+          ? `<div class="field"><label>Flash shape</label><select id="evValue"><option value="snap" ${e.value === "snap" ? "selected" : ""}>On, then off</option><option value="fade-out" ${e.value === "fade-out" ? "selected" : ""}>On, then fade off</option><option value="fade-in" ${e.value === "fade-in" ? "selected" : ""}>Fade on, then off</option><option value="fade-both" ${e.value === "fade-both" ? "selected" : ""}>Fade on, then fade off</option></select><small class="field-hint">The light returns to off at the end of this block.</small></div>`
           : isColor
           ? `<div class="field"><label>Colour</label><div class="row"><input id="evValue" type="color" value="${e.value}"><input id="evHex" value="${e.value}"></div></div>`
           : range

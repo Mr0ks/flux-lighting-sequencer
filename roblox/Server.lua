@@ -183,27 +183,23 @@ local function captureEmitterSerial(model, filter)
 	return captured
 end
 
-local function emitterSerialIsCurrent(captured)
-	for emitter, serial in captured do
-		if emitterSerial[emitter] ~= serial then return false end
-	end
-	return next(captured) ~= nil
-end
-
 -- A flash owns the affected emitters only until another cue touches them.
 -- This prevents an older flash's delayed off from cancelling a newer cue.
 local function flash(model, mode, duration, filter, token)
 	local total = math.max(.05, tonumber(duration) or 1)
 	mode = tostring(mode or "snap")
-	local attack = mode == "fade-both" and math.min(total * .35, 1) or 0
-	local release = mode == "snap" and 0 or math.min(total * .35, 1)
+	local attack = mode == "fade-in" and total
+		or (mode == "fade-both" and math.min(total * .35, 1) or 0)
+	local release = (mode == "fade-out" or mode == "fade-both") and math.min(total * .35, 1) or 0
 	if attack > 0 then setLevel(model, 0, 0, filter) end
 	setLevel(model, 1, attack, filter)
 	local captured = captureEmitterSerial(model, filter)
 	task.spawn(function()
 		task.wait(math.max(0, total - release))
-		if activeToken ~= token or not emitterSerialIsCurrent(captured) then return end
-		setLevel(model, 0, release, filter)
+		if activeToken ~= token then return end
+		setLevel(model, 0, release, function(emitter)
+			return captured[emitter] ~= nil and captured[emitter] == emitterSerial[emitter]
+		end)
 	end)
 end
 
@@ -564,7 +560,7 @@ local function discoverPatch()
 				local label = "Pixels"
 				if folder.Name == "jdc1" and module == 2 then label = "Centre pixels"
 				elseif folder.Name == "jdc1" and module == 3 then label = "Outer tube"
-				else label = ("Pixels · module %s"):format(tostring(module)) end
+				else label = ("Pixels Â· module %s"):format(tostring(module)) end
 				local allowed = {}
 				for _, capability in fixture.capabilities do allowed[capability] = true end
 				local capabilities = {}

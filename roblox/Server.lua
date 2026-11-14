@@ -82,6 +82,12 @@ end
 -- Native presets use the same remotes as Flux's panel. Ordinary timeline cues
 -- use the shared Flux renderer on each client, preserving authored durations.
 local nativeEffects = {}
+local nativeMacros, nativePyro = {}, {}
+local macroSerial = 0
+local function macrosRunning()
+	for _,macro in pairs(nativeMacros) do if not macro.complete then return true end end
+	return false
+end
 
 local function nativeDirect()
 	local kit=assert(findKit(), "Configured Flux kit is missing")
@@ -89,6 +95,38 @@ local function nativeDirect()
 end
 
 local function effectKey(fixture,name) return fixture.."\0"..name end
+
+local function stopNativeMacros(kind, attributes)
+	for id,macro in pairs(nativeMacros) do
+		local overlap=not attributes or macro.hasEffects
+		for attribute in pairs(attributes or {}) do if macro.attributes[attribute] then overlap=true end end
+		if (not kind or kind==macro.fixture) and overlap then
+			local remotes=findKit().components.remotes
+			remotes.call.functions:FireAllClients("FluxShowsCancel",id)
+			if #macro.effects>0 then remotes.direct.effects:FireAllClients(macro.effects,"off") end
+			nativeMacros[id]=nil
+		end
+	end
+end
+
+local function stopNativePyro()
+	for kind in pairs(nativePyro) do
+		nativeDirect().pyrotechnics:FireAllClients("regular",{fixt=kind},{form="off"},"off")
+	end
+	table.clear(nativePyro)
+end
+
+local function checkPyro(kind)
+	local kit=assert(findKit(),"Flux kit missing")
+	local folder=kit.fixtures.pyrotechnics:FindFirstChild(kind)
+	local installed=false
+	for _,d in folder and folder:GetDescendants() or {} do if d:IsA("ParticleEmitter") then installed=true;break end end
+	assert(installed,"Pyro type is not installed: "..kind)
+	assert(kind~="fireworks","Choose a specific native firework pattern; generic fireworks playback is not supported")
+	local flux=kit.Parent.Parent
+	local definition=require(flux.components.scripts.shared).fixt.pyrotechnics.pyroData[kind]
+	assert(definition and definition.forms.on and definition.forms.off,"No native on/off control for pyro type: "..kind)
+end
 
 local function stopNativeEffects(kind, attributes)
 	local off={}
@@ -143,12 +181,12 @@ local function validateNativeShow(events)
 			event.native=table.clone(native)
 			event.native.payload=installed[native.name]
 			if scope=="macros" then
-				for _,meta in nativeMetas(installed[native.name]) do
-					assert(not meta.delay and not meta.effect and meta.speed=="snap",
-						"Timed Flux macro '"..native.name.."' cannot yet be safely cancelled by Stop. Use timeline cues or a native effect instead.")
-				end
+				local functions=findKit().components.scripts["flux kit client"].modules.functions
+				assert(functions:GetAttribute("FluxShowsMacroAdapterVersion")==1,"Install the Flux Shows native macro adapter before playing timed macros")
 			end
-		elseif event.action=="pyro" or tostring(event.action):sub(1,5)=="flux-" then
+		elseif event.action=="pyro" then
+			checkPyro(tostring(event.value))
+		elseif tostring(event.action):sub(1,5)=="flux-" then
 			error("Native command is not verified for "..tostring(event.action))
 		end
 	end
@@ -166,6 +204,7 @@ local function apply(event, token, started)
 	end
 	local kind=tostring(event.target):match("^([^:]+):")
 	assert(kind,"Invalid show target")
+	if event.action~="flux-macro" then stopNativeMacros(kind,event.action=="flux-effect" and nil or eventAttributes(event)) end
 	if event.action=="flux-effect" then
 		local native=assert(event.native,"Effect data missing")
 		local fixture=native.fixture or kind
@@ -191,8 +230,34 @@ local function apply(event, token, started)
 		for _,meta in nativeMetas(native.payload) do if meta.attribute then attributes[meta.attribute]=true end end
 		stopNativeEffects(fixture,attributes)
 		remote:FireAllClients("nativeCancel",{kind=fixture,attributes=attributes})
-		findKit().components.remotes.call.functions:FireAllClients(event.action=="flux-position" and "position" or "macro",fixture,native.name)
-	elseif event.action=="pyro" or tostring(event.action):sub(1,5)=="flux-" then
+		if event.action=="flux-macro" then
+			stopNativeMacros(fixture,attributes)
+			macroSerial+=1
+			local id=tostring(token)..":"..macroSerial
+			local effects={}
+			for _,meta in nativeMetas(native.payload) do
+				if type(meta.effect)=="table" and meta.effect[1] then table.insert(effects,{meta.fixture or fixture,meta.effect[1]}) end
+			end
+			nativeMacros[id]={fixture=fixture,attributes=attributes,effects=effects,hasEffects=#effects>0}
+			findKit().components.remotes.call.functions:FireAllClients("FluxShowsMacro",id,fixture,native.name)
+		else
+			stopNativeMacros(fixture,attributes)
+			findKit().components.remotes.call.functions:FireAllClients("position",fixture,native.name)
+		end
+	elseif event.action=="pyro" then
+		local pyroKind=tostring(event.value)
+		checkPyro(pyroKind)
+		local ownership={}
+		nativePyro[pyroKind]=ownership
+		nativeDirect().pyrotechnics:FireAllClients("regular",{fixt=pyroKind},{form="on"},"on")
+		local duration=math.max(.05,tonumber(event.duration) or 1)
+		task.delay(math.max(0,(started or workspace:GetServerTimeNow())+duration-workspace:GetServerTimeNow()),function()
+			if activeToken==token and nativePyro[pyroKind]==ownership then
+				nativePyro[pyroKind]=nil
+				nativeDirect().pyrotechnics:FireAllClients("regular",{fixt=pyroKind},{form="off"},"off")
+			end
+		end)
+	elseif tostring(event.action):sub(1,5)=="flux-" then
 		error("Native dispatch is not verified for "..tostring(event.action).."; cue was not approximated")
 	else
 		stopNativeEffects(kind,eventAttributes(event))
@@ -344,7 +409,9 @@ local function stop()
 	playRequest += 1
 	activeToken += 1
 	pendingAudio = nil
+	stopNativeMacros()
 	stopNativeEffects()
+	stopNativePyro()
 	remote:FireAllClients("stopped")
 end
 
@@ -438,7 +505,7 @@ local function play(player, id)
 		end
 		local endsAt = started + math.max(0, tonumber(show.duration) or 0)
 		for _, event in events do endsAt = math.max(endsAt, started + (tonumber(event.t) or 0) + (tonumber(event.duration) or 0)) end
-		while activeToken == token and workspace:GetServerTimeNow() < endsAt do RunService.Heartbeat:Wait() end
+		while activeToken == token and (workspace:GetServerTimeNow() < endsAt or macrosRunning()) do RunService.Heartbeat:Wait() end
 		if activeToken == token then stop() end
 	end)
 end
@@ -456,6 +523,11 @@ remote.OnServerEvent:Connect(function(player, action, value)
 		return
 	end
 	if not allowed(player) then return end
+	if action == "nativeMacroFinished" then
+		local macro = nativeMacros[tostring(value)]
+		if macro then macro.complete = true end
+		return
+	end
 	if action == "nativeFault" then
 		if type(value) == "table" and value.token == activeToken then
 			stop()

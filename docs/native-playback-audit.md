@@ -1,5 +1,24 @@
 # Native playback audit — 15 November 2026
 
+## Follow-up: timed macros and pyro
+
+The macro limitation below describes the initial audit. A cancellable native
+macro adapter now tracks tasks started by show-owned macros without changing
+the ordinary panel macro path. Cancelling the demo before its two-second delay
+prevented its later fade-off; normal playback completed the fade-off.
+
+Created the Wash preset **Sequencer Demo - On Wait Off** in the existing Flux
+showfile: on immediately, wait two seconds, then native fade-off. Existing
+presets were preserved. The source installer now includes the adapter.
+
+Continuous pyro uses captured native on/off commands with duration and Stop
+cleanup. Only haze is installed in the test rig. Fireworks folders contain no
+emitters; generic fireworks remain unsupported rather than guessed.
+
+Combined runtime test: all four haze emitters were on at 0.3 seconds and off
+at 1 second. A 40% wash cue at 0.5 seconds cancelled the macro's pending fade:
+the lens remained at 0.6 transparency at both 1 and 3.3 seconds.
+
 Tested against the installed Flux v4.07 kit in Studio. These are measured checks,
 not a claim that every possible fixture, preset, or multiplayer condition is covered.
 

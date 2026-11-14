@@ -21,6 +21,7 @@ local sources = {
 	Client = fetch("Client.lua"),
 	Config = fetch("Config.lua"),
 	ExampleShow = fetch("ExampleShow.lua"),
+	NativeMacroAdapter = fetch("NativeMacroAdapter.lua"),
 }
 
 local previous = workspace:FindFirstChild("Fluxline")
@@ -37,6 +38,29 @@ local config = Instance.new("ModuleScript")
 config.Name = "Config"
 config.Source = sources.Config
 config.Parent = root
+
+local adapter = Instance.new("ModuleScript")
+adapter.Name = "NativeMacroAdapter"
+adapter.Source = sources.NativeMacroAdapter
+adapter.Parent = root
+local adapted = false
+for _, flux in workspace:GetDescendants() do
+	if flux.Name == "flux kit" and flux:FindFirstChild("kits") then
+		local kit = flux.kits:FindFirstChild(require(config).KitName)
+		local components = kit and kit:FindFirstChild("components")
+		local scripts = components and components:FindFirstChild("scripts")
+		local nativeClient = scripts and scripts:FindFirstChild("flux kit client")
+		local modules = nativeClient and nativeClient:FindFirstChild("modules")
+		local functions = modules and modules:FindFirstChild("functions")
+		if functions then
+			functions.Source = require(adapter)(functions.Source)
+			functions:SetAttribute("FluxShowsMacroAdapterVersion", 1)
+			adapted = true
+			break
+		end
+	end
+end
+if not adapted then warn("Native Flux kit not found. Install it and rerun this installer to enable timed macros.") end
 
 local shows = Instance.new("Folder")
 shows.Name = "Shows"

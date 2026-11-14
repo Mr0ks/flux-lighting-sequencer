@@ -110,10 +110,15 @@ overlapping cue stops the show's conflicting effect before applying its value;
 Stop clears show fades and stops effects started by the show. Audio must load
 before playback starts. Missing saved presets are reported before playback.
 
-Current limits: timed/delayed native macros are refused because Flux's exposed
-Kill command does not cancel their queued steps. Instant snap-only macros are
-supported. Pyrotechnic commands are not yet verified on the native route and
-are also refused, rather than falling back to direct hardware writes. Late-join
+Timed macros use a native adapter that tracks their scheduled tasks, allowing
+Stop or a conflicting cue to cancel delayed steps. The installer wraps the
+existing Flux functions module; it does not redistribute the Flux kit source.
+Reinstall the adapter after replacing or updating the native Flux kit.
+
+Pyro cues use native on/off commands for installed continuous emitters and
+turn off after the cue duration or Stop. Haze has been tested in Studio.
+Unavailable pyro types report “not installed”; generic fireworks still require
+a specific native pattern and are not supported by this route. Late-join
 state reconstruction and fixture types absent from the test rig remain unverified.
 See [the playback audit](docs/native-playback-audit.md) for test coverage.
 
@@ -160,7 +165,7 @@ choose what happens to browser saves, and explicitly start the update.
 - PAR: intensity, RGB/hue, strobe, shutter
 - Blinder: intensity
 - Atomic: intensity, strobe
-- Pyro: editor catalog only; native runtime dispatch is not yet verified
+- Pyro: native on/off pulses for installed haze, sparks, fire, CO2, confetti and bubbles; haze verified in Studio
 
 Every intensity-capable fixture also supports duration-based flashes: immediate
 on/off, immediate on with fade-off, or fade-in/fade-out.

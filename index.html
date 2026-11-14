@@ -2530,6 +2530,7 @@
         <div class="builder-grid">
           <select id="blockAction">
             <optgroup label="Output">
+              <option value="flash:snap">Fade</option>
               <option value="level:1">Turn on</option>
               <option value="level:0">Turn off</option>
               <option value="reset:0">Reset</option>
@@ -2546,7 +2547,6 @@
               <option value="pitch:0">Pitch</option>
             </optgroup>
             <optgroup label="Beam / lens">
-              <option value="flash:snap">Fade</option>
               <option value="strobe:10">Strobe</option>
               <option value="iris:1">Iris</option>
               <option value="shutter:1">Shutter</option>
@@ -2643,8 +2643,7 @@
           [
             ["On", "level", 1],
             ["Off", "level", 0],
-            ["Fade on", "level", 1, 1],
-            ["Fade off", "level", 0, 1],
+            ["Fade", "flash", "snap", 1],
             ["Reset", "reset", 0],
           ],
         ],
@@ -2672,7 +2671,6 @@
         [
           "Beam / lens",
           [
-            ["Fade", "flash", "snap", 1],
             ["Strobe", "strobe", 10, 1],
             ["Iris", "iris", 1, 0.5],
             ["Shutter", "shutter", 1],

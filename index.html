@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="flux-sequencer-version" content="2026.10.17.2" />
+    <meta name="flux-sequencer-version" content="2026.11.14.1" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -71,6 +71,15 @@
       }
       .event.multi {
         box-shadow: 0 0 0 2px #999;
+      }
+      #timeline,
+      #timeline * {
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      #timeline .event.marquee-hit {
+        outline: 2px solid #fff;
+        outline-offset: -2px;
       }
       .marquee {
         position: fixed;
@@ -3866,28 +3875,61 @@
         return `<div class="lane" style="height:${height}px"><div class="lane-label ${selectedLane === key ? "selected" : ""}" data-lane="${key}"><b>${label}</b><small>${detail}</small></div><div class="track" data-lane="${key}" style="width:${w}px">${stacked.map((x) => eventHtml(x.event, x.row)).join("")}</div></div>`;
       }
       function startMarquee(ev) {
-        if (ev.button !== 0 || ev.target.closest(".event,.lane-label,#head"))
-          return;
+        if (!ev.isPrimary || ev.button !== 0 ||
+            ev.target.closest(".event,.lane-label,#head")) return;
         const track = ev.target.closest(".track");
         if (!track) return;
-        const box = $("#marquee"),
-          x0 = ev.clientX,
-          y0 = ev.clientY;
+
+        ev.preventDefault();
+        const timeline = ev.currentTarget;
+        const box = $("#marquee");
+        const pointerId = ev.pointerId;
+        const x0 = ev.clientX;
+        const y0 = ev.clientY;
         let moved = false;
+        let hits = [];
+        timeline.setPointerCapture(pointerId);
+
         const move = (e) => {
+          if (e.pointerId !== pointerId) return;
           if (!moved && Math.abs(e.clientX - x0) + Math.abs(e.clientY - y0) < 5)
             return;
           moved = true;
+          const left = Math.min(x0, e.clientX);
+          const right = Math.max(x0, e.clientX);
+          const top = Math.min(y0, e.clientY);
+          const bottom = Math.max(y0, e.clientY);
           box.style.display = "block";
-          box.style.left = Math.min(x0, e.clientX) + "px";
-          box.style.top = Math.min(y0, e.clientY) + "px";
-          box.style.width = Math.abs(e.clientX - x0) + "px";
-          box.style.height = Math.abs(e.clientY - y0) + "px";
+          box.style.left = left + "px";
+          box.style.top = top + "px";
+          box.style.width = right - left + "px";
+          box.style.height = bottom - top + "px";
+          for (const el of hits) el.classList.remove("marquee-hit");
+          hits = Array.from(timeline.querySelectorAll(".event")).filter((el) => {
+            const rect = el.getBoundingClientRect();
+            return rect.right >= left && rect.left <= right &&
+              rect.bottom >= top && rect.top <= bottom;
+          });
+          for (const el of hits) el.classList.add("marquee-hit");
+        };
+        const cleanup = () => {
+          timeline.removeEventListener("pointermove", move);
+          timeline.removeEventListener("pointerup", up);
+          timeline.removeEventListener("pointercancel", cancel);
+          timeline.removeEventListener("lostpointercapture", cancel);
+          window.removeEventListener("blur", cleanup);
+          if (timeline.hasPointerCapture(pointerId))
+            timeline.releasePointerCapture(pointerId);
+          box.style.display = "none";
+          for (const el of hits) el.classList.remove("marquee-hit");
+        };
+        const cancel = (e) => {
+          if (e.pointerId === pointerId) cleanup();
         };
         const up = (e) => {
-          window.removeEventListener("pointermove", move);
-          window.removeEventListener("pointerup", up);
-          box.style.display = "none";
+          if (e.pointerId !== pointerId) return;
+          move(e);
+          cleanup();
           const at = snapTime(
             (e.clientX - track.getBoundingClientRect().left) / px,
           );
@@ -3903,21 +3945,15 @@
             }
             return;
           }
-          const l = Math.min(x0, e.clientX),
-            r = Math.max(x0, e.clientX),
-            t = Math.min(y0, e.clientY),
-            b = Math.max(y0, e.clientY),
-            ids = [];
-          $$(".event").forEach((el) => {
-            const q = el.getBoundingClientRect();
-            if (q.right >= l && q.left <= r && q.bottom >= t && q.top <= b)
-              ids.push(el.dataset.id);
-          });
+          const ids = hits.map((el) => el.dataset.id);
           setSelection(ids);
           if (ids.length) toast(`${ids.length} selected`);
         };
-        window.addEventListener("pointermove", move);
-        window.addEventListener("pointerup", up);
+        timeline.addEventListener("pointermove", move);
+        timeline.addEventListener("pointerup", up);
+        timeline.addEventListener("pointercancel", cancel);
+        timeline.addEventListener("lostpointercapture", cancel);
+        window.addEventListener("blur", cleanup);
       }
       function renderTimeline() {
         const w = timelineWidth();

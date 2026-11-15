@@ -516,6 +516,20 @@ local function nativeSet(target, definition, attribute, value)
 	definition.update[attribute](target, value)
 end
 
+local function fixtureResetValues(shared, kind, definition)
+	local reset = shared.resetAttribute.reset
+	local values = {}
+	for attribute in pairs(definition.update) do
+		local specific = reset.specific[attribute]
+		local defaults = (specific and specific[kind]) or reset.general[attribute]
+		-- RGB white also resets hue. Sending hue separately can recolour the fixture.
+		if defaults and type(defaults[1]) == "number" and attribute ~= "hue" then
+			values[attribute] = defaults[1] / 100
+		end
+	end
+	return values
+end
+
 local function nativeAttributes(event, definition)
 	local action=event.action
 	local values={}
@@ -527,17 +541,14 @@ local function nativeAttributes(event, definition)
 		elseif type(v)=="table" then c=Color3.fromRGB(v[1] or v.r or 255,v[2] or v.g or 255,v[3] or v.b or 255) end
 		assert(c,"Invalid color cue")
 		values={red=c.R,green=c.G,blue=c.B}
-	elseif action=="level" or action=="intensity" or action=="flash" or action=="reset" or action=="strobe" then
-		local v=action=="reset" and 0 or (action=="flash" or action=="strobe") and 1 or math.clamp(tonumber(event.value) or 0,0,1)
+	elseif action=="level" or action=="intensity" or action=="flash" or action=="strobe" then
+		local v=(action=="flash" or action=="strobe") and 1 or math.clamp(tonumber(event.value) or 0,0,1)
 		if event.channel=="beam" then values["beam intensity"]=v
 		elseif event.channel=="gobo" then values["gobo intensity"]=v
 		else
 			for _,a in {"intensity","beam intensity","gobo intensity"} do if definition.update[a] then values[a]=v end end
 		end
-		if action=="reset" and not event.module and not event.channel then
-			if definition.update.pan then values.pan=0 end
-			if definition.update.tilt then values.tilt=0 end
-		end
+
 	else
 		local v=assert(tonumber(event.value),"Cue requires a numeric value")
 		if action=="pan" or action=="tilt" or action=="spin" or action=="pitch" then v/=100 end
@@ -565,6 +576,9 @@ function NativePlayback.cue(data)
 	assert(kind,"Invalid cue target")
 	local fixture=assert(shared.fixt[kind],"Unknown Flux fixture: "..kind)
 	local folder=assert(kit.fixtures.main:FindFirstChild(kind),"Fixture not installed: "..kind)
+	local reset = event.action == "reset"
+	local channelSelector = selector:match("^channel:(.+)$")
+	local moduleFilter = event.module or (channelSelector and tonumber(channelSelector))
 	local selected={}
 	for _,item in event.selection or {} do
 		local id=type(item)=="table" and (item[1] or item.fixture or item.index) or item
@@ -577,26 +591,37 @@ function NativePlayback.cue(data)
 	for index,model in nativeOrdered(folder) do
 		if not model:IsA("Model") then continue end
 		if hasSelection and not selected[tostring(index)] then continue end
-		if not hasSelection and selector~="all" and selector~="channel" and selector~="group" and selector~=tostring(index) and selector~=model.Name then continue end
+		if not hasSelection and selector~="all" and selector~="channel" and not channelSelector and selector~="group" and selector~=tostring(index) and selector~=model.Name then continue end
 		for module,definition in pairs(fixture.module) do
-			if event.module and tostring(event.module)~=tostring(module) then continue end
+			if not reset and moduleFilter and tostring(moduleFilter)~=tostring(module) then continue end
 			local targets={}
 			if definition.kind=="p" then
 				local pixels=model.use:FindFirstChild("pixels")
 				local channel=pixels and pixels:FindFirstChild(tostring(module))
 				if channel then targets=channel:GetChildren() end
 			else targets={model.use} end
-			local values=nativeAttributes(event,definition)
+			local values
+			if reset then
+				values = fixtureResetValues(shared, kind, definition)
+				for _, target in targets do
+					nativeJobs[target] = nil
+					nativeValues[target] = nil
+				end
+			else
+				values = nativeAttributes(event,definition)
+			end
 			for attribute,value in pairs(values) do
 				if not definition.update[attribute] then continue end
 				for _,target in targets do
 					count+=1
 					local jobs=nativeJobs[target] or {}
 					nativeJobs[target]=jobs
-					local duration=math.max(0,tonumber(event.duration) or 0)
+					local duration=reset and 0 or math.max(0,tonumber(event.duration) or 0)
 					local previous=nativeValues[target]
 					local from=previous and previous[attribute]
-					if event.automationFrom ~= nil then
+					if reset then
+						from=value
+					elseif event.automationFrom ~= nil then
 						from=nativeAttributes({action=event.action,value=event.automationFrom,channel=event.channel},definition)[attribute]
 					elseif from==nil then
 						from=nativeRead(target,definition,attribute,fixture)

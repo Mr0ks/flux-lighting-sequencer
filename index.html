@@ -2848,7 +2848,7 @@
               <option value="flash:fade-out">Fade</option>
               <option value="level:1">Turn on</option>
               <option value="level:0">Turn off</option>
-              <option value="reset:0">Reset</option>
+              <option value="reset:0">Reset fixture</option>
             </optgroup>
             <optgroup label="Flash">
             </optgroup>
@@ -2959,7 +2959,7 @@
             ["On", "level", 1],
             ["Off", "level", 0],
             ["Fade", "flash", "fade-out", 1],
-            ["Reset", "reset", 0],
+            ["Reset fixture", "reset", 0],
           ],
         ],
         [
@@ -4902,7 +4902,7 @@
                     (e.clientX - startX + scroller.scrollLeft - startScroll) /
                       px,
                 );
-          next = Math.max(0.05, end - item.time);
+          next = Math.max(0.05, minimumCueDuration(item), end - item.time);
           if (node)
             node.style.width = eventWidth({ ...item, duration: next }) + "px";
           const field = $("#evDuration");
@@ -5100,7 +5100,7 @@
         if (!s?.resize) return;
         s.deltaLeft += event.deltaRect?.left || 0;
         s.deltaWidth += event.deltaRect?.width || 0;
-        const minimum = Math.max(0.05, gridMetrics().snapSeconds),
+        const minimum = Math.max(0.05, gridMetrics().snapSeconds, minimumCueDuration(s.item, s.edge)),
           startRightTime = s.startRight / px;
         if (s.edge === "left") {
           s.nextTime = clamp(
@@ -5131,7 +5131,7 @@
         if (!s?.resize) return;
         commit();
         s.item.time = +s.nextTime.toFixed(3);
-        resizeCue(s.item, +s.next.toFixed(3));
+        resizeCue(s.item, +s.next.toFixed(3), s.edge);
         interactSession = null;
         autosave();
         renderTimeline();
@@ -5276,20 +5276,24 @@
         return e.flashTiming || [attack, Math.max(0, total - attack - release), release];
       }
 
-      function resizeCue(e, duration) {
+      function resizeFadeIn(attack, release, edge) {
+        if (!release && attack) return true;
+        if (!attack) return false;
+        return edge === "left";
+      }
+      function minimumCueDuration(event, edge) {
+        if (event.action !== "flash") return 0;
+        const [attack, hold, release] = fadePhases(event);
+        return hold + (resizeFadeIn(attack, release, edge) ? release : attack);
+      }
+      function resizeCue(e, duration, edge) {
         if (e.action === "flash") {
-          const [attack, oldHold, oldRelease] = fadePhases(e);
-          let hold = oldHold;
-          let release = oldRelease;
-          let delta = duration - (e.duration || attack + hold + release);
-          if (release > 0) {
-            const releaseDelta = Math.max(-release, delta);
-            release = Math.max(0, release + releaseDelta);
-            delta -= releaseDelta;
-          }
-          hold = Math.max(0, hold + delta);
-          e.flashTiming = [attack, hold, release];
-          duration = attack + hold + release;
+          const [attack, hold, release] = fadePhases(e);
+          const adjustAttack = resizeFadeIn(attack, release, edge);
+          const fixed = hold + (adjustAttack ? release : attack);
+          duration = Math.max(duration, fixed);
+          const changed = Math.max(0, duration - fixed);
+          e.flashTiming = adjustAttack ? [changed, hold, release] : [attack, hold, changed];
         }
         e.duration = duration;
       }
@@ -5398,7 +5402,7 @@
         const flashEditor = isFlash ? ["Fade in", "Hold", "Fade out"].map((name, index) =>
           `<div class="field"><label for="flashPhase${index}">${name} (seconds)</label><input id="flashPhase${index}" type="number" min="0" step=".001" value="${+phases[index].toFixed(3)}"></div>`
         ).join("") : "";
-        root.innerHTML = `<h2>${e.label}</h2><p class="sub">${isBlock ? `${e.actions?.length || 0} actions fire together` : e.native ? e.native.fixture + " · " + e.native.scope : e.target + " · " + e.action}</p><div class="row"><div class="field"><label>Time</label><input id="evTime" type="number" step=".001" value="${e.time}"></div><div class="field"><label>Duration</label><input id="evDuration" type="number" step=".05" min="0" value="${e.duration || 0}"></div></div>${showValue ? valueEditor : ""}${flashEditor}${isColor ? inspectorColourChoices(e.value, "event") : ""}${isBlock ? `<div class="section-title">Block actions</div>${e.actions.map((a) => `<p class="sub">${esc(a.label)} · ${esc(VALUE_INFO[a.action]?.label || a.action)}: ${esc(a.value)}${a.duration ? ` · ${a.duration}s` : ""}</p>`).join("")}` : ""}<div class="field"><label>Target</label><select id="evTarget">${targets}<option value="pyrotechnics" ${e.target === "pyrotechnics" ? "selected" : ""}>Pyrotechnics</option></select></div><div class="inspector-actions"><button class="pill" id="copyOne">Copy</button><button class="pill" id="duplicateOne">Duplicate</button><button class="pill danger" id="delete">Delete</button></div>`;
+        root.innerHTML = `<h2>${e.label}</h2><p class="sub">${isBlock ? `${e.actions?.length || 0} actions fire together` : e.native ? e.native.fixture + " · " + e.native.scope : e.target + " · " + e.action}</p><div class="row"><div class="field"><label>Time</label><input id="evTime" type="number" step=".001" value="${e.time}"></div><div class="field"><label>Duration</label><input id="evDuration" type="number" step=".05" min="0" value="${e.duration || 0}"></div></div>${showValue ? valueEditor : ""}${flashEditor}${e.action === "reset" ? `<small class="field-hint">Turns output off and restores white, home position, and Flux defaults across the targeted fixtures.</small>` : ""}${isColor ? inspectorColourChoices(e.value, "event") : ""}${isBlock ? `<div class="section-title">Block actions</div>${e.actions.map((a) => `<p class="sub">${esc(a.label)} · ${esc(VALUE_INFO[a.action]?.label || a.action)}: ${esc(a.value)}${a.duration ? ` · ${a.duration}s` : ""}</p>`).join("")}` : ""}<div class="field"><label>Target</label><select id="evTarget">${targets}<option value="pyrotechnics" ${e.target === "pyrotechnics" ? "selected" : ""}>Pyrotechnics</option></select></div><div class="inspector-actions"><button class="pill" id="copyOne">Copy</button><button class="pill" id="duplicateOne">Duplicate</button><button class="pill danger" id="delete">Delete</button></div>`;
         const change = () => {
           commit();
           e.time = snapTime(+$("#evTime").value);

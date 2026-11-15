@@ -1995,6 +1995,59 @@
           grid-template-columns: 1fr;
         }
       }
+      .automation-toolbar { display: flex; align-items: center; padding: 0 10px; }
+      #automationToggle {
+        display: inline-flex; align-items: center; gap: 7px;
+        padding: 3px 8px; border: 1px solid #3d3d43; border-radius: 5px;
+        background: #202025; color: #c7c7cc; font-size: 11px; cursor: pointer;
+      }
+      #automationToggle[aria-pressed="true"] {
+        background: #263e4c; color: #c2ebff; border-color: #527b90;
+      }
+      #automationToggle kbd { opacity: .7; font-size: 10px; }
+      .automation-lane { border-top: 1px solid #393239; }
+      .automation-lane .lane-label {
+        background: #211d24; box-shadow: inset 3px 0 #c685a4;
+        position: relative;
+      }
+      .automation-lane .lane-label b { color: #f2d9e5; padding-right: 20px; }
+      .automation-remove {
+        position: absolute; top: 8px; right: 8px;
+        border: 0; border-radius: 4px; background: transparent;
+        color: #b8a9b5; font-size: 15px; cursor: pointer;
+      }
+      .automation-remove:hover { background: #40343f; color: white; }
+      .automation-graph {
+        flex: none;
+        touch-action: none;
+        cursor: crosshair;
+        background-color: #1b191e;
+        background-image:
+          linear-gradient(90deg, #3a343c 1px, transparent 1px),
+          linear-gradient(90deg, #29262c 1px, transparent 1px),
+          repeating-linear-gradient(180deg, #303030 0 1px, transparent 1px 14px);
+        background-size: var(--major-grid) 100%, var(--snap-grid) 100%, 100% 100%;
+        background-position: 0 0, 0 0, 0 8px;
+      }
+      .automation-graph circle { cursor: grab; stroke: #141414; stroke-width: 1.5px; }
+      .automation-graph circle:hover { fill: #ffd0b8; }
+      .automation-picker {
+        display: block;
+        width: max-content;
+        max-width: 100%;
+        margin-top: 2px;
+        padding: 0 4px;
+        height: 17px;
+        border: 1px solid #444;
+        border-radius: 4px;
+        background: #181818;
+        color: #ddd;
+        font-size: 10px;
+        cursor: pointer;
+      }
+      .automation-lane { border-bottom: 1px solid #51404c; }
+      .automation-lane .lane-label { border-right: 1px solid #51404c; }
+      .automation-graph { box-shadow: inset 0 1px #302831, inset 0 -1px #302831; }
     </style>
   </head>
   <body>
@@ -2171,7 +2224,7 @@
             </div>
           </div>
           <div class="ruler-row">
-            <div class="sticky-label"></div>
+            <div class="sticky-label automation-toolbar"><button id="automationToggle" type="button" aria-pressed="false" title="Toggle automation (A)"><span aria-hidden="true">⎇</span> Automation <kbd>A</kbd></button></div>
             <div class="ruler" id="ruler"></div>
           </div>
           <div class="scroller" id="scroller">
@@ -3890,13 +3943,13 @@
             return { event, row };
           });
       }
-      function laneMarkup(key, label, detail, w) {
+      function laneMarkup(key, label, detail, w, controls = "") {
         const stacked = stackEvents(
             state.events.filter((e) => e.target === key),
           ),
           rows = Math.max(1, ...stacked.map((x) => x.row + 1)),
           height = 56 + (rows - 1) * 42;
-        return `<div class="lane" style="height:${height}px"><div class="lane-label ${selectedLane === key ? "selected" : ""}" data-lane="${key}"><b>${label}</b><small>${detail}</small></div><div class="track" data-lane="${key}" style="width:${w}px">${stacked.map((x) => eventHtml(x.event, x.row)).join("")}</div></div>`;
+        return `<div class="lane" style="height:${height}px"><div class="lane-label ${selectedLane === key ? "selected" : ""}" data-lane="${key}"><b>${label}</b><small>${detail}</small>${controls}</div><div class="track" data-lane="${key}" style="width:${w}px">${stacked.map((x) => eventHtml(x.event, x.row)).join("")}</div></div>`;
       }
       function startMarquee(ev) {
         if (!ev.isPrimary || ev.button !== 0 ||
@@ -3986,6 +4039,109 @@
         timeline.addEventListener("lostpointercapture", cancel);
         window.addEventListener("blur", cleanup);
       }
+      let automationVisible = false;
+      const automationRanges = {
+        intensity: [0, 1], hue: [0, 1], red: [0, 1], green: [0, 1], blue: [0, 1],
+        pan: [-180, 180], tilt: [-180, 180], spin: [-180, 180], pitch: [-180, 180],
+        iris: [0, 1], width: [0, 1], shutter: [0, 1],
+        "beam intensity": [0, 1], "gobo intensity": [0, 1],
+      };
+      function automationLabel(attribute) {
+        return attribute.replace(/intensity/g, "brightness").replace(/^./, c => c.toUpperCase());
+      }
+      function automationValue(attribute, value) {
+        return automationRanges[attribute][0] < 0 ? `${Math.round(value)}°` : `${Math.round(value * 100)}%`;
+      }
+      function automationPicker(lane, caps) {
+        if (!automationVisible) return "";
+        const key = esc(lane.key);
+        const curves = state.automation?.[lane.key] || {};
+        const options = Object.keys(automationRanges).filter((attribute) =>
+          !curves[attribute] && (caps.includes(attribute) ||
+            (["hue", "red", "green", "blue"].includes(attribute) && caps.includes("color"))));
+        if (!options.length) return "";
+        return `<select class="automation-picker" data-auto-add="${key}" aria-label="Add automation to ${esc(lane.label)}"><option value="">+ Add automation</option>${options.map(a => `<option value="${a}">${automationLabel(a)}</option>`).join("")}</select>`;
+      }
+      function automationMarkup(lane, width) {
+        if (!automationVisible) return "";
+        const key = esc(lane.key);
+        const curves = state.automation?.[lane.key] || {};
+        let html = "";
+        for (const [attribute, points] of Object.entries(curves)) {
+          const [low, high] = automationRanges[attribute];
+          const y = (value) => 64 - 56 * (value - low) / (high - low);
+          html += `<div class="lane automation-lane" style="height:72px"><div class="lane-label"><b>${automationLabel(attribute)}</b><small data-auto-readout>${automationValue(attribute, low)} – ${automationValue(attribute, high)}</small><button type="button" class="automation-remove" title="Remove lane" aria-label="Remove ${automationLabel(attribute)} automation" data-auto-remove="${esc(attribute)}" data-auto-key="${key}">×</button></div><svg width="${width}" height="72" class="automation-graph" data-auto-key="${key}" data-auto-curve="${esc(attribute)}"><polyline fill="none" stroke="#ff763f" stroke-width="2" points="${points.map(p => [p.time * px, y(p.value)].join(",")).join(" ")}"/>${points.map((p, i) => `<circle cx="${p.time * px}" cy="${y(p.value)}" r="4" fill="#ff763f" data-point="${i}"><title>${p.time}s · ${automationValue(attribute, p.value)}</title></circle>`).join("")}</svg></div>`;
+        }
+        return html;
+      }
+      function bindAutomation() {
+        $$("[data-auto-add]").forEach(select => {
+          select.onclick = (event) => event.stopPropagation();
+          select.onchange = () => {
+            if (!select.value) return;
+            commit();
+            const tracks = state.automation ||= {};
+            (tracks[select.dataset.autoAdd] ||= {})[select.value] = [];
+            renderTimeline();
+            autosave();
+          };
+        });
+        $$("[data-auto-remove]").forEach(button => button.onclick = () => {
+          commit();
+          delete state.automation[button.dataset.autoKey][button.dataset.autoRemove];
+          renderTimeline();
+          autosave();
+        });
+        $$("[data-auto-curve]").forEach(svg => {
+          const attribute = svg.dataset.autoCurve;
+          const points = state.automation[svg.dataset.autoKey][attribute];
+          svg.oncontextmenu = (event) => {
+            event.preventDefault();
+            if (event.target.dataset.point == null) return;
+            commit();
+            points.splice(+event.target.dataset.point, 1);
+            renderTimeline();
+            autosave();
+          };
+          svg.onpointerdown = (event) => {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            commit();
+            const index = event.target.dataset.point;
+            const point = index == null ? {} : points[+index];
+            if (index == null) points.push(point);
+            const [low, high] = automationRanges[attribute];
+            const move = (e) => {
+              const rect = svg.getBoundingClientRect();
+              const time = clamp((e.clientX - rect.left) / px, 0, state.duration);
+              point.time = e.altKey ? +time.toFixed(3) : snapTime(time);
+              const ratio = Math.max(0, Math.min(1, (64 - e.clientY + rect.top) / 56));
+              point.value = +(low + ratio * (high - low)).toFixed(3);
+              const marker = svg.querySelector(`[data-point="${points.indexOf(point)}"]`) ||
+                svg.appendChild(document.createElementNS("http://www.w3.org/2000/svg", "circle"));
+              marker.dataset.point = points.indexOf(point);
+              marker.setAttribute("r", "5");
+              marker.setAttribute("fill", "#ffad85");
+              marker.setAttribute("cx", point.time * px);
+              marker.setAttribute("cy", 64 - 56 * ratio);
+              svg.parentElement.querySelector("[data-auto-readout]").textContent =
+                `${point.time.toFixed(3)}s · ${automationValue(attribute, point.value)}`;
+              const ordered = [...points].sort((a,b) => a.time - b.time);
+              svg.querySelector("polyline").setAttribute("points", ordered.map(p => `${p.time * px},${64 - 56 * (p.value-low)/(high-low)}`).join(" "));
+            };
+            move(event);
+            svg.setPointerCapture(event.pointerId);
+            svg.onpointermove = move;
+            svg.onlostpointercapture = () => {
+              const duplicate = points.findIndex(other => other !== point && Math.abs(other.time - point.time) < .0005);
+              if (duplicate >= 0) points.splice(duplicate, 1);
+              points.sort((a,b) => a.time - b.time);
+              renderTimeline();
+              autosave();
+            };
+          };
+        });
+      }
       // Existing projects retain their authored automation when exported.
       function automationEvents(projectState) {
         const events = [];
@@ -4005,7 +4161,12 @@
         }
         return events;
       }
+      $("#automationToggle").onclick = () => {
+        automationVisible = !automationVisible;
+        renderTimeline();
+      };
       function renderTimeline() {
+        $("#automationToggle").setAttribute("aria-pressed", String(automationVisible));
         const w = timelineWidth();
         applyGridStyles($("#timeline"));
         let html = `<div class="playhead" id="head"></div>`;
@@ -4016,7 +4177,8 @@
             lane.label,
             lane.detail + " · " + caps.join(" · "),
             w,
-          );
+            automationPicker(lane, caps),
+          ) + automationMarkup(lane, w);
         }
         html += laneMarkup(
           "pyrotechnics",
@@ -4034,6 +4196,7 @@
               syncPaletteAvailability();
             }),
         );
+        bindAutomation();
         initEventInteractions();
         $("#timeline").onpointerdown = startMarquee;
         drawHead();
@@ -4932,18 +5095,10 @@
             ? `<div class="field"><label>${esc(valueInfo.label)}</label><input id="evRange" type="range" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"><input id="evValue" type="number" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"><small class="field-hint">${esc(valueInfo.hint)}</small></div>`
             : `<div class="field"><label>${esc(valueInfo.label)}</label><input id="evValue" type="number" step=".01" value="${e.value}"><small class="field-hint">${esc(valueInfo.hint)}</small></div>`;
         const phases = fadePhases(e);
-        const speedFader = e.action === "flux-effect"
-          && nativeMetadata(e.native).map(meta => meta.speed).find(speed => ["dim","strobe","color","iris","width","movement","spin"].includes(speed));
-        const speedEditor = speedFader ? `<div class="section-title">Speed · ${speedFader}</div>
-          <label><input id="speedEnabled" type="checkbox" ${e.speedCurve || e.speedRamp ? "checked" : ""}> Follow speed graph</label>
-          <svg id="speedGraph" viewBox="0 0 240 112" style="width:100%;margin-top:8px;background:#19191e;border:1px solid #444;border-radius:6px;touch-action:none" aria-label="Effect speed graph"></svg>
-          <div class="row"><label class="field">Start BPM<input id="speedStart" type="number" min="1" max="300"></label><label class="field">End BPM<input id="speedEnd" type="number" min="1" max="300"></label></div>
-          <small class="field-hint">Click to add a keyframe. Drag to move it. Right-click an interior point to delete it. Uses Flux's shared ${speedFader} fader.</small>`
-          : e.action === "flux-effect" ? '<small class="field-hint">Speed graphs require a supported Flux speed fader in the saved effect.</small>' : "";
         const flashEditor = isFlash ? ["Fade in", "Hold", "Fade out"].map((name, index) =>
           `<div class="field"><label for="flashPhase${index}">${name} (seconds)</label><input id="flashPhase${index}" type="number" min="0" step=".001" value="${+phases[index].toFixed(3)}"></div>`
         ).join("") : "";
-        root.innerHTML = `<h2>${e.label}</h2><p class="sub">${isBlock ? `${e.actions?.length || 0} actions fire together` : e.native ? e.native.fixture + " · " + e.native.scope : e.target + " · " + e.action}</p><div class="row"><div class="field"><label>Time</label><input id="evTime" type="number" step=".001" value="${e.time}"></div><div class="field"><label>Duration</label><input id="evDuration" type="number" step=".05" min="0" value="${e.duration || 0}"></div></div>${showValue ? valueEditor : ""}${flashEditor}${speedEditor}${isColor ? inspectorColourChoices(e.value, "event") : ""}${isBlock ? `<div class="section-title">Block actions</div>${e.actions.map((a) => `<p class="sub">${esc(a.label)} · ${esc(VALUE_INFO[a.action]?.label || a.action)}: ${esc(a.value)}${a.duration ? ` · ${a.duration}s` : ""}</p>`).join("")}` : ""}<div class="field"><label>Target</label><select id="evTarget">${targets}<option value="pyrotechnics" ${e.target === "pyrotechnics" ? "selected" : ""}>Pyrotechnics</option></select></div><div class="inspector-actions"><button class="pill" id="copyOne">Copy</button><button class="pill" id="duplicateOne">Duplicate</button><button class="pill danger" id="delete">Delete</button></div>`;
+        root.innerHTML = `<h2>${e.label}</h2><p class="sub">${isBlock ? `${e.actions?.length || 0} actions fire together` : e.native ? e.native.fixture + " · " + e.native.scope : e.target + " · " + e.action}</p><div class="row"><div class="field"><label>Time</label><input id="evTime" type="number" step=".001" value="${e.time}"></div><div class="field"><label>Duration</label><input id="evDuration" type="number" step=".05" min="0" value="${e.duration || 0}"></div></div>${showValue ? valueEditor : ""}${flashEditor}${isColor ? inspectorColourChoices(e.value, "event") : ""}${isBlock ? `<div class="section-title">Block actions</div>${e.actions.map((a) => `<p class="sub">${esc(a.label)} · ${esc(VALUE_INFO[a.action]?.label || a.action)}: ${esc(a.value)}${a.duration ? ` · ${a.duration}s` : ""}</p>`).join("")}` : ""}<div class="field"><label>Target</label><select id="evTarget">${targets}<option value="pyrotechnics" ${e.target === "pyrotechnics" ? "selected" : ""}>Pyrotechnics</option></select></div><div class="inspector-actions"><button class="pill" id="copyOne">Copy</button><button class="pill" id="duplicateOne">Duplicate</button><button class="pill danger" id="delete">Delete</button></div>`;
         const change = () => {
           commit();
           e.time = snapTime(+$("#evTime").value);
@@ -4961,73 +5116,6 @@
           const x = $("#" + id);
           if (x) x.onchange = change;
         });
-        if (speedFader) {
-          const svg = $("#speedGraph");
-          const enabled = $("#speedEnabled");
-          const old = e.speedRamp;
-          const fraction = old ? clamp(old[2] / Math.max(.1, e.duration), .001, 1) : 1;
-          const points = structuredClone(e.speedCurve || [[0, old?.[0] ?? 60],
-            ...(fraction < 1 ? [[fraction, old[1]]] : []), [1, old?.[1] ?? 240]]);
-          const x = point => 10 + point[0] * 220;
-          const y = point => 102 - (point[1] - 1) / 299 * 92;
-          const draw = () => {
-            svg.innerHTML = [10,33,56,79,102].map(y => `<path d="M10 ${y}H230" stroke="#383841"/>`).join("")
-              + [10,65,120,175,230].map(x => `<path d="M${x} 10V102" stroke="#383841"/>`).join("")
-              + `<polyline points="${points.map(point => [x(point), y(point)].join(",")).join(" ")}" fill="none" stroke="#ff9265" stroke-width="2"/>`
-              + points.map((point, index) => `<circle data-keyframe="${index}" cx="${x(point)}" cy="${y(point)}" r="5" fill="#ff9265"><title>${(point[0] * e.duration).toFixed(2)}s · ${point[1]} BPM</title></circle>`).join("");
-            $("#speedStart").value = points[0][1];
-            $("#speedEnd").value = points.at(-1)[1];
-          };
-          const save = () => {
-            delete e.speedRamp;
-            if (enabled.checked) e.speedCurve = structuredClone(points);
-            else delete e.speedCurve;
-            autosave();
-          };
-          enabled.onchange = () => { commit(); save(); };
-          for (const [id, index] of [["speedStart", 0], ["speedEnd", -1]]) {
-            $("#" + id).onchange = event => {
-              commit();
-              points.at(index)[1] = clamp(event.target.valueAsNumber || 1, 1, 300);
-              enabled.checked = true;
-              draw();
-              save();
-            };
-          }
-          svg.oncontextmenu = event => {
-            event.preventDefault();
-            const index = Number(event.target.dataset.keyframe);
-            if (!(index > 0 && index < points.length - 1)) return;
-            commit();
-            points.splice(index, 1);
-            draw();
-            save();
-          };
-          svg.onpointerdown = event => {
-            if (event.button !== 0) return;
-            event.preventDefault();
-            commit();
-            const point = points[Number(event.target.dataset.keyframe)] || [0, 60];
-            const endpoint = point === points[0] || point === points.at(-1);
-            if (!points.includes(point)) points.push(point);
-            const move = event => {
-              const coords = new DOMPoint(event.clientX, event.clientY).matrixTransform(svg.getScreenCTM().inverse());
-              if (!endpoint) point[0] = clamp((coords.x - 10) / 220, .001, .999);
-              point[1] = Math.round(clamp(1 + (102 - coords.y) / 92 * 299, 1, 300));
-              points.sort((a, b) => a[0] - b[0]);
-              draw();
-            };
-            enabled.checked = true;
-            svg.setPointerCapture(event.pointerId);
-            move(event);
-            svg.onpointermove = move;
-            svg.onlostpointercapture = () => {
-              svg.onpointermove = null;
-              save();
-            };
-          };
-          draw();
-        }
         if (isFlash) {
           for (let index = 0; index < 3; index++) {
             $("#flashPhase" + index).onchange = () => {
@@ -6689,7 +6777,10 @@
         if (isTextControl(e.target)) return;
         const mod = e.ctrlKey || e.metaKey,
           key = e.key.toLowerCase();
-        if (mod && key === "a") {
+        if (!mod && key === "a" && !e.altKey && !e.repeat) {
+          e.preventDefault();
+          $("#automationToggle").click();
+        } else if (mod && key === "a") {
           e.preventDefault();
           setSelection(
             state.events.map((event) => event.id),

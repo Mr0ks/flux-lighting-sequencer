@@ -198,8 +198,12 @@ end
 
 local function validateNativeShow(events)
 	local scopes={}
-	local function check(event)
-		if event.action=="block" then for _,child in event.actions or {} do check(child) end;return end
+	local function check(event, inheritedTarget)
+		local target = event.target or inheritedTarget
+		if event.action=="block" then
+			for _,child in event.actions or {} do check(child, target) end
+			return
+		end
 		if event.action == "beam-mode" and event.target then
 			beamModeTarget(event)
 			return
@@ -210,7 +214,22 @@ local function validateNativeShow(events)
 			if not scopes[scope] then
 				scopes[scope]=DataStoreService:GetDataStore(Config.FluxDataStoreName,scope):GetAsync(Config.FluxShowKey) or {}
 			end
-			local fixture=native.fixture or tostring(event.target):match("^([^:]+):")
+			local targetFixture = tostring(target):match("^([^:]+):")
+			local fixture = native.fixture or targetFixture
+			if scope == "effects" then
+				assert(fixture == targetFixture, "Flux effect fixture does not match its track.")
+				local group = effectGroup(target)
+				if group then
+					if not scopes.groups then
+						scopes.groups = DataStoreService:GetDataStore(Config.FluxDataStoreName, "groups"):GetAsync(Config.FluxShowKey) or {}
+					end
+					local groups = scopes.groups[fixture]
+					assert(groups and groups[group] and type(groups[group].meta) == "table" and next(groups[group].meta),
+						"Flux group is missing or empty: " .. fixture .. " / " .. group .. ". Refresh the sequencer's Flux import.")
+					local functions = findKit().components.scripts["flux kit client"].modules.functions
+					assert(functions:GetAttribute("FluxShowsGroupEffectsVersion") == 1, "Install the Flux group effect adapter before playing a group effect.")
+				end
+			end
 			local installed=scopes[scope][fixture]
 			assert(installed and installed[native.name],"Flux "..scope.." preset is missing: "..tostring(fixture).." / "..tostring(native.name)..". Refresh the sequencer's Flux import.")
 			-- Use the current game preset for conflict ownership as well as execution.

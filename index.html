@@ -4774,7 +4774,8 @@
           maxTime = Math.max(
             ...starts.map((s) => s.time + Math.max(0, s.e.duration || 0)),
           ),
-          trash = $("#dragTrash");
+          trash = $("#dragTrash"),
+          keepTracks = spansMultipleTracks(starts);
         let moved = false,
           overTrash = false,
           shift = 0,
@@ -4809,7 +4810,7 @@
           trash.classList.toggle("hot", overTrash);
           clear();
           target = null;
-          const track = overTrash ? null : trackAtPoint(e.clientX, e.clientY);
+          const track = overTrash || keepTracks ? null : trackAtPoint(e.clientX, e.clientY);
           if (track) {
             const key = track.dataset.lane,
               ok = starts.every((s) =>
@@ -4831,7 +4832,7 @@
             const source = s.node.getBoundingClientRect();
             const top = target && track
               ? track.getBoundingClientRect().top + 9
-              : source.top + e.clientY - startY;
+              : source.top + (keepTracks && !overTrash ? 0 : e.clientY - startY);
             showCueDragPreview(s, source.left + shift * px, top);
           });
         };
@@ -4943,6 +4944,10 @@
         window.addEventListener("pointermove", move);
         window.addEventListener("pointerup", up);
       }
+      function spansMultipleTracks(starts) {
+        return new Set(starts.map(start => start.target)).size > 1;
+      }
+
       function showCueDragPreview(start, left, top) {
         if (!start.node) return;
         if (!start.ghost) {
@@ -4975,7 +4980,7 @@
         interactFrame = 0;
         const s = interactSession;
         if (!s || s.resize) return;
-        const track = s.overTrash
+        const track = s.overTrash || s.keepTracks
           ? null
           : trackAtPoint(s.clientX, s.clientY, visibleTrackZones());
         s.highlight?.classList.remove("drop-ok", "drop-bad");
@@ -4999,7 +5004,7 @@
           s.invalid = !ok;
         }
         const rawShift = (s.dx + s.scroller.scrollLeft - s.startScroll) / px;
-        const alignedShift = s.target
+        const alignedShift = s.target || s.keepTracks
           ? snapTime(s.anchorTime + rawShift) - s.anchorTime
           : rawShift;
         s.shift = clamp(alignedShift, -s.minTime, state.duration - s.maxTime);
@@ -5013,7 +5018,7 @@
           const source = x.node.getBoundingClientRect();
           const top = s.target
             ? targetTop + 9 + (rows.get(x.e.id) || 0) * 42
-            : source.top + s.dy;
+            : source.top + (s.keepTracks && !s.overTrash ? 0 : s.dy);
           showCueDragPreview(x, source.left + s.shift * px, top);
         });
       }
@@ -5048,6 +5053,7 @@
           .filter((x) => x.node && x.track);
         interactSession = {
           starts,
+          keepTracks: spansMultipleTracks(starts),
           scroller,
           startScroll: scroller.scrollLeft,
           anchorTime: item.time,
@@ -5098,6 +5104,8 @@
           selectedEvents.clear();
           selectedEvent = null;
           toast(`${count} event${count === 1 ? "" : "s"} deleted`);
+        } else if (s.keepTracks) {
+          s.starts.forEach((x) => { x.e.time = +(x.time + s.shift).toFixed(3); });
         } else if (s.target && !s.invalid) {
           s.starts.forEach((x) => {
             x.e.time = +(x.time + s.shift).toFixed(3);

@@ -2015,6 +2015,14 @@
         }
       }
       .automation-toolbar { display: flex; align-items: center; padding: 0 10px; }
+      .track-collapse { position: absolute; top: 8px; right: 8px; width: 21px; height: 21px; padding: 0; border: 1px solid #414146; border-radius: 5px; background: #202025; color: #ddd; font: 13px/1 ui-monospace, monospace; cursor: pointer; }
+      .track-collapse:hover { border-color: #85858a; background: #303035; }
+      .track-group.collapsed .lane:not(.automation-lane) { height: 34px !important; }
+      .track-group.collapsed .automation-lane { display: none; }
+      .track-group.collapsed .lane:not(.automation-lane) .lane-label { padding-block: 6px; }
+      .track-group.collapsed .lane:not(.automation-lane) .track { background-color: #141416; }
+      .track-group.collapsed .track .event { top: 4px !important; height: 24px; padding: 3px 8px; }
+      .track-group.collapsed .track .event:not(:first-child) { display: none; }
       #automationToggle {
         display: inline-flex; align-items: center; gap: 7px;
         padding: 3px 8px; border: 1px solid #3d3d43; border-radius: 5px;
@@ -4080,6 +4088,7 @@
         window.addEventListener("blur", cleanup);
       }
       let automationVisible = false;
+      const collapsedTracks = new Set();
       const automationRanges = {
         intensity: [0, 1], hue: [0, 1], red: [0, 1], green: [0, 1], blue: [0, 1],
         pan: [-180, 180], tilt: [-180, 180], spin: [-180, 180], pitch: [-180, 180],
@@ -4218,12 +4227,14 @@
         let html = `<div class="playhead" id="head"></div>`;
         for (const lane of laneList()) {
           const caps = capabilities(lane.type, lane.module, lane.channel);
-          html += `<div class="track-group">` + laneMarkup(
+          const collapsed = collapsedTracks.has(lane.key);
+          const collapseButton = `<button class="track-collapse" type="button" data-track-collapse="${esc(lane.key)}" aria-expanded="${!collapsed}" title="${collapsed ? "Expand" : "Collapse"} track">${collapsed ? "+" : "−"}</button>`;
+          html += `<div class="track-group${collapsed ? " collapsed" : ""}">` + laneMarkup(
             lane.key,
             lane.label,
             lane.detail + " · " + caps.join(" · "),
             w,
-            automationPicker(lane, caps),
+            automationPicker(lane, caps) + collapseButton,
           ) + automationMarkup(lane, w) + "</div>";
         }
         html += laneMarkup(
@@ -4244,6 +4255,15 @@
               syncPaletteAvailability();
             }),
         );
+        $$("[data-track-collapse]").forEach((button) => {
+          button.onclick = (event) => {
+            event.stopPropagation();
+            const key = button.dataset.trackCollapse;
+            if (collapsedTracks.has(key)) collapsedTracks.delete(key);
+            else collapsedTracks.add(key);
+            renderTimeline();
+          };
+        });
         bindAutomation();
         initEventInteractions();
         $("#timeline").onpointerdown = startMarquee;

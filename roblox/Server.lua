@@ -164,10 +164,30 @@ local function nativeMetas(payload)
 	return result
 end
 
+local function beamModeTarget(event)
+	local fixture, lane = tostring(event.target):match("^([^:]+):(.+)$")
+	local kit = assert(findKit(), "Configured Flux kit is missing")
+	local definitions = require(kit.Parent.Parent.components.scripts.shared).fixt
+	local definition = fixture and definitions[fixture]
+	assert(definition and definition.capabilities and definition.capabilities.beam,
+		"Beam visibility is unavailable for " .. tostring(fixture))
+	assert(event.value == 0 or event.value == 1, "Beam visibility must be 0 or 1.")
+	if lane == "all" then return kit, fixture, "all 1" end
+	local name = lane:match("^group:(.+)$")
+	assert(name, "Use a whole fixture or Flux group track for beam visibility.")
+	return kit, fixture, (name:gsub("%%(%x%x)", function(hex)
+		return string.char(tonumber(hex, 16))
+	end))
+end
+
 local function validateNativeShow(events)
 	local scopes={}
 	local function check(event)
 		if event.action=="block" then for _,child in event.actions or {} do check(child) end;return end
+		if event.action == "beam-mode" and event.target then
+			beamModeTarget(event)
+			return
+		end
 		local scope=({["flux-effect"]="effects",["flux-position"]="positions",["flux-macro"]="macros"})[event.action]
 		if scope then
 			local native=assert(event.native,"Missing native preset data")
@@ -200,6 +220,11 @@ local function apply(event, token, started)
 			for _,key in {"target","selection","module","channel"} do if nested[key]==nil then nested[key]=event[key] end end
 			apply(nested,token,started)
 		end
+		return
+	end
+	if event.action == "beam-mode" then
+		local kit, fixture, group = beamModeTarget(event)
+		kit.components.remotes.call.functions:FireAllClients("mode", fixture, group, event.value == 1)
 		return
 	end
 	local kind=tostring(event.target):match("^([^:]+):")

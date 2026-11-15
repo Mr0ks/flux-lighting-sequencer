@@ -2873,7 +2873,9 @@
               <option value="strobe:10">Strobe</option>
               <option value="iris:1">Iris</option>
               <option value="shutter:1">Shutter</option>
-              <option value="beam intensity:1">Beam</option>
+              <option value="beam intensity:1">Beam intensity</option>
+              <option value="beam-mode:1">Show visible beam</option>
+              <option value="beam-mode:0">Hide visible beam</option>
               <option value="gobo intensity:1">Gobo</option>
               <option value="width:1">Laser width</option>
             </optgroup>
@@ -2997,7 +2999,9 @@
             ["Strobe", "strobe", 10, 1],
             ["Iris", "iris", 1, 0.5],
             ["Shutter", "shutter", 1],
-            ["Beam", "beam intensity", 1, 0.5],
+            ["Beam intensity", "beam intensity", 1, 0.5],
+            ["Show visible beam", "beam-mode", 1],
+            ["Hide visible beam", "beam-mode", 0],
             ["Gobo", "gobo intensity", 1, 0.5],
             ["Laser width", "width", 1, 0.5],
           ],
@@ -4546,6 +4550,10 @@
         const type = target.split(":")[0];
         const fixture = patchEntry(type);
         if (!fixture || fixture.count <= 0) return false;
+        if (action === "beam-mode") {
+          const supported = ["wash", "profile", "follow spotlight", "par", "magic blade"];
+          return supported.includes(type) && (target === type + ":all" || target.startsWith(type + ":group:"));
+        }
         if (action === "block")
           return (
             Array.isArray(actions) &&
@@ -5227,6 +5235,7 @@
           });
       }
       const VALUE_INFO = {
+        "beam-mode": { label: "Visible beam", hint: "0 hides the visible beam and 1 shows it. Fixture light output stays on.", range: [0, 1, 1] },
         level: {
           label: "Brightness (0–1)",
           hint: "0 = off · 0.5 = half · 1 = full",

@@ -607,17 +607,17 @@
         background-image:
           repeating-linear-gradient(
             90deg,
-            rgba(255, 255, 255, 0.15) 0 1px,
+            rgba(255, 255, 255, var(--grid-bar-alpha, 0.19)) 0 1px,
             transparent 1px var(--bar-grid, calc(var(--pps) * 4))
           ),
           repeating-linear-gradient(
             90deg,
-            rgba(255, 255, 255, 0.07) 0 1px,
+            rgba(255, 255, 255, var(--grid-beat-alpha, 0.10)) 0 1px,
             transparent 1px var(--beat-grid, var(--pps))
           ),
           repeating-linear-gradient(
             90deg,
-            rgba(255, 255, 255, 0.025) 0 1px,
+            rgba(255, 255, 255, var(--grid-snap-alpha, 0.04)) 0 1px,
             transparent 1px var(--snap-grid, var(--pps))
           );
         cursor: pointer;
@@ -692,17 +692,17 @@
         background-image:
           repeating-linear-gradient(
             90deg,
-            rgba(255, 255, 255, 0.15) 0 1px,
+            rgba(255, 255, 255, var(--grid-bar-alpha, 0.19)) 0 1px,
             transparent 1px var(--bar-grid, calc(var(--pps) * 4))
           ),
           repeating-linear-gradient(
             90deg,
-            rgba(255, 255, 255, 0.07) 0 1px,
+            rgba(255, 255, 255, var(--grid-beat-alpha, 0.10)) 0 1px,
             transparent 1px var(--beat-grid, var(--pps))
           ),
           repeating-linear-gradient(
             90deg,
-            rgba(255, 255, 255, 0.025) 0 1px,
+            rgba(255, 255, 255, var(--grid-snap-alpha, 0.04)) 0 1px,
             transparent 1px var(--snap-grid, var(--pps))
           );
         cursor: pointer;
@@ -2023,15 +2023,6 @@
       .track-group.collapsed .lane:not(.automation-lane) .track { background-color: #141416; }
       .track-group.collapsed .track .event { top: 4px !important; height: 24px; padding: 3px 8px; }
       .track-group.collapsed .track .event:not(:first-child) { display: none; }
-      #automationToggle {
-        display: inline-flex; align-items: center; gap: 7px;
-        padding: 3px 8px; border: 1px solid #3d3d43; border-radius: 5px;
-        background: #202025; color: #c7c7cc; font-size: 11px; cursor: pointer;
-      }
-      #automationToggle[aria-pressed="true"] {
-        background: #263e4c; color: #c2ebff; border-color: #527b90;
-      }
-      #automationToggle kbd { opacity: .7; font-size: 10px; }
       .automation-lane {
         height: 46px;
         border-bottom: 1px solid #3c313a;
@@ -2056,9 +2047,9 @@
         cursor: crosshair;
         background-color: #1b191e;
         background-image:
-          repeating-linear-gradient(90deg, rgba(255,255,255,.15) 0 1px, transparent 1px var(--bar-grid)),
-          repeating-linear-gradient(90deg, rgba(255,255,255,.075) 0 1px, transparent 1px var(--beat-grid)),
-          repeating-linear-gradient(90deg, rgba(255,255,255,.028) 0 1px, transparent 1px var(--snap-grid)),
+          repeating-linear-gradient(90deg, rgba(255,255,255,var(--grid-bar-alpha,.19)) 0 1px, transparent 1px var(--bar-grid)),
+          repeating-linear-gradient(90deg, rgba(255,255,255,var(--grid-beat-alpha,.10)) 0 1px, transparent 1px var(--beat-grid)),
+          repeating-linear-gradient(90deg, rgba(255,255,255,var(--grid-snap-alpha,.04)) 0 1px, transparent 1px var(--snap-grid)),
           repeating-linear-gradient(180deg, #303030 0 1px, transparent 1px 14px);
         background-size: var(--bar-grid) 100%, var(--beat-grid) 100%, var(--snap-grid) 100%, 100% 100%;
         background-position: 0 0, 0 0, 0 0, 0 8px;
@@ -2143,25 +2134,65 @@
       }
       .automation-lane .lane-label b { font-size: var(--ui-xs); }
       .automation-lane .lane-label small { font-size: clamp(0.62rem, 0.12vw + 0.59rem, 0.72rem); }
+      .lane-label {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: stretch;
+        gap: 2px;
+        padding: 5px 30px 5px 12px;
+      }
+      .lane-label b {
+        padding: 0;
+        font-size: clamp(0.8rem, 0.2vw + 0.75rem, 0.92rem);
+        line-height: 1.2;
+      }
+      .lane-label small {
+        padding: 0;
+        font-size: clamp(0.68rem, 0.12vw + 0.65rem, 0.76rem);
+        line-height: 1.25;
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+      }
+      .track-group .lane:has(.automation-picker) { height: 76px !important; }
+      .track-group .lane:has(.automation-picker) .lane-label {
+        justify-content: flex-start;
+        padding-top: 7px;
+      }
+      .automation-picker {
+        width: min(100%, 180px);
+        max-width: 100%;
+        min-height: 22px;
+        height: auto;
+        margin-top: 2px;
+        padding: 1px 5px;
+        border-radius: 5px;
+        font-size: 0.68rem;
+      }
       .track-collapse {
-        top: 50%;
-        right: 8px;
+        top: 6px;
+        right: 5px;
         display: grid;
         place-items: center;
-        width: 17px;
-        height: 17px;
+        width: 22px;
+        height: 22px;
         min-width: 0;
         min-height: 0;
         padding: 0;
-        border: 1px solid var(--ui-border);
-        border-radius: 5px;
-        background: var(--panel3);
-        color: var(--text);
-        font: 600 11px/1 "Roboto Mono", ui-monospace, monospace;
-        transform: translateY(-50%);
+        border: 0;
+        border-radius: 50%;
+        background: transparent;
+        color: var(--muted);
+        font: 600 15px/1 "Roboto Mono", ui-monospace, monospace;
+        opacity: 0.72;
+        transform: none;
       }
-      .track-collapse:active:not(:disabled) { transform: translateY(-50%) scale(0.94); }
-      .track-collapse:hover { border-color: #77777c; background: #303034; }
+      .track-collapse:hover { background: #ffffff12; color: var(--text); opacity: 1; }
+      .track-collapse:active:not(:disabled) { transform: scale(0.94); }
+      .automation-toolbar { min-height: 0; padding: 0; }
       button { font-size: inherit; }
       input, select, textarea { font-size: var(--ui-sm); }
       .icon, .play, .pill, .project-action, .builder-action, .saved-item button {
@@ -2169,7 +2200,7 @@
         font-size: var(--ui-sm);
       }
       .icon, .play { min-width: clamp(32px, 3.8vh, 40px); }
-      .automation-picker, #automationToggle {
+      .automation-picker {
         min-height: 24px;
         height: auto;
         padding: 3px 7px;
@@ -2178,7 +2209,7 @@
         font-size: var(--ui-xs);
         line-height: 1.25;
       }
-      .automation-picker { max-width: calc(100% - 22px); }
+      .automation-picker { max-width: 100%; }
       .field input, .field select, .small, .search-row input,
       .block-name, .builder-grid input, .builder-grid select,
       .import-card textarea, #luaPasteText {
@@ -2384,7 +2415,7 @@
             </div>
           </div>
           <div class="ruler-row">
-            <div class="sticky-label automation-toolbar"><button id="automationToggle" type="button" aria-pressed="false" title="Toggle automation (A)"><span aria-hidden="true">⎇</span> Automation <kbd>A</kbd></button></div>
+            <div class="sticky-label automation-toolbar" aria-label="Press A to toggle automation"></div>
             <div class="ruler" id="ruler"></div>
           </div>
           <div class="scroller" id="scroller">
@@ -4014,6 +4045,10 @@
         element.style.setProperty("--snap-grid", snapSeconds * px + "px");
         element.style.setProperty("--beat-grid", beatSeconds * px + "px");
         element.style.setProperty("--bar-grid", barSeconds * px + "px");
+        const zoom = Math.max(0, Math.min(1, (px - 70) / 500));
+        element.style.setProperty("--grid-bar-alpha", (0.17 + zoom * 0.1).toFixed(3));
+        element.style.setProperty("--grid-beat-alpha", (0.085 + zoom * 0.065).toFixed(3));
+        element.style.setProperty("--grid-snap-alpha", (0.035 + zoom * 0.045).toFixed(3));
         updateAutoSnapReadout();
       }
       function renderRuler() {
@@ -4212,6 +4247,10 @@
       }
       let automationVisible = false;
       const collapsedTracks = new Set();
+      function toggleAutomation() {
+        automationVisible = !automationVisible;
+        renderTimeline();
+      }
       const automationRanges = {
         intensity: [0, 1], hue: [0, 1], red: [0, 1], green: [0, 1], blue: [0, 1],
         pan: [-180, 180], tilt: [-180, 180], spin: [-180, 180], pitch: [-180, 180],
@@ -4333,12 +4372,7 @@
         }
         return events;
       }
-      $("#automationToggle").onclick = () => {
-        automationVisible = !automationVisible;
-        renderTimeline();
-      };
       function renderTimeline() {
-        $("#automationToggle").setAttribute("aria-pressed", String(automationVisible));
         const scroller = $("#scroller");
         const top = scroller.getBoundingClientRect().top;
         const firstTrack = $$("#timeline .track").find(track => track.getBoundingClientRect().bottom > top);
@@ -5178,9 +5212,18 @@
 
       function resizeCue(e, duration) {
         if (e.action === "flash") {
-          const [attack, hold] = fadePhases(e);
-          duration = Math.max(duration, attack + hold);
-          e.flashTiming = [attack, hold, duration - attack - hold];
+          const [attack, oldHold, oldRelease] = fadePhases(e);
+          let hold = oldHold;
+          let release = oldRelease;
+          let delta = duration - (e.duration || attack + hold + release);
+          if (release > 0) {
+            const releaseDelta = Math.max(-release, delta);
+            release = Math.max(0, release + releaseDelta);
+            delta -= releaseDelta;
+          }
+          hold = Math.max(0, hold + delta);
+          e.flashTiming = [attack, hold, release];
+          duration = attack + hold + release;
         }
         e.duration = duration;
       }
@@ -6985,7 +7028,7 @@
           key = e.key.toLowerCase();
         if (!mod && key === "a" && !e.altKey && !e.repeat) {
           e.preventDefault();
-          $("#automationToggle").click();
+          toggleAutomation();
         } else if (mod && key === "a") {
           e.preventDefault();
           setSelection(

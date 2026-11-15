@@ -527,8 +527,8 @@ local function nativeAttributes(event, definition)
 		elseif type(v)=="table" then c=Color3.fromRGB(v[1] or v.r or 255,v[2] or v.g or 255,v[3] or v.b or 255) end
 		assert(c,"Invalid color cue")
 		values={red=c.R,green=c.G,blue=c.B}
-	elseif action=="level" or action=="intensity" or action=="flash" or action=="reset" or action=="strobe" then
-		local v=action=="reset" and 0 or (action=="flash" or action=="strobe") and 1 or math.clamp(tonumber(event.value) or 0,0,1)
+	elseif action=="level" or action=="intensity" or action=="flash" or action=="reset" or action=="strobe" or action=="random-flash" then
+		local v=action=="reset" and 0 or (action=="flash" or action=="strobe" or action=="random-flash") and 1 or math.clamp(tonumber(event.value) or 0,0,1)
 		if event.channel=="beam" then values["beam intensity"]=v
 		elseif event.channel=="gobo" then values["gobo intensity"]=v
 		else
@@ -603,12 +603,28 @@ function NativePlayback.cue(data)
 					end
 					if duration>0 then assert(from~=nil,"Flux does not expose a numeric start value for "..attribute) end
 					jobs[attribute]={kind=kind,definition=definition,attribute=attribute,from=from or value,value=value,
-						start=started,duration=duration,flashTiming=event.flashTiming,action=event.action,mode=event.value,generation=nativeGeneration}
+						start=started,duration=duration,flashTiming=event.flashTiming,ramps=event.ramps,seed=index,action=event.action,mode=event.value,generation=nativeGeneration}
 				end
 			end
 		end
 	end
 	assert(count>0,"No native Flux controls match cue: "..tostring(event.label or event.action))
+end
+
+-- Integrate the speed curve so changing speed never jumps the flash phase.
+local function ramp(settings, t, low, high, fallback)
+	settings = settings or {}
+	local first = math.clamp(tonumber(settings[1]) or fallback, low, high)
+	local last = math.clamp(tonumber(settings[2]) or fallback, low, high)
+	local weight, integral = t, t*t/2
+	if settings[3] == "ease-in" then
+		weight, integral = t*t, t^3/3
+	elseif settings[3] == "ease-out" then
+		weight, integral = 2*t-t*t, t*t-t^3/3
+	elseif settings[3] == "ease-in-out" then
+		weight, integral = 3*t*t-2*t^3, t^3-t^4/2
+	end
+	return first+(last-first)*weight, first*t+(last-first)*integral
 end
 
 game:GetService("RunService").Heartbeat:Connect(function()
@@ -637,6 +653,14 @@ game:GetService("RunService").Heartbeat:Connect(function()
 				value=attack>0 and math.min(1,elapsed/attack) or 1
 				if release>0 and elapsed>=duration-release then value=math.max(0,(duration-elapsed)/release) end
 				if done then value=0 end
+			elseif job.action=="random-flash" then
+				local ramps = job.ramps or {}
+				local _, cycles = ramp(ramps.speed, progress, .1, 3, 1)
+				local brightness = ramp(ramps.brightness, progress, 0, 100, 100)
+				local phase = cycles * duration * 3
+				local slot = math.floor(phase)
+				local gate = math.noise(slot * 1.37, job.seed * .71, .31) > -.12
+				value = done and 0 or (((phase % 1) < .38 and gate) and brightness/100 or 0)
 			elseif job.action=="strobe" then
 				value=done and job.from or (math.floor(elapsed*math.clamp(tonumber(job.mode) or 10,1,30)*2)%2==0 and 1 or 0)
 			end

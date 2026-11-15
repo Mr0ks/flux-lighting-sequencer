@@ -596,7 +596,11 @@ function NativePlayback.cue(data)
 					local duration=math.max(0,tonumber(event.duration) or 0)
 					local previous=nativeValues[target]
 					local from=previous and previous[attribute]
-					if from==nil then from=nativeRead(target,definition,attribute,fixture) end
+					if event.automationFrom ~= nil then
+						from=nativeAttributes({action=event.action,value=event.automationFrom,channel=event.channel},definition)[attribute]
+					elseif from==nil then
+						from=nativeRead(target,definition,attribute,fixture)
+					end
 					if duration>0 then assert(from~=nil,"Flux does not expose a numeric start value for "..attribute) end
 					jobs[attribute]={kind=kind,definition=definition,attribute=attribute,from=from or value,value=value,
 						start=started,duration=duration,flashTiming=event.flashTiming,action=event.action,mode=event.value,generation=nativeGeneration}

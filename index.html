@@ -3986,6 +3986,107 @@
         timeline.addEventListener("lostpointercapture", cancel);
         window.addEventListener("blur", cleanup);
       }
+      const automationOpen = new Set();
+      const automationRanges = {
+        intensity: [0, 1], hue: [0, 1], red: [0, 1], green: [0, 1], blue: [0, 1],
+        pan: [-180, 180], tilt: [-180, 180], spin: [-180, 180], pitch: [-180, 180],
+        iris: [0, 1], width: [0, 1], shutter: [0, 1],
+        "beam intensity": [0, 1], "gobo intensity": [0, 1],
+      };
+      function automationMarkup(lane, caps, width) {
+        const key = esc(lane.key);
+        const curves = state.automation?.[lane.key] || {};
+        const options = Object.keys(automationRanges).filter((attribute) =>
+          !curves[attribute] && (caps.includes(attribute) ||
+            (["hue", "red", "green", "blue"].includes(attribute) && caps.includes("color"))));
+        let html = `<div class="lane"><div class="lane-label"><button class="pill" data-auto-toggle="${key}">Automation ${automationOpen.has(lane.key) ? "−" : "+"}</button></div></div>`;
+        if (!automationOpen.has(lane.key)) return html;
+        html += `<div class="lane"><div class="lane-label"><select data-auto-add="${key}"><option value="">Add automation</option>${options.map(a => `<option>${a}</option>`).join("")}</select></div><small>Click to add a point. Drag to move it. Right-click to delete. Native effect speed is unavailable.</small></div>`;
+        for (const [attribute, points] of Object.entries(curves)) {
+          const [low, high] = automationRanges[attribute];
+          const y = (value) => 64 - 56 * (value - low) / (high - low);
+          html += `<div class="lane" style="height:72px"><div class="lane-label"><b>${esc(attribute)}</b><button class="pill" data-auto-remove="${esc(attribute)}" data-auto-key="${key}">Remove</button></div><svg width="${width}" height="72" style="flex:none;background:#181818;touch-action:none" data-auto-key="${key}" data-auto-curve="${esc(attribute)}"><polyline fill="none" stroke="#ff763f" stroke-width="2" points="${points.map(p => [p.time * px, y(p.value)].join(",")).join(" ")}"/>${points.map((p, i) => `<circle cx="${p.time * px}" cy="${y(p.value)}" r="5" fill="#ff763f" data-point="${i}"><title>${p.time}s · ${p.value}</title></circle>`).join("")}</svg></div>`;
+        }
+        return html;
+      }
+      function bindAutomation() {
+        $$("[data-auto-toggle]").forEach(button => button.onclick = () => {
+          const key = button.dataset.autoToggle;
+          selectedLane = key;
+          if (automationOpen.has(key)) automationOpen.delete(key);
+          else automationOpen.add(key);
+          renderTimeline();
+        });
+        $$("[data-auto-add]").forEach(select => select.onchange = () => {
+          if (!select.value) return;
+          commit();
+          const tracks = state.automation ||= {};
+          (tracks[select.dataset.autoAdd] ||= {})[select.value] = [];
+          renderTimeline();
+          autosave();
+        });
+        $$("[data-auto-remove]").forEach(button => button.onclick = () => {
+          commit();
+          delete state.automation[button.dataset.autoKey][button.dataset.autoRemove];
+          renderTimeline();
+          autosave();
+        });
+        $$("[data-auto-curve]").forEach(svg => {
+          const attribute = svg.dataset.autoCurve;
+          const points = state.automation[svg.dataset.autoKey][attribute];
+          svg.oncontextmenu = (event) => {
+            event.preventDefault();
+            if (event.target.dataset.point == null) return;
+            commit();
+            points.splice(+event.target.dataset.point, 1);
+            renderTimeline();
+            autosave();
+          };
+          svg.onpointerdown = (event) => {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            commit();
+            const index = event.target.dataset.point;
+            const point = index == null ? {} : points[+index];
+            if (index == null) points.push(point);
+            const [low, high] = automationRanges[attribute];
+            const rect = svg.getBoundingClientRect();
+            const move = (e) => {
+              point.time = +Math.max(0, Math.min(state.duration, (e.clientX - rect.left) / px)).toFixed(3);
+              const ratio = Math.max(0, Math.min(1, (64 - e.clientY + rect.top) / 56));
+              point.value = +(low + ratio * (high - low)).toFixed(3);
+              const ordered = [...points].sort((a,b) => a.time - b.time);
+              svg.querySelector("polyline").setAttribute("points", ordered.map(p => `${p.time * px},${64 - 56 * (p.value-low)/(high-low)}`).join(" "));
+            };
+            move(event);
+            svg.setPointerCapture(event.pointerId);
+            svg.onpointermove = move;
+            svg.onlostpointercapture = () => {
+              points.sort((a,b) => a.time - b.time);
+              renderTimeline();
+              autosave();
+            };
+          };
+        });
+      }
+      function automationEvents(projectState) {
+        const events = [];
+        for (const [target, curves] of Object.entries(projectState.automation || {})) {
+          const lane = laneList().find(lane => lane.key === target);
+          if (!lane) continue;
+          for (const [attribute, points] of Object.entries(curves)) {
+            const ordered = [...points].sort((a,b) => a.time - b.time);
+            ordered.forEach((point, index) => {
+              const next = ordered[index + 1];
+              const cue = { target, action: attribute, module: lane.module, channel: lane.channel, selection: lane.selection };
+              events.push({ ...cue, time: point.time, value: point.value, duration: 0 });
+              if (next && next.time > point.time)
+                events.push({ ...cue, time: point.time, value: next.value, duration: next.time - point.time, automationFrom: point.value });
+            });
+          }
+        }
+        return events;
+      }
       function renderTimeline() {
         const w = timelineWidth();
         applyGridStyles($("#timeline"));
@@ -3997,7 +4098,7 @@
             lane.label,
             lane.detail + " · " + caps.join(" · "),
             w,
-          );
+          ) + automationMarkup(lane, caps, w);
         }
         html += laneMarkup(
           "pyrotechnics",
@@ -4015,6 +4116,7 @@
               syncPaletteAvailability();
             }),
         );
+        bindAutomation();
         initEventInteractions();
         $("#timeline").onpointerdown = startMarquee;
         drawHead();
@@ -5351,11 +5453,11 @@
                   activeColour: "#ffffff",
                 },
           ),
-          ev = [...(projectState.events || [])]
+          ev = [...(projectState.events || []), ...automationEvents(projectState)]
           .sort((a, b) => a.time - b.time)
           .map(
             (e) =>
-              `\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration || 0}, flashTiming = ${lua(e.flashTiming)}, effectFade = ${lua(e.effectFade)}, label = ${JSON.stringify(e.label || e.action)}, kind = ${JSON.stringify(e.kind || "output")}, selection = ${lua(e.selection)}, module = ${lua(e.module)}, channel = ${lua(e.channel)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`,
+              `\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration || 0}, flashTiming = ${lua(e.flashTiming)}, effectFade = ${lua(e.effectFade)}, automationFrom = ${lua(e.automationFrom)}, label = ${JSON.stringify(e.label || e.action)}, kind = ${JSON.stringify(e.kind || "output")}, selection = ${lua(e.selection)}, module = ${lua(e.module)}, channel = ${lua(e.channel)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`,
           )
           .join("\n");
         return `--[[FLUX_SEQUENCER_PROJECT_V1\n${metadata}\nFLUX_SEQUENCER_PROJECT_END]]\n-- Roblox ignores the project backup above and runs the show below.\n-- Exported by Flux Sequencer\nreturn {\n\tversion = 4,\n\tname = ${JSON.stringify(projectState.name)},\n\tsongId = ${JSON.stringify(projectState.songId)},\n\tduration = ${projectState.duration},\n\tbpm = ${projectState.bpm},\n\tevents = {\n${ev}\n\t},\n}`;
@@ -6606,7 +6708,10 @@
         if (isTextControl(e.target)) return;
         const mod = e.ctrlKey || e.metaKey,
           key = e.key.toLowerCase();
-        if (mod && key === "a") {
+        if (!mod && key === "a" && selectedLane) {
+          e.preventDefault();
+          $$("[data-auto-toggle]").find(button => button.dataset.autoToggle === selectedLane)?.click();
+        } else if (mod && key === "a") {
           e.preventDefault();
           setSelection(
             state.events.map((event) => event.id),

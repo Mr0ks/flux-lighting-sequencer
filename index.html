@@ -1995,6 +1995,20 @@
           grid-template-columns: 1fr;
         }
       }
+      .automation-graph {
+        flex: none;
+        touch-action: none;
+        cursor: crosshair;
+        background-color: #141414;
+        background-image:
+          linear-gradient(90deg, #414141 1px, transparent 1px),
+          linear-gradient(90deg, #292929 1px, transparent 1px),
+          repeating-linear-gradient(180deg, #303030 0 1px, transparent 1px 14px);
+        background-size: var(--major-grid) 100%, var(--snap-grid) 100%, 100% 100%;
+        background-position: 0 0, 0 0, 0 8px;
+      }
+      .automation-graph circle { cursor: grab; stroke: #141414; stroke-width: 1.5px; }
+      .automation-graph circle:hover { fill: #ffd0b8; }
       .automation-picker {
         display: block;
         width: max-content;
@@ -4007,6 +4021,12 @@
         iris: [0, 1], width: [0, 1], shutter: [0, 1],
         "beam intensity": [0, 1], "gobo intensity": [0, 1],
       };
+      function automationLabel(attribute) {
+        return attribute.replace(/intensity/g, "brightness").replace(/^./, c => c.toUpperCase());
+      }
+      function automationValue(attribute, value) {
+        return automationRanges[attribute][0] < 0 ? `${Math.round(value)}°` : `${Math.round(value * 100)}%`;
+      }
       function automationPicker(lane, caps) {
         if (!automationVisible) return "";
         const key = esc(lane.key);
@@ -4015,7 +4035,7 @@
           !curves[attribute] && (caps.includes(attribute) ||
             (["hue", "red", "green", "blue"].includes(attribute) && caps.includes("color"))));
         if (!options.length) return "";
-        return `<select class="automation-picker" data-auto-add="${key}" aria-label="Add automation to ${esc(lane.label)}"><option value="">+ Add automation</option>${options.map(a => `<option>${a}</option>`).join("")}</select>`;
+        return `<select class="automation-picker" data-auto-add="${key}" aria-label="Add automation to ${esc(lane.label)}"><option value="">+ Add automation</option>${options.map(a => `<option value="${a}">${automationLabel(a)}</option>`).join("")}</select>`;
       }
       function automationMarkup(lane, width) {
         if (!automationVisible) return "";
@@ -4025,7 +4045,7 @@
         for (const [attribute, points] of Object.entries(curves)) {
           const [low, high] = automationRanges[attribute];
           const y = (value) => 64 - 56 * (value - low) / (high - low);
-          html += `<div class="lane" style="height:72px"><div class="lane-label"><b>${esc(attribute)}</b><button class="pill" data-auto-remove="${esc(attribute)}" data-auto-key="${key}">Remove</button></div><svg width="${width}" height="72" style="flex:none;background:#181818;touch-action:none" data-auto-key="${key}" data-auto-curve="${esc(attribute)}"><polyline fill="none" stroke="#ff763f" stroke-width="2" points="${points.map(p => [p.time * px, y(p.value)].join(",")).join(" ")}"/>${points.map((p, i) => `<circle cx="${p.time * px}" cy="${y(p.value)}" r="5" fill="#ff763f" data-point="${i}"><title>${p.time}s · ${p.value}</title></circle>`).join("")}</svg></div>`;
+          html += `<div class="lane" style="height:72px"><div class="lane-label"><b>${automationLabel(attribute)}</b><small data-auto-readout>${automationValue(attribute, low)} – ${automationValue(attribute, high)}</small><button class="automation-picker" aria-label="Remove ${automationLabel(attribute)} automation" data-auto-remove="${esc(attribute)}" data-auto-key="${key}">Remove</button></div><svg width="${width}" height="72" class="automation-graph" data-auto-key="${key}" data-auto-curve="${esc(attribute)}"><polyline fill="none" stroke="#ff763f" stroke-width="2" points="${points.map(p => [p.time * px, y(p.value)].join(",")).join(" ")}"/>${points.map((p, i) => `<circle cx="${p.time * px}" cy="${y(p.value)}" r="4" fill="#ff763f" data-point="${i}"><title>${p.time}s · ${automationValue(attribute, p.value)}</title></circle>`).join("")}</svg></div>`;
         }
         return html;
       }
@@ -4066,11 +4086,21 @@
             const point = index == null ? {} : points[+index];
             if (index == null) points.push(point);
             const [low, high] = automationRanges[attribute];
-            const rect = svg.getBoundingClientRect();
             const move = (e) => {
-              point.time = +Math.max(0, Math.min(state.duration, (e.clientX - rect.left) / px)).toFixed(3);
+              const rect = svg.getBoundingClientRect();
+              const time = clamp((e.clientX - rect.left) / px, 0, state.duration);
+              point.time = e.altKey ? +time.toFixed(3) : snapTime(time);
               const ratio = Math.max(0, Math.min(1, (64 - e.clientY + rect.top) / 56));
               point.value = +(low + ratio * (high - low)).toFixed(3);
+              const marker = svg.querySelector(`[data-point="${points.indexOf(point)}"]`) ||
+                svg.appendChild(document.createElementNS("http://www.w3.org/2000/svg", "circle"));
+              marker.dataset.point = points.indexOf(point);
+              marker.setAttribute("r", "5");
+              marker.setAttribute("fill", "#ffad85");
+              marker.setAttribute("cx", point.time * px);
+              marker.setAttribute("cy", 64 - 56 * ratio);
+              svg.parentElement.querySelector("[data-auto-readout]").textContent =
+                `${point.time.toFixed(3)}s · ${automationValue(attribute, point.value)}`;
               const ordered = [...points].sort((a,b) => a.time - b.time);
               svg.querySelector("polyline").setAttribute("points", ordered.map(p => `${p.time * px},${64 - 56 * (p.value-low)/(high-low)}`).join(" "));
             };
@@ -4078,6 +4108,8 @@
             svg.setPointerCapture(event.pointerId);
             svg.onpointermove = move;
             svg.onlostpointercapture = () => {
+              const duplicate = points.findIndex(other => other !== point && Math.abs(other.time - point.time) < .0005);
+              if (duplicate >= 0) points.splice(duplicate, 1);
               points.sort((a,b) => a.time - b.time);
               renderTimeline();
               autosave();

@@ -148,6 +148,7 @@ local function eventAttributes(event)
 	if action=="level" or action=="intensity" or action=="flash" or action=="strobe" then
 		return {["intensity"]=true,["beam intensity"]=event.channel~="gobo",["gobo intensity"]=event.channel~="beam"}
 	elseif action=="color" then return {red=true,green=true,blue=true,hue=true}
+	elseif action=="reset-position" then return {pan=true, tilt=true, spin=true, pitch=true}
 	elseif action=="reset" then return nil end
 	return {[action]=true}
 end

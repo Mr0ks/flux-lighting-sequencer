@@ -664,7 +664,8 @@ function NativePlayback.cue(data)
 	assert(kind,"Invalid cue target")
 	local fixture=assert(shared.fixt[kind],"Unknown Flux fixture: "..kind)
 	local folder=assert(kit.fixtures.main:FindFirstChild(kind),"Fixture not installed: "..kind)
-	local reset = event.action == "reset"
+	local positionOnly = event.action == "reset-position"
+	local reset = event.action == "reset" or positionOnly
 	local channelSelector = selector:match("^channel:(.+)$")
 	local moduleFilter = event.module or (channelSelector and tonumber(channelSelector))
 	local selected={}
@@ -691,7 +692,13 @@ function NativePlayback.cue(data)
 			local values
 			if reset then
 				values = fixtureResetValues(shared, kind, definition)
+				if positionOnly then
+					for attribute in pairs(values) do
+						if not resetMovement[attribute] then values[attribute] = nil end
+					end
+				end
 				for _, target in targets do
+					if positionOnly then break end
 					nativeJobs[target] = nil
 					nativeValues[target] = nil
 				end
@@ -708,13 +715,14 @@ function NativePlayback.cue(data)
 					local homeFrom
 					if reset then
 						duration = 0
-						if resetMovement[attribute] and event.resetMoveTime then
+						local moveTime = positionOnly and (tonumber(event.duration) or .85) or event.resetMoveTime
+						if resetMovement[attribute] and moveTime then
 							local motors = target:FindFirstChild("motors")
 							local motor = motors and motors:FindFirstChild(attribute)
 							if motor and motor:IsA("Motor") then
 								homeFrom = math.deg(motor.CurrentAngle) / 100
 								if math.abs(homeFrom - value) > .001 then
-									duration = math.clamp(tonumber(event.resetMoveTime) or 0, 0, 3)
+									duration = math.clamp(tonumber(moveTime) or 0, 0, positionOnly and 14400 or 3)
 								end
 							end
 						end

@@ -2864,6 +2864,7 @@
               <option value="color:#ffffff">Set colour</option>
             </optgroup>
             <optgroup label="Movement">
+              <option value="reset-position:0">Reset position</option>
               <option value="pan:0">Pan</option>
               <option value="tilt:0">Tilt</option>
               <option value="spin:90">Spin</option>
@@ -2988,6 +2989,7 @@
         [
           "Movement",
           [
+            ["Reset position", "reset-position", 0, 0.85],
             ["Pan", "pan", 0, 1],
             ["Tilt", "tilt", 0, 1],
             ["Spin", "spin", 90, 1],
@@ -4555,6 +4557,9 @@
           const supported = ["wash", "profile", "follow spotlight", "par", "magic blade"];
           return supported.includes(type) && (target === type + ":all" || target.startsWith(type + ":group:"));
         }
+        if (action === "reset-position") {
+          return capabilities(type, module, channel).some(attribute => ["pan", "tilt", "spin", "pitch"].includes(attribute));
+        }
         if (action === "block")
           return (
             Array.isArray(actions) &&
@@ -5304,6 +5309,7 @@
       function isFixedCueValue(event) {
         return (
           event.action === "reset" ||
+          event.action === "reset-position" ||
           event.action === "shutter" ||
           (event.action === "level" &&
             ["on", "off", "fade on", "fade off"].includes(

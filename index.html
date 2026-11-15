@@ -1995,6 +1995,20 @@
           grid-template-columns: 1fr;
         }
       }
+      .automation-picker {
+        display: block;
+        width: max-content;
+        max-width: 100%;
+        margin-top: 2px;
+        padding: 0 4px;
+        height: 17px;
+        border: 1px solid #444;
+        border-radius: 4px;
+        background: #181818;
+        color: #ddd;
+        font-size: 10px;
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>
@@ -3890,13 +3904,13 @@
             return { event, row };
           });
       }
-      function laneMarkup(key, label, detail, w) {
+      function laneMarkup(key, label, detail, w, controls = "") {
         const stacked = stackEvents(
             state.events.filter((e) => e.target === key),
           ),
           rows = Math.max(1, ...stacked.map((x) => x.row + 1)),
           height = 56 + (rows - 1) * 42;
-        return `<div class="lane" style="height:${height}px"><div class="lane-label ${selectedLane === key ? "selected" : ""}" data-lane="${key}"><b>${label}</b><small>${detail}</small></div><div class="track" data-lane="${key}" style="width:${w}px">${stacked.map((x) => eventHtml(x.event, x.row)).join("")}</div></div>`;
+        return `<div class="lane" style="height:${height}px"><div class="lane-label ${selectedLane === key ? "selected" : ""}" data-lane="${key}"><b>${label}</b><small>${detail}</small>${controls}</div><div class="track" data-lane="${key}" style="width:${w}px">${stacked.map((x) => eventHtml(x.event, x.row)).join("")}</div></div>`;
       }
       function startMarquee(ev) {
         if (!ev.isPrimary || ev.button !== 0 ||
@@ -3986,22 +4000,28 @@
         timeline.addEventListener("lostpointercapture", cancel);
         window.addEventListener("blur", cleanup);
       }
-      const automationOpen = new Set();
+      let automationVisible = false;
       const automationRanges = {
         intensity: [0, 1], hue: [0, 1], red: [0, 1], green: [0, 1], blue: [0, 1],
         pan: [-180, 180], tilt: [-180, 180], spin: [-180, 180], pitch: [-180, 180],
         iris: [0, 1], width: [0, 1], shutter: [0, 1],
         "beam intensity": [0, 1], "gobo intensity": [0, 1],
       };
-      function automationMarkup(lane, caps, width) {
+      function automationPicker(lane, caps) {
+        if (!automationVisible) return "";
         const key = esc(lane.key);
         const curves = state.automation?.[lane.key] || {};
         const options = Object.keys(automationRanges).filter((attribute) =>
           !curves[attribute] && (caps.includes(attribute) ||
             (["hue", "red", "green", "blue"].includes(attribute) && caps.includes("color"))));
-        let html = `<div class="lane"><div class="lane-label"><button class="pill" data-auto-toggle="${key}">Automation ${automationOpen.has(lane.key) ? "−" : "+"}</button></div></div>`;
-        if (!automationOpen.has(lane.key)) return html;
-        html += `<div class="lane"><div class="lane-label"><select data-auto-add="${key}"><option value="">Add automation</option>${options.map(a => `<option>${a}</option>`).join("")}</select></div><small>Click to add a point. Drag to move it. Right-click to delete. Native effect speed is unavailable.</small></div>`;
+        if (!options.length) return "";
+        return `<select class="automation-picker" data-auto-add="${key}" aria-label="Add automation to ${esc(lane.label)}"><option value="">+ Add automation</option>${options.map(a => `<option>${a}</option>`).join("")}</select>`;
+      }
+      function automationMarkup(lane, width) {
+        if (!automationVisible) return "";
+        const key = esc(lane.key);
+        const curves = state.automation?.[lane.key] || {};
+        let html = "";
         for (const [attribute, points] of Object.entries(curves)) {
           const [low, high] = automationRanges[attribute];
           const y = (value) => 64 - 56 * (value - low) / (high - low);
@@ -4010,20 +4030,16 @@
         return html;
       }
       function bindAutomation() {
-        $$("[data-auto-toggle]").forEach(button => button.onclick = () => {
-          const key = button.dataset.autoToggle;
-          selectedLane = key;
-          if (automationOpen.has(key)) automationOpen.delete(key);
-          else automationOpen.add(key);
-          renderTimeline();
-        });
-        $$("[data-auto-add]").forEach(select => select.onchange = () => {
-          if (!select.value) return;
-          commit();
-          const tracks = state.automation ||= {};
-          (tracks[select.dataset.autoAdd] ||= {})[select.value] = [];
-          renderTimeline();
-          autosave();
+        $$("[data-auto-add]").forEach(select => {
+          select.onclick = (event) => event.stopPropagation();
+          select.onchange = () => {
+            if (!select.value) return;
+            commit();
+            const tracks = state.automation ||= {};
+            (tracks[select.dataset.autoAdd] ||= {})[select.value] = [];
+            renderTimeline();
+            autosave();
+          };
         });
         $$("[data-auto-remove]").forEach(button => button.onclick = () => {
           commit();
@@ -4098,7 +4114,8 @@
             lane.label,
             lane.detail + " · " + caps.join(" · "),
             w,
-          ) + automationMarkup(lane, caps, w);
+            automationPicker(lane, caps),
+          ) + automationMarkup(lane, w);
         }
         html += laneMarkup(
           "pyrotechnics",
@@ -6695,9 +6712,10 @@
         if (isTextControl(e.target)) return;
         const mod = e.ctrlKey || e.metaKey,
           key = e.key.toLowerCase();
-        if (!mod && key === "a" && selectedLane) {
+        if (!mod && key === "a" && !e.altKey && !e.repeat) {
           e.preventDefault();
-          $$("[data-auto-toggle]").find(button => button.dataset.autoToggle === selectedLane)?.click();
+          automationVisible = !automationVisible;
+          renderTimeline();
         } else if (mod && key === "a") {
           e.preventDefault();
           setSelection(

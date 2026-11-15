@@ -3385,7 +3385,7 @@
               if (type !== "pyrotechnics") names.add(type);
             }),
           );
-        state.patch = [...names].map((type) => {
+        const patch = [...names].map((type) => {
           const exact = exportedPatch.find((entry) => entry.type === type);
           if (exact) return exact;
           return {
@@ -3397,16 +3397,19 @@
             channels: [],
           };
         });
-        if (!state.patch.length)
+        if (!patch.length)
           throw new Error("No Flux fixtures were found.");
+        state.patch = patch;
         fluxData = data;
         buildImportedLibrary(
           data,
           state.patch.map((fixture) => fixture.type),
         );
         selectedLane = state.patch[0].type + ":all";
-        if (persist)
-          localStorage.setItem("fluxDataStore", JSON.stringify(parsed));
+        if (persist) {
+          try { localStorage.setItem("fluxDataStore", JSON.stringify(parsed)); }
+          catch (error) { console.warn("Could not cache Flux setup", error); }
+        }
       }
       function parsePastedJson(source) {
         const text = String(source || "")
@@ -4157,8 +4160,8 @@
           for (const [name, record] of Object.entries(
             fluxData?.groups?.[f.type] || {},
           )) {
-            const selection = (record?.meta || [])
-              .map((x) => (Array.isArray(x) ? x[0] : null))
+            const selection = Object.values(record?.meta || {})
+              .map((x) => (Array.isArray(x) ? x[0] : x?.[1]))
               .filter(Number.isFinite);
             lanes.push({
               key: f.type + ":group:" + encodeURIComponent(name),
@@ -6836,6 +6839,10 @@
         $("#showFile").click();
       };
       $("#clearBrowserDataProject").onclick = clearAllBrowserData;
+      $("#fluxJson").addEventListener("paste", () => {
+        // Let the browser insert the clipboard text before validating it.
+        setTimeout(importFlux, 0);
+      });
       $("#fluxJson").oninput = () => {
         $("#importError").textContent = "";
       };

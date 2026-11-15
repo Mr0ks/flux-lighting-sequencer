@@ -398,6 +398,8 @@ local function discoverPatch()
 end
 
 local function exportFlux()
+	local readOptions = Instance.new("DataStoreGetOptions")
+	readOptions.UseCache = false
 	local bundle = {
 		format = "fluxline-datastore",
 		version = 1,
@@ -411,7 +413,7 @@ local function exportFlux()
 	for _, scope in Config.FluxScopes do
 		local store = DataStoreService:GetDataStore(Config.FluxDataStoreName, scope)
 		local ok, value = pcall(function()
-			return store:GetAsync(Config.FluxShowKey)
+			return store:GetAsync(Config.FluxShowKey, readOptions)
 		end)
 		if not ok then return false, ("Unable to read %s: %s"):format(scope, tostring(value)) end
 		bundle.data[scope] = value or {}
@@ -578,7 +580,7 @@ local function resetAllFixtures(player)
 			remote:FireAllClients("nativeCue", {
 				kitName = Config.KitName,
 				token = resetToken,
-				event = {target=folder.Name..":all", action="reset", value=0, duration=0},
+				event = {target=folder.Name..":all", action="reset", value=0, duration=0, resetMoveTime=.85},
 			})
 		end
 	end

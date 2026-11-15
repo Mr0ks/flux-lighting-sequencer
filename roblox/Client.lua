@@ -602,6 +602,8 @@ local function nativeSet(target, definition, attribute, value)
 	definition.update[attribute](target, value)
 end
 
+local resetMovement = { pan=true, tilt=true, spin=true, pitch=true }
+
 local function fixtureResetValues(shared, kind, definition)
 	local reset = shared.resetAttribute.reset
 	local values = {}
@@ -702,11 +704,25 @@ function NativePlayback.cue(data)
 					count+=1
 					local jobs=nativeJobs[target] or {}
 					nativeJobs[target]=jobs
-					local duration=reset and 0 or math.max(0,tonumber(event.duration) or 0)
+					local duration=math.max(0,tonumber(event.duration) or 0)
+					local homeFrom
+					if reset then
+						duration = 0
+						if resetMovement[attribute] and event.resetMoveTime then
+							local motors = target:FindFirstChild("motors")
+							local motor = motors and motors:FindFirstChild(attribute)
+							if motor and motor:IsA("Motor") then
+								homeFrom = math.deg(motor.CurrentAngle) / 100
+								if math.abs(homeFrom - value) > .001 then
+									duration = math.clamp(tonumber(event.resetMoveTime) or 0, 0, 3)
+								end
+							end
+						end
+					end
 					local previous=nativeValues[target]
 					local from=previous and previous[attribute]
 					if reset then
-						from=value
+						from=homeFrom or value
 					elseif event.automationFrom ~= nil then
 						from=nativeAttributes({action=event.action,value=event.automationFrom,channel=event.channel},definition)[attribute]
 					elseif from==nil then
@@ -714,7 +730,7 @@ function NativePlayback.cue(data)
 					end
 					if duration>0 then assert(from~=nil,"Flux does not expose a numeric start value for "..attribute) end
 					jobs[attribute]={kind=kind,definition=definition,attribute=attribute,from=from or value,value=value,
-						start=started,duration=duration,flashTiming=event.flashTiming,action=event.action,mode=event.value,generation=nativeGeneration}
+						start=started,duration=duration,easeHome=reset and duration>0,flashTiming=event.flashTiming,action=event.action,mode=event.value,generation=nativeGeneration}
 				end
 			end
 		end
@@ -729,7 +745,8 @@ game:GetService("RunService").Heartbeat:Connect(function()
 			local elapsed=math.max(0,now-job.start)
 			local duration=job.duration
 			local progress=duration>0 and math.clamp(elapsed/duration,0,1) or 1
-			local value=job.from+(job.value-job.from)*progress
+			local weight = job.easeHome and progress*progress*(3-2*progress) or progress
+			local value=job.from+(job.value-job.from)*weight
 			local done=progress>=1
 			if job.action=="flash" then
 				local release=(job.mode=="fade-out" or job.mode=="fade-both") and math.min(duration*.35,1) or 0

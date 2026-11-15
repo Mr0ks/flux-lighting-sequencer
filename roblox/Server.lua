@@ -216,6 +216,27 @@ local function apply(event, token, started)
 		local key=effectKey(fixture,native.name)
 		local effect={fixture=fixture,name=native.name,metas=metas}
 		nativeEffects[key]=effect
+		local ramp = event.speedRamp
+		local usesDim = false
+		for _, meta in metas do
+			if meta.speed == "dim" then usesDim = true end
+		end
+		if type(ramp) == "table" and fixture == "wash" and usesDim then
+			local from = math.clamp(tonumber(ramp[1]) or 60, 1, 300)
+			local to = math.clamp(tonumber(ramp[2]) or 240, 1, 300)
+			local seconds = math.max(.1, math.min(tonumber(ramp[3]) or 1, tonumber(event.duration) or 1))
+			local fader = nativeDirect().faders
+			local address = {group="all 1", kind="presets", fader="dim", fixt=fixture}
+			fader:FireAllClients(address, from)
+			task.defer(function()
+				while activeToken == token and nativeEffects[key] == effect do
+					local progress = math.clamp((workspace:GetServerTimeNow()-started)/seconds, 0, 1)
+					fader:FireAllClients(address, math.round(from+(to-from)*progress))
+					if progress >= 1 then break end
+					task.wait(.05)
+				end
+			end)
+		end
 		nativeDirect().effects:FireAllClients({{fixture,native.name}},"on")
 		task.delay(math.max(0,(started or workspace:GetServerTimeNow())+(tonumber(event.duration) or 0)-workspace:GetServerTimeNow()),function()
 			if activeToken==token and nativeEffects[key]==effect then

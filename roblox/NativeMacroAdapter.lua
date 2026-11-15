@@ -71,6 +71,33 @@ end
 local environment=setmetatable({task=taskProxy,coroutine=coroutineProxy},{__index=getfenv(loadNative)})
 setfenv(loadNative,environment)
 local exported=loadNative(...)
+local nativeState
+local init = exported.init
+exported.init = function(context, state, ...)
+	nativeState = state
+	return init(context, state, ...)
+end
+
+function exported.FluxShowsScopeEffect(fixture, source, alias, group)
+	local effects = nativeState and nativeState.effects[fixture]
+	local preset = effects and effects[source]
+	if not preset or type(preset.meta) ~= "table" then return end
+	local copy = table.clone(preset)
+	copy.hide = true
+	copy.meta = {}
+	for index, layer in pairs(preset.meta) do
+		local scoped = table.clone(layer)
+		scoped.group = group
+		copy.meta[index] = scoped
+	end
+	effects[alias] = copy
+end
+
+function exported.FluxShowsReleaseEffect(fixture, alias)
+	local effects = nativeState and nativeState.effects[fixture]
+	if effects then effects[alias] = nil end
+end
+
 function exported.FluxShowsCancel(id)
 	local scope=scopes[id]
 	if not scope then return end
@@ -101,6 +128,12 @@ return exported
 ]====]
 return function(original)
     assert(type(original)=="string", "Expected the native functions module source")
-    if original:sub(1,#"-- Flux Shows cancellable native macro adapter.")=="-- Flux Shows cancellable native macro adapter." then return original end
+    local marker = "-- Flux Shows cancellable native macro adapter."
+    if original:sub(1, #marker) == marker then
+        local _, first = original:find("local function loadNative(...)\n", 1, true)
+        local last = original:find("\nend\nlocal environment=setmetatable", first and first + 1 or 1, true)
+        assert(first and last, "Cannot upgrade the existing Flux adapter")
+        original = original:sub(first + 1, last - 1)
+    end
     return PREFIX .. original .. "\n" .. SUFFIX
 end

@@ -94,7 +94,20 @@ local function nativeDirect()
 	return kit.components.remotes.direct
 end
 
-local function effectKey(fixture,name) return fixture.."\0"..name end
+local effectSerial = 0
+local function effectGroup(target)
+	local encoded = tostring(target):match("^[^:]+:group:(.+)$")
+	if not encoded then return nil end
+	return (encoded:gsub("%%(%x%x)", function(hex) return string.char(tonumber(hex, 16)) end))
+end
+
+local function releaseScopedEffect(effect)
+	if effect.scoped then
+		local functions = findKit().components.remotes.call.functions
+		functions:FireAllClients("FluxShowsReleaseEffect", effect.fixture, effect.name)
+	end
+end
+
 
 local function stopNativeMacros(kind, attributes)
 	for id,macro in pairs(nativeMacros) do
@@ -129,7 +142,7 @@ local function checkPyro(kind)
 end
 
 local function stopNativeEffects(kind, attributes)
-	local off={}
+	local off, released={}, {}
 	for key,effect in pairs(nativeEffects) do
 		local overlaps=not attributes
 		if attributes then
@@ -137,10 +150,12 @@ local function stopNativeEffects(kind, attributes)
 		end
 		if (not kind or kind==effect.fixture) and overlaps then
 			table.insert(off,{effect.fixture,effect.name})
+			table.insert(released,effect)
 			nativeEffects[key]=nil
 		end
 	end
 	if #off>0 then nativeDirect().effects:FireAllClients(off,"off") end
+	for _, effect in released do releaseScopedEffect(effect) end
 end
 
 local function eventAttributes(event)
@@ -239,8 +254,18 @@ local function apply(event, token, started)
 		for _,meta in metas do attributes[meta.attribute]=true end
 		stopNativeEffects(fixture,attributes)
 		remote:FireAllClients("nativeCancel",{kind=fixture,attributes=attributes})
-		local key=effectKey(fixture,native.name)
-		local effect={fixture=fixture,name=native.name,metas=metas}
+		local group = effectGroup(event.target)
+		local name = native.name
+		if group then
+			local kit = findKit()
+			local adapter = kit.components.scripts["flux kit client"].modules.functions
+			assert(adapter:GetAttribute("FluxShowsGroupEffectsVersion") == 1, "Install the Flux group effect adapter before playing a group effect.")
+			effectSerial += 1
+			name = "__FluxShowsGroup_" .. effectSerial
+			kit.components.remotes.call.functions:FireAllClients("FluxShowsScopeEffect", fixture, native.name, name, group)
+		end
+		local key=fixture.."\0"..name
+		local effect={fixture=fixture,name=name,metas=metas,scoped=group~=nil}
 		nativeEffects[key]=effect
 		local ramp, curve = event.speedRamp, event.speedCurve
 		local supported = {dim=true, strobe=true, color=true, iris=true, width=true, movement=true, spin=true}
@@ -273,11 +298,12 @@ local function apply(event, token, started)
 				end
 			end)
 		end
-		nativeDirect().effects:FireAllClients({{fixture,native.name}},"on")
+		nativeDirect().effects:FireAllClients({{fixture,name}},"on")
 		task.delay(math.max(0,(started or workspace:GetServerTimeNow())+(tonumber(event.duration) or 0)-workspace:GetServerTimeNow()),function()
 			if activeToken==token and nativeEffects[key]==effect then
 				nativeEffects[key]=nil
-				nativeDirect().effects:FireAllClients({{fixture,native.name}},"off")
+				nativeDirect().effects:FireAllClients({{fixture,name}},"off")
+				releaseScopedEffect(effect)
 			end
 		end)
 	elseif event.action=="flux-position" or event.action=="flux-macro" then

@@ -55,6 +55,7 @@ for _, flux in workspace:GetDescendants() do
 		if functions then
 			functions.Source = require(adapter)(functions.Source)
 			functions:SetAttribute("FluxShowsMacroAdapterVersion", 1)
+		functions:SetAttribute("FluxShowsGroupEffectsVersion", 1)
 			adapted = true
 			break
 		end

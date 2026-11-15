@@ -599,6 +599,7 @@
       }
       .ruler {
         position: relative;
+        width: var(--timeline-width, 800px);
         min-width: 0;
         will-change: transform;
         border-bottom: 1px solid var(--line);
@@ -638,6 +639,7 @@
       }
       .timeline {
         position: relative;
+        width: calc(var(--label) + var(--timeline-width, 800px));
         min-height: 100%;
         min-width: 0;
       }
@@ -680,6 +682,7 @@
       }
       .track {
         position: relative;
+        width: var(--timeline-width, 800px) !important;
         border-bottom: 1px solid var(--line2);
         background-image:
           repeating-linear-gradient(
@@ -2028,6 +2031,7 @@
       .automation-remove:hover { background: #40343f; color: white; }
       .automation-graph {
         display: block;
+        width: var(--timeline-width, 800px);
         min-height: 0;
         height: 100%;
         touch-action: none;
@@ -2058,6 +2062,10 @@
       }
       .automation-lane .lane-label { border-right: 1px solid #51404c; }
       .automation-graph { box-shadow: inset 0 1px #302831, inset 0 -1px #302831; }
+      .lua-paste-modal { z-index: 120; }
+      .lua-paste-card { width: min(820px, 94vw); }
+      #luaPasteText { width: 100%; min-height: 260px; resize: vertical; padding: 12px; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; font: 12px/1.5 ui-monospace, monospace; }
+      .lua-paste-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 12px; }
     </style>
   </head>
   <body>
@@ -2390,7 +2398,8 @@
             <b>Import Lua show</b
             ><small>Continue editing a previously exported Flux show</small>
           </div>
-          <button class="project-action" id="importLua">Import</button>
+          <button class="project-action" id="importLuaFile">Upload file</button>
+          <button class="project-action" id="importLua">Paste Lua</button>
         </div>
         <div class="project-row">
           <div class="project-icon">↓</div>
@@ -2441,6 +2450,15 @@
             Delete all
           </button>
         </div>
+      </div>
+    </div>
+    <div class="project-modal lua-paste-modal" id="luaPasteModal" role="dialog" aria-modal="true" aria-labelledby="luaPasteTitle">
+      <div class="project-card lua-paste-card">
+        <div class="project-head"><div><h2 id="luaPasteTitle">Import Lua show</h2><p>Paste the exported Flux show script, or choose a Lua file.</p></div><div class="spacer"></div><button class="pill" id="closeLuaPaste">Close</button></div>
+        <label for="luaPasteText">Flux show script</label>
+        <textarea id="luaPasteText" spellcheck="false" placeholder="Paste the complete exported Lua show here…"></textarea>
+        <div class="lua-paste-actions"><button class="pill" id="chooseLuaFile">Upload Lua file</button><button class="pill primary" id="importPastedLua">Import pasted show</button></div>
+        <div class="launch-error" id="luaPasteError" role="alert"></div>
       </div>
     </div>
     <div class="project-modal" id="colourModal">
@@ -3858,7 +3876,7 @@
       function renderRuler() {
         const r = $("#ruler"),
           w = timelineWidth();
-        r.style.width = w + "px";
+        document.documentElement.style.setProperty("--timeline-width", w + "px");
         applyGridStyles(r);
         const { majorSeconds } = gridMetrics(),
           step =
@@ -4080,7 +4098,7 @@
         for (const [attribute, points] of Object.entries(curves)) {
           const [low, high] = automationRanges[attribute];
           const y = (value) => 39 - 33 * (value - low) / (high - low);
-          html += `<div class="lane automation-lane"><div class="lane-label"><b>${automationLabel(attribute)}</b><small data-auto-readout>${automationValue(attribute, low)} – ${automationValue(attribute, high)}</small><button type="button" class="automation-remove" title="Remove lane" aria-label="Remove ${automationLabel(attribute)} automation" data-auto-remove="${esc(attribute)}" data-auto-key="${key}">×</button></div><svg width="${width}" height="45" class="automation-graph" data-auto-key="${key}" data-auto-curve="${esc(attribute)}"><polyline fill="none" stroke="#ff763f" stroke-width="2" points="${points.map(p => [p.time * px, y(p.value)].join(",")).join(" ")}"/>${points.map((p, i) => `<circle cx="${p.time * px}" cy="${y(p.value)}" r="4" fill="#ff763f" data-point="${i}"><title>${p.time}s · ${automationValue(attribute, p.value)}</title></circle>`).join("")}</svg></div>`;
+          html += `<div class="lane automation-lane"><div class="lane-label"><b>${automationLabel(attribute)}</b><small data-auto-readout>${automationValue(attribute, low)} – ${automationValue(attribute, high)}</small><button type="button" class="automation-remove" title="Remove lane" aria-label="Remove ${automationLabel(attribute)} automation" data-auto-remove="${esc(attribute)}" data-auto-key="${key}">×</button></div><svg height="45" class="automation-graph" data-auto-key="${key}" data-auto-curve="${esc(attribute)}"><polyline fill="none" stroke="#ff763f" stroke-width="2" points="${points.map(p => [p.time * px, y(p.value)].join(",")).join(" ")}"/>${points.map((p, i) => `<circle cx="${p.time * px}" cy="${y(p.value)}" r="4" fill="#ff763f" data-point="${i}"><title>${p.time}s · ${automationValue(attribute, p.value)}</title></circle>`).join("")}</svg></div>`;
         }
         return html;
       }
@@ -4183,6 +4201,7 @@
         const anchorKey = firstTrack?.dataset.lane;
         const anchorOffset = firstTrack ? firstTrack.getBoundingClientRect().top - top : 0;
         const w = timelineWidth();
+        document.documentElement.style.setProperty("--timeline-width", w + "px");
         applyGridStyles($("#timeline"));
         let html = `<div class="playhead" id="head"></div>`;
         for (const lane of laneList()) {
@@ -4201,7 +4220,7 @@
           "sparks · haze · fire · CO₂ · fireworks · bubbles",
           w,
         );
-        $("#timeline").style.width = 210 + w + "px";
+        $("#timeline").style.width = `calc(var(--label) + var(--timeline-width))`;
         $("#timeline").innerHTML = html;
         const anchor = anchorKey && $$("#timeline .track").find(track => track.dataset.lane === anchorKey);
         if (anchor) scroller.scrollTop += anchor.getBoundingClientRect().top - top - anchorOffset;
@@ -5755,6 +5774,29 @@
         $("#downloadOutput").hidden = false;
         $("#modal").classList.add("open");
       }
+      function openLuaImport() {
+        $("#luaPasteError").textContent = "";
+        $("#luaPasteModal").classList.add("open");
+        $("#luaPasteText").focus();
+      }
+      function importLuaSource(source, sourceName = "") {
+        try {
+          const bundle = parseLuaShow(source);
+          loadProject(bundle);
+          if (!state.name?.trim()) state.name = sourceName.replace(/\.(?:lua|luau|txt)$/i, "") || "Imported show";
+          cacheProject();
+          $("#projectModal").classList.remove("open");
+          $("#luaPasteModal").classList.remove("open");
+          $("#launchGate").classList.add("hidden");
+          toast(bundle?.format === "fluxline-project" ? "Editable Lua show restored" : "Legacy Lua show imported");
+          return true;
+        } catch (error) {
+          const message = error?.message || String(error);
+          $("#luaPasteError").textContent = message;
+          $("#launchError").textContent = message;
+          return false;
+        }
+      }
       function projectBundle() {
         return {
           format: "fluxline-project",
@@ -6484,7 +6526,7 @@
       };
       $("#launchImportLua").onclick = () => {
         $("#launchError").textContent = "";
-        $("#luaFile").click();
+        openLuaImport();
       };
       $("#restoreBrowserBackup").onclick = () => {
         $("#launchError").textContent = "";
@@ -6629,30 +6671,22 @@
         $("#projectModal").classList.remove("open");
         openLuaExport();
       };
-      $("#importLua").onclick = () => $("#luaFile").click();
+      $("#importLua").onclick = openLuaImport;
+      $("#importLuaFile").onclick = () => $("#luaFile").click();
+      $("#chooseLuaFile").onclick = () => $("#luaFile").click();
+      $("#closeLuaPaste").onclick = () => $("#luaPasteModal").classList.remove("open");
+      $("#luaPasteModal").onclick = (event) => { if (event.target.id === "luaPasteModal") $("#luaPasteModal").classList.remove("open"); };
+      $("#importPastedLua").onclick = () => {
+        const source = $("#luaPasteText").value.trim();
+        if (!source) { $("#luaPasteError").textContent = "Paste an exported Lua show first."; return; }
+        importLuaSource(source);
+      };
       $("#luaFile").onchange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
         reader.onload = () => {
-          try {
-            const bundle = parseLuaShow(reader.result);
-            loadProject(bundle);
-            if (!state.name?.trim())
-              state.name =
-                file.name.replace(/\.(?:lua|luau|txt)$/i, "") ||
-                "Imported show";
-            cacheProject();
-            $("#projectModal").classList.remove("open");
-            toast(
-              bundle?.format === "fluxline-project"
-                ? "Editable Lua show restored"
-                : "Legacy Lua show imported",
-            );
-          } catch (error) {
-            $("#launchError").textContent = error.message;
-            $("#launchGate").classList.remove("hidden");
-          }
+          importLuaSource(reader.result, file.name);
         };
         reader.readAsText(file);
         e.target.value = "";

@@ -607,12 +607,17 @@
         background-image:
           repeating-linear-gradient(
             90deg,
-            rgba(255, 255, 255, 0.09) 0 1px,
-            transparent 1px var(--major-grid, calc(var(--pps) * 4))
+            rgba(255, 255, 255, 0.15) 0 1px,
+            transparent 1px var(--bar-grid, calc(var(--pps) * 4))
           ),
           repeating-linear-gradient(
             90deg,
-            rgba(255, 255, 255, 0.035) 0 1px,
+            rgba(255, 255, 255, 0.07) 0 1px,
+            transparent 1px var(--beat-grid, var(--pps))
+          ),
+          repeating-linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.025) 0 1px,
             transparent 1px var(--snap-grid, var(--pps))
           );
         cursor: pointer;
@@ -687,12 +692,17 @@
         background-image:
           repeating-linear-gradient(
             90deg,
-            rgba(255, 255, 255, 0.09) 0 1px,
-            transparent 1px var(--major-grid, calc(var(--pps) * 4))
+            rgba(255, 255, 255, 0.15) 0 1px,
+            transparent 1px var(--bar-grid, calc(var(--pps) * 4))
           ),
           repeating-linear-gradient(
             90deg,
-            rgba(255, 255, 255, 0.035) 0 1px,
+            rgba(255, 255, 255, 0.07) 0 1px,
+            transparent 1px var(--beat-grid, var(--pps))
+          ),
+          repeating-linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.025) 0 1px,
             transparent 1px var(--snap-grid, var(--pps))
           );
         cursor: pointer;
@@ -2038,11 +2048,12 @@
         cursor: crosshair;
         background-color: #1b191e;
         background-image:
-          linear-gradient(90deg, #3a343c 1px, transparent 1px),
-          linear-gradient(90deg, #29262c 1px, transparent 1px),
+          repeating-linear-gradient(90deg, rgba(255,255,255,.15) 0 1px, transparent 1px var(--bar-grid)),
+          repeating-linear-gradient(90deg, rgba(255,255,255,.075) 0 1px, transparent 1px var(--beat-grid)),
+          repeating-linear-gradient(90deg, rgba(255,255,255,.028) 0 1px, transparent 1px var(--snap-grid)),
           repeating-linear-gradient(180deg, #303030 0 1px, transparent 1px 14px);
-        background-size: var(--major-grid) 100%, var(--snap-grid) 100%, 100% 100%;
-        background-position: 0 0, 0 0, 0 8px;
+        background-size: var(--bar-grid) 100%, var(--beat-grid) 100%, var(--snap-grid) 100%, 100% 100%;
+        background-position: 0 0, 0 0, 0 0, 0 8px;
       }
       .automation-graph circle { cursor: grab; stroke: #141414; stroke-width: 1.5px; }
       .automation-graph circle:hover { fill: #ffd0b8; }
@@ -3863,14 +3874,15 @@
         scheduleWaveDraw();
       }
       function gridMetrics() {
-        const snapUnit = autoSnapUnit(),
-          snapSeconds = (60 / (+$("#bpm").value || 128)) * snapUnit;
-        return { snapSeconds, majorSeconds: snapSeconds * 4 };
+        const beatSeconds = 60 / (+$("#bpm").value || 128),
+          snapSeconds = beatSeconds * autoSnapUnit();
+        return { snapSeconds, beatSeconds, barSeconds: beatSeconds * 4 };
       }
       function applyGridStyles(element) {
-        const { snapSeconds, majorSeconds } = gridMetrics();
+        const { snapSeconds, beatSeconds, barSeconds } = gridMetrics();
         element.style.setProperty("--snap-grid", snapSeconds * px + "px");
-        element.style.setProperty("--major-grid", majorSeconds * px + "px");
+        element.style.setProperty("--beat-grid", beatSeconds * px + "px");
+        element.style.setProperty("--bar-grid", barSeconds * px + "px");
         updateAutoSnapReadout();
       }
       function renderRuler() {
@@ -3878,9 +3890,9 @@
           w = timelineWidth();
         document.documentElement.style.setProperty("--timeline-width", w + "px");
         applyGridStyles(r);
-        const { majorSeconds } = gridMetrics(),
+        const { barSeconds } = gridMetrics(),
           step =
-            majorSeconds * Math.max(1, Math.ceil(78 / (majorSeconds * px)));
+            barSeconds * Math.max(1, Math.ceil(78 / (barSeconds * px)));
         let s = "";
         for (let t = 0; t <= state.duration; t += step)
           s += `<div class="tick" style="left:${t * px}px">${format(t, false)}</div>`;

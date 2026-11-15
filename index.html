@@ -1995,14 +1995,36 @@
           grid-template-columns: 1fr;
         }
       }
+      .automation-toolbar { display: flex; align-items: center; padding: 0 10px; }
+      #automationToggle {
+        display: inline-flex; align-items: center; gap: 7px;
+        padding: 3px 8px; border: 1px solid #3d3d43; border-radius: 5px;
+        background: #202025; color: #c7c7cc; font-size: 11px; cursor: pointer;
+      }
+      #automationToggle[aria-pressed="true"] {
+        background: #263e4c; color: #c2ebff; border-color: #527b90;
+      }
+      #automationToggle kbd { opacity: .7; font-size: 10px; }
+      .automation-lane { border-top: 1px solid #393239; }
+      .automation-lane .lane-label {
+        background: #211d24; box-shadow: inset 3px 0 #c685a4;
+        position: relative;
+      }
+      .automation-lane .lane-label b { color: #f2d9e5; padding-right: 20px; }
+      .automation-remove {
+        position: absolute; top: 8px; right: 8px;
+        border: 0; border-radius: 4px; background: transparent;
+        color: #b8a9b5; font-size: 15px; cursor: pointer;
+      }
+      .automation-remove:hover { background: #40343f; color: white; }
       .automation-graph {
         flex: none;
         touch-action: none;
         cursor: crosshair;
-        background-color: #141414;
+        background-color: #1b191e;
         background-image:
-          linear-gradient(90deg, #414141 1px, transparent 1px),
-          linear-gradient(90deg, #292929 1px, transparent 1px),
+          linear-gradient(90deg, #3a343c 1px, transparent 1px),
+          linear-gradient(90deg, #29262c 1px, transparent 1px),
           repeating-linear-gradient(180deg, #303030 0 1px, transparent 1px 14px);
         background-size: var(--major-grid) 100%, var(--snap-grid) 100%, 100% 100%;
         background-position: 0 0, 0 0, 0 8px;
@@ -2199,7 +2221,7 @@
             </div>
           </div>
           <div class="ruler-row">
-            <div class="sticky-label"></div>
+            <div class="sticky-label automation-toolbar"><button id="automationToggle" type="button" aria-pressed="false" title="Toggle automation (A)"><span aria-hidden="true">⎇</span> Automation <kbd>A</kbd></button></div>
             <div class="ruler" id="ruler"></div>
           </div>
           <div class="scroller" id="scroller">
@@ -4045,7 +4067,7 @@
         for (const [attribute, points] of Object.entries(curves)) {
           const [low, high] = automationRanges[attribute];
           const y = (value) => 64 - 56 * (value - low) / (high - low);
-          html += `<div class="lane" style="height:72px"><div class="lane-label"><b>${automationLabel(attribute)}</b><small data-auto-readout>${automationValue(attribute, low)} – ${automationValue(attribute, high)}</small><button class="automation-picker" aria-label="Remove ${automationLabel(attribute)} automation" data-auto-remove="${esc(attribute)}" data-auto-key="${key}">Remove</button></div><svg width="${width}" height="72" class="automation-graph" data-auto-key="${key}" data-auto-curve="${esc(attribute)}"><polyline fill="none" stroke="#ff763f" stroke-width="2" points="${points.map(p => [p.time * px, y(p.value)].join(",")).join(" ")}"/>${points.map((p, i) => `<circle cx="${p.time * px}" cy="${y(p.value)}" r="4" fill="#ff763f" data-point="${i}"><title>${p.time}s · ${automationValue(attribute, p.value)}</title></circle>`).join("")}</svg></div>`;
+          html += `<div class="lane automation-lane" style="height:72px"><div class="lane-label"><b>${automationLabel(attribute)}</b><small data-auto-readout>${automationValue(attribute, low)} – ${automationValue(attribute, high)}</small><button type="button" class="automation-remove" title="Remove lane" aria-label="Remove ${automationLabel(attribute)} automation" data-auto-remove="${esc(attribute)}" data-auto-key="${key}">×</button></div><svg width="${width}" height="72" class="automation-graph" data-auto-key="${key}" data-auto-curve="${esc(attribute)}"><polyline fill="none" stroke="#ff763f" stroke-width="2" points="${points.map(p => [p.time * px, y(p.value)].join(",")).join(" ")}"/>${points.map((p, i) => `<circle cx="${p.time * px}" cy="${y(p.value)}" r="4" fill="#ff763f" data-point="${i}"><title>${p.time}s · ${automationValue(attribute, p.value)}</title></circle>`).join("")}</svg></div>`;
         }
         return html;
       }
@@ -4135,7 +4157,12 @@
         }
         return events;
       }
+      $("#automationToggle").onclick = () => {
+        automationVisible = !automationVisible;
+        renderTimeline();
+      };
       function renderTimeline() {
+        $("#automationToggle").setAttribute("aria-pressed", String(automationVisible));
         const w = timelineWidth();
         applyGridStyles($("#timeline"));
         let html = `<div class="playhead" id="head"></div>`;
@@ -6746,8 +6773,7 @@
           key = e.key.toLowerCase();
         if (!mod && key === "a" && !e.altKey && !e.repeat) {
           e.preventDefault();
-          automationVisible = !automationVisible;
-          renderTimeline();
+          $("#automationToggle").click();
         } else if (mod && key === "a") {
           e.preventDefault();
           setSelection(

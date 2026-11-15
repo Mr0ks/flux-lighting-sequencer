@@ -545,6 +545,45 @@ local function play(player, id, temporaryShow)
 	end)
 end
 
+local function resetAllFixtures(player)
+	local kit = findKit()
+	local fixtures = kit and kit:FindFirstChild("fixtures")
+	local main = fixtures and fixtures:FindFirstChild("main")
+	if not main then
+		remote:FireClient(player, "playbackError", "Flux fixture patch could not be found.")
+		return
+	end
+	stop()
+	local resetToken = activeToken
+	-- The GUI can have effects running that weren't started by a show.
+	local ok, presets = pcall(function()
+		return DataStoreService:GetDataStore(Config.FluxDataStoreName, "effects"):GetAsync(Config.FluxShowKey)
+	end)
+	if activeToken ~= resetToken then return end
+	if ok and type(presets) == "table" then
+		local effects = {}
+		for _, folder in main:GetChildren() do
+			if folder:FindFirstChildWhichIsA("Model") then
+				for name in pairs(presets[folder.Name] or {}) do
+					table.insert(effects, {folder.Name, name})
+				end
+			end
+		end
+		if #effects > 0 then nativeDirect().effects:FireAllClients(effects, "off") end
+	elseif not ok then
+		warn("Flux Shows could not clear panel effects during reset:", presets)
+	end
+	for _, folder in main:GetChildren() do
+		if folder:FindFirstChildWhichIsA("Model") then
+			remote:FireAllClients("nativeCue", {
+				kitName = Config.KitName,
+				token = resetToken,
+				event = {target=folder.Name..":all", action="reset", value=0, duration=0},
+			})
+		end
+	end
+end
+
 local function decodeTemporaryShow(payload)
 	assert(type(payload) == "string" and #payload <= 512000, "Temporary show data must be under 512 KB.")
 	local show = HttpService:JSONDecode(payload)
@@ -613,6 +652,7 @@ remote.OnServerEvent:Connect(function(player, action, value)
 		else
 			remote:FireClient(player, "temporaryError", tostring(show))
 		end
+	elseif action == "resetAllFixtures" then resetAllFixtures(player)
 	elseif action == "stop" then stop()
 	elseif action == "export" then
 		local ok, result = exportFlux()

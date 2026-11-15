@@ -245,7 +245,7 @@ local layout = create("UIListLayout", {
 }, list)
 
 local stop = create("TextButton", {
-	Size = UDim2.new(1, 0, 0, 40),
+	Size = UDim2.new(.5, -4, 0, 40),
 	Position = UDim2.new(0, 0, 1, -40),
 	BackgroundColor3 = COLORS.surface,
 	BorderSizePixel = 0,
@@ -257,6 +257,19 @@ local stop = create("TextButton", {
 }, showsPage)
 round(stop, 13)
 outline(stop)
+
+local resetFixtures = create("TextButton", {
+	Size = UDim2.new(.5, -4, 0, 40),
+	Position = UDim2.new(.5, 4, 1, -40),
+	BackgroundColor3 = COLORS.surface,
+	TextColor3 = COLORS.text,
+	Text = "RESET ALL FIXTURES",
+	TextSize = 11,
+	Font = Enum.Font.GothamBold,
+}, showsPage)
+round(resetFixtures, 13)
+outline(resetFixtures)
+resetFixtures.Activated:Connect(function() remote:FireServer("resetAllFixtures") end)
 
 local openTemporary = create("TextButton", {
 	Size = UDim2.new(1, 0, 0, 32),
@@ -282,7 +295,7 @@ local temporaryHint = create("TextLabel", {
 	TextColor3 = COLORS.text,
 	TextWrapped = true,
 	TextSize = 12,
-	Text = "Paste a fresh Lua export from Flux Sequencer.",
+	Text = "Paste the full Lua export from Flux Sequencer.",
 }, temporaryPage)
 local temporaryInput = create("TextBox", {
 	Position = UDim2.fromOffset(0, 38),
@@ -508,7 +521,7 @@ end)
 playTemporary.Activated:Connect(function()
 	local payload = temporaryInput.Text:match("%-%-%[====%[FLUX_TEMP_SHOW_V1\r?\n(.-)\r?\n%]====%]")
 	if not payload then
-		temporaryHint.Text = "Export the show again from the current sequencer, then paste the new Lua."
+		temporaryHint.Text = "Refresh Flux Sequencer and paste a full new Lua export."
 		return
 	end
 	if #payload > 512000 then

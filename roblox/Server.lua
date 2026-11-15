@@ -216,23 +216,33 @@ local function apply(event, token, started)
 		local key=effectKey(fixture,native.name)
 		local effect={fixture=fixture,name=native.name,metas=metas}
 		nativeEffects[key]=effect
-		local ramp = event.speedRamp
-		local usesDim = false
+		local ramp, curve = event.speedRamp, event.speedCurve
+		local supported = {dim=true, strobe=true, color=true, iris=true, width=true, movement=true, spin=true}
+		local speedFader
 		for _, meta in metas do
-			if meta.speed == "dim" then usesDim = true end
+			if supported[meta.speed] then speedFader = meta.speed; break end
 		end
-		if type(ramp) == "table" and fixture == "wash" and usesDim then
-			local from = math.clamp(tonumber(ramp[1]) or 60, 1, 300)
-			local to = math.clamp(tonumber(ramp[2]) or 240, 1, 300)
-			local seconds = math.max(.1, math.min(tonumber(ramp[3]) or 1, tonumber(event.duration) or 1))
+		local duration = math.max(.1, tonumber(event.duration) or 1)
+		if type(curve) ~= "table" and type(ramp) == "table" then
+			curve = {{0, ramp[1]}, {math.clamp((tonumber(ramp[3]) or 1)/duration, .001, 1), ramp[2]}}
+			speedFader = fixture == "wash" and "dim" or nil
+		end
+		if type(curve) == "table" and #curve >= 2 and speedFader then
 			local fader = nativeDirect().faders
-			local address = {group="all 1", kind="presets", fader="dim", fixt=fixture}
-			fader:FireAllClients(address, from)
+			local address = {group="all 1", kind="presets", fader=speedFader, fixt=fixture}
+			local function send(bpm)
+				fader:FireAllClients(address, math.round(math.clamp(tonumber(bpm) or 60, 1, 300)))
+			end
+			send(curve[1][2])
 			task.defer(function()
+				local segment = 1
 				while activeToken == token and nativeEffects[key] == effect do
-					local progress = math.clamp((workspace:GetServerTimeNow()-started)/seconds, 0, 1)
-					fader:FireAllClients(address, math.round(from+(to-from)*progress))
-					if progress >= 1 then break end
+					local progress = math.clamp((workspace:GetServerTimeNow()-started)/duration, 0, 1)
+					while segment < #curve-1 and progress >= curve[segment+1][1] do segment += 1 end
+					local left, right = curve[segment], curve[segment+1]
+					local fraction = math.clamp((progress-left[1])/math.max(.000001,right[1]-left[1]),0,1)
+					send(left[2]+(right[2]-left[2])*fraction)
+					if progress >= right[1] and segment == #curve-1 then break end
 					task.wait(.05)
 				end
 			end)

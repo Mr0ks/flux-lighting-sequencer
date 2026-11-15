@@ -4932,13 +4932,14 @@
             ? `<div class="field"><label>${esc(valueInfo.label)}</label><input id="evRange" type="range" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"><input id="evValue" type="number" min="${range[0]}" max="${range[1]}" step="${range[2]}" value="${e.value}"><small class="field-hint">${esc(valueInfo.hint)}</small></div>`
             : `<div class="field"><label>${esc(valueInfo.label)}</label><input id="evValue" type="number" step=".01" value="${e.value}"><small class="field-hint">${esc(valueInfo.hint)}</small></div>`;
         const phases = fadePhases(e);
-        const speedRamp = e.action === "flux-effect" && e.native?.fixture === "wash"
-          && nativeMetadata(e.native).some(meta => meta.speed === "dim");
-        const speedEditor = speedRamp ? `<div class="section-title">Speed ramp · Dim fader</div>
-          <label class="field"><input id="effectRampEnabled" type="checkbox" ${e.speedRamp ? "checked" : ""}> Enable speed ramp</label>
-          <div class="row">${["Start BPM", "End BPM", "Seconds"].map((label, index) =>
-            `<label class="field">${label}<input id="effectRamp${index}" type="number" min="${index === 2 ? ".1" : 1}" max="${index === 2 ? Math.max(.1, e.duration) : 300}" value="${Number(e.speedRamp?.[index]) || [60, 240, Math.max(.1, e.duration)][index]}"></label>`).join("")}</div>
-          <small class="field-hint">Uses the shared Wash Dim fader. Other wash effects linked to Dim follow it too.</small>` : "";
+        const speedFader = e.action === "flux-effect"
+          && nativeMetadata(e.native).map(meta => meta.speed).find(speed => ["dim","strobe","color","iris","width","movement","spin"].includes(speed));
+        const speedEditor = speedFader ? `<div class="section-title">Speed · ${speedFader}</div>
+          <label><input id="speedEnabled" type="checkbox" ${e.speedCurve || e.speedRamp ? "checked" : ""}> Follow speed graph</label>
+          <svg id="speedGraph" viewBox="0 0 240 112" style="width:100%;margin-top:8px;background:#19191e;border:1px solid #444;border-radius:6px;touch-action:none" aria-label="Effect speed graph"></svg>
+          <div class="row"><label class="field">Start BPM<input id="speedStart" type="number" min="1" max="300"></label><label class="field">End BPM<input id="speedEnd" type="number" min="1" max="300"></label></div>
+          <small class="field-hint">Click to add a keyframe. Drag to move it. Right-click an interior point to delete it. Uses Flux's shared ${speedFader} fader.</small>`
+          : e.action === "flux-effect" ? '<small class="field-hint">Speed graphs require a supported Flux speed fader in the saved effect.</small>' : "";
         const flashEditor = isFlash ? ["Fade in", "Hold", "Fade out"].map((name, index) =>
           `<div class="field"><label for="flashPhase${index}">${name} (seconds)</label><input id="flashPhase${index}" type="number" min="0" step=".001" value="${+phases[index].toFixed(3)}"></div>`
         ).join("") : "";
@@ -4960,20 +4961,72 @@
           const x = $("#" + id);
           if (x) x.onchange = change;
         });
-        if (speedRamp) {
-          for (const id of ["effectRampEnabled", "effectRamp0", "effectRamp1", "effectRamp2"]) {
-            $("#" + id).onchange = () => {
+        if (speedFader) {
+          const svg = $("#speedGraph");
+          const enabled = $("#speedEnabled");
+          const old = e.speedRamp;
+          const fraction = old ? clamp(old[2] / Math.max(.1, e.duration), .001, 1) : 1;
+          const points = structuredClone(e.speedCurve || [[0, old?.[0] ?? 60],
+            ...(fraction < 1 ? [[fraction, old[1]]] : []), [1, old?.[1] ?? 240]]);
+          const x = point => 10 + point[0] * 220;
+          const y = point => 102 - (point[1] - 1) / 299 * 92;
+          const draw = () => {
+            svg.innerHTML = [10,33,56,79,102].map(y => `<path d="M10 ${y}H230" stroke="#383841"/>`).join("")
+              + [10,65,120,175,230].map(x => `<path d="M${x} 10V102" stroke="#383841"/>`).join("")
+              + `<polyline points="${points.map(point => [x(point), y(point)].join(",")).join(" ")}" fill="none" stroke="#ff9265" stroke-width="2"/>`
+              + points.map((point, index) => `<circle data-keyframe="${index}" cx="${x(point)}" cy="${y(point)}" r="5" fill="#ff9265"><title>${(point[0] * e.duration).toFixed(2)}s · ${point[1]} BPM</title></circle>`).join("");
+            $("#speedStart").value = points[0][1];
+            $("#speedEnd").value = points.at(-1)[1];
+          };
+          const save = () => {
+            delete e.speedRamp;
+            if (enabled.checked) e.speedCurve = structuredClone(points);
+            else delete e.speedCurve;
+            autosave();
+          };
+          enabled.onchange = () => { commit(); save(); };
+          for (const [id, index] of [["speedStart", 0], ["speedEnd", -1]]) {
+            $("#" + id).onchange = event => {
               commit();
-              if ($("#effectRampEnabled").checked) {
-                e.speedRamp = [0, 1, 2].map(index => {
-                  const input = $("#effectRamp" + index);
-                  return clamp(input.valueAsNumber || +input.min, +input.min, +input.max);
-                });
-              } else delete e.speedRamp;
-              renderInspector();
-              autosave();
+              points.at(index)[1] = clamp(event.target.valueAsNumber || 1, 1, 300);
+              enabled.checked = true;
+              draw();
+              save();
             };
           }
+          svg.oncontextmenu = event => {
+            event.preventDefault();
+            const index = Number(event.target.dataset.keyframe);
+            if (!(index > 0 && index < points.length - 1)) return;
+            commit();
+            points.splice(index, 1);
+            draw();
+            save();
+          };
+          svg.onpointerdown = event => {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            commit();
+            const point = points[Number(event.target.dataset.keyframe)] || [0, 60];
+            const endpoint = point === points[0] || point === points.at(-1);
+            if (!points.includes(point)) points.push(point);
+            const move = event => {
+              const coords = new DOMPoint(event.clientX, event.clientY).matrixTransform(svg.getScreenCTM().inverse());
+              if (!endpoint) point[0] = clamp((coords.x - 10) / 220, .001, .999);
+              point[1] = Math.round(clamp(1 + (102 - coords.y) / 92 * 299, 1, 300));
+              points.sort((a, b) => a[0] - b[0]);
+              draw();
+            };
+            enabled.checked = true;
+            svg.setPointerCapture(event.pointerId);
+            move(event);
+            svg.onpointermove = move;
+            svg.onlostpointercapture = () => {
+              svg.onpointermove = null;
+              save();
+            };
+          };
+          draw();
         }
         if (isFlash) {
           for (let index = 0; index < 3; index++) {
@@ -5384,7 +5437,7 @@
           .sort((a, b) => a.time - b.time)
           .map(
             (e) =>
-              `\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration || 0}, flashTiming = ${lua(e.flashTiming)}, automationFrom = ${lua(e.automationFrom)}, speedRamp = ${lua(e.speedRamp)}, label = ${JSON.stringify(e.label || e.action)}, kind = ${JSON.stringify(e.kind || "output")}, selection = ${lua(e.selection)}, module = ${lua(e.module)}, channel = ${lua(e.channel)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`,
+              `\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration || 0}, flashTiming = ${lua(e.flashTiming)}, automationFrom = ${lua(e.automationFrom)}, speedRamp = ${lua(e.speedRamp)}, speedCurve = ${lua(e.speedCurve)}, label = ${JSON.stringify(e.label || e.action)}, kind = ${JSON.stringify(e.kind || "output")}, selection = ${lua(e.selection)}, module = ${lua(e.module)}, channel = ${lua(e.channel)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`,
           )
           .join("\n");
         return `--[[FLUX_SEQUENCER_PROJECT_V1\n${metadata}\nFLUX_SEQUENCER_PROJECT_END]]\n-- Roblox ignores the project backup above and runs the show below.\n-- Exported by Flux Sequencer\nreturn {\n\tversion = 4,\n\tname = ${JSON.stringify(projectState.name)},\n\tsongId = ${JSON.stringify(projectState.songId)},\n\tduration = ${projectState.duration},\n\tbpm = ${projectState.bpm},\n\tevents = {\n${ev}\n\t},\n}`;
@@ -5513,6 +5566,7 @@
             duration: Math.max(0, +raw.duration || 0),
             flashTiming: raw.flashTiming,
             speedRamp: raw.speedRamp,
+            speedCurve: raw.speedCurve,
             label: String(raw.label || raw.action || "Cue"),
             kind: String(raw.kind || "output"),
             selection: raw.selection || laneSelection(raw.target),

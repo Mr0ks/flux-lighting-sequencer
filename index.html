@@ -2085,6 +2085,129 @@
       .lua-paste-card { width: min(820px, 94vw); }
       #luaPasteText { width: 100%; min-height: 260px; resize: vertical; padding: 12px; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; font: 12px/1.5 ui-monospace, monospace; }
       .lua-paste-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+
+      /* Shared responsive UI sizing and surface rules. Keep timeline data
+         monospace while allowing labels and controls to scale with the view. */
+      :root {
+        --ui-xs: clamp(0.68rem, 0.12vw + 0.64rem, 0.76rem);
+        --ui-sm: clamp(0.75rem, 0.16vw + 0.70rem, 0.875rem);
+        --ui-base: clamp(0.82rem, 0.22vw + 0.76rem, 0.96rem);
+        --ui-lg: clamp(1rem, 0.38vw + 0.88rem, 1.25rem);
+        --ui-border: #39393c;
+        --ui-border-soft: #29292c;
+        --ui-control-radius: 8px;
+        --ui-surface-radius: 14px;
+        --label: clamp(154px, 18vw, 210px);
+      }
+      body {
+        font: 400 var(--ui-base)/1.45 "Roboto Flex", Inter, system-ui, sans-serif;
+        font-optical-sizing: auto;
+        -webkit-text-size-adjust: 100%;
+      }
+      h1, h2, h3, p, label, small, button, input, select, textarea {
+        overflow-wrap: anywhere;
+      }
+      .topbar, .transport, .side, .right, .workspace,
+      .project-modal, .blocks-modal, .modal, .dialog,
+      .launch-card, .import-card, .project-card, .blocks-card {
+        min-width: 0;
+      }
+      .topbar { gap: clamp(6px, 0.8vw, 12px); }
+      .brand h1, .project-head h2, .right h2 {
+        font-size: var(--ui-lg);
+        line-height: 1.2;
+      }
+      .brand, .brand p, .topbar p, .field label, .transport label,
+      .project-row small, .saved-item small, .hint, .help-text {
+        font-size: var(--ui-xs);
+        line-height: 1.4;
+      }
+      .lane-label {
+        padding: clamp(6px, 0.8vw, 9px) clamp(8px, 1vw, 12px);
+        border-color: var(--ui-border);
+      }
+      .lane-label b {
+        max-width: 100%;
+        padding-right: 24px;
+        font-size: clamp(0.78rem, 0.3vw + 0.69rem, 0.98rem);
+        line-height: 1.25;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .lane-label small {
+        max-width: 100%;
+        padding-right: 24px;
+        font-size: var(--ui-xs);
+        line-height: 1.35;
+      }
+      .automation-lane .lane-label b { font-size: var(--ui-xs); }
+      .automation-lane .lane-label small { font-size: clamp(0.62rem, 0.12vw + 0.59rem, 0.72rem); }
+      .track-collapse {
+        top: 50%;
+        right: 8px;
+        display: grid;
+        place-items: center;
+        width: 17px;
+        height: 17px;
+        min-width: 0;
+        min-height: 0;
+        padding: 0;
+        border: 1px solid var(--ui-border);
+        border-radius: 5px;
+        background: var(--panel3);
+        color: var(--text);
+        font: 600 11px/1 "Roboto Mono", ui-monospace, monospace;
+        transform: translateY(-50%);
+      }
+      .track-collapse:active:not(:disabled) { transform: translateY(-50%) scale(0.94); }
+      .track-collapse:hover { border-color: #77777c; background: #303034; }
+      button { font-size: inherit; }
+      input, select, textarea { font-size: var(--ui-sm); }
+      .icon, .play, .pill, .project-action, .builder-action, .saved-item button {
+        min-height: clamp(32px, 3.8vh, 40px);
+        font-size: var(--ui-sm);
+      }
+      .icon, .play { min-width: clamp(32px, 3.8vh, 40px); }
+      .automation-picker, #automationToggle {
+        min-height: 24px;
+        height: auto;
+        padding: 3px 7px;
+        border: 1px solid var(--ui-border);
+        border-radius: var(--ui-control-radius);
+        font-size: var(--ui-xs);
+        line-height: 1.25;
+      }
+      .automation-picker { max-width: calc(100% - 22px); }
+      .field input, .field select, .small, .search-row input,
+      .block-name, .builder-grid input, .builder-grid select,
+      .import-card textarea, #luaPasteText {
+        min-width: 0;
+        border-color: var(--ui-border);
+        border-radius: var(--ui-control-radius);
+        font-size: var(--ui-sm);
+        line-height: 1.4;
+      }
+      :where(button, input, select, textarea, .project-row, .lane-label, .dialog):focus-visible {
+        outline-color: #d8d8dc;
+      }
+      .project-row, .saved-item { border-color: var(--ui-border-soft); border-radius: var(--ui-surface-radius); }
+      .import-card, .project-card, .blocks-card, .dialog { border-radius: 20px; }
+      .automation-lane { border-bottom-color: var(--ui-border); }
+      .automation-lane .lane-label { border-right-color: #51404c; }
+      .automation-remove { width: 20px; height: 20px; padding: 0; line-height: 1; }
+      .tick, .time, .zoom-readout { font-size: var(--ui-xs); }
+      @media (max-width: 800px) {
+        :root { --label: clamp(142px, 24vw, 180px); }
+        .track-collapse { right: 6px; }
+      }
+      @media (max-width: 620px) {
+        :root { --label: 142px; }
+        .topbar { min-height: 56px; }
+        .brand h1 { font-size: var(--ui-sm); }
+        .lane-label b { font-size: 0.78rem; }
+        input, select, textarea { font-size: 16px; }
+      }
     </style>
   </head>
   <body>

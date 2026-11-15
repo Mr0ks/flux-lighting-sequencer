@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="flux-sequencer-version" content="2026.11.15.2" />
+    <meta name="flux-sequencer-version" content="2026.11.15.3" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -5825,14 +5825,18 @@
                   activeColour: "#ffffff",
                 },
           ),
-          ev = [...(projectState.events || []), ...automationEvents(projectState)]
-          .sort((a, b) => a.time - b.time)
-          .map(
+          events = [...(projectState.events || []), ...automationEvents(projectState)]
+            .sort((a, b) => a.time - b.time),
+          temporary = JSON.stringify({
+            name: projectState.name, songId: projectState.songId, duration: projectState.duration,
+            events: events.map(({time, ...event}) => ({ ...event, t: time })),
+          }).replaceAll("]====]", "\\u005d====]"),
+          ev = events.map(
             (e) =>
               `\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration || 0}, flashTiming = ${lua(e.flashTiming)}, automationFrom = ${lua(e.automationFrom)}, speedRamp = ${lua(e.speedRamp)}, speedCurve = ${lua(e.speedCurve)}, label = ${JSON.stringify(e.label || e.action)}, kind = ${JSON.stringify(e.kind || "output")}, selection = ${lua(e.selection)}, module = ${lua(e.module)}, channel = ${lua(e.channel)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`,
           )
           .join("\n");
-        return `--[[FLUX_SEQUENCER_PROJECT_V1\n${metadata}\nFLUX_SEQUENCER_PROJECT_END]]\n-- Roblox ignores the project backup above and runs the show below.\n-- Exported by Flux Sequencer\nreturn {\n\tversion = 4,\n\tname = ${JSON.stringify(projectState.name)},\n\tsongId = ${JSON.stringify(projectState.songId)},\n\tduration = ${projectState.duration},\n\tbpm = ${projectState.bpm},\n\tevents = {\n${ev}\n\t},\n}`;
+        return `--[[FLUX_SEQUENCER_PROJECT_V1\n${metadata}\nFLUX_SEQUENCER_PROJECT_END]]\n--[====[FLUX_TEMP_SHOW_V1\n${temporary}\n]====]\n-- Roblox ignores the project backup above and runs the show below.\n-- Exported by Flux Sequencer\nreturn {\n\tversion = 4,\n\tname = ${JSON.stringify(projectState.name)},\n\tsongId = ${JSON.stringify(projectState.songId)},\n\tduration = ${projectState.duration},\n\tbpm = ${projectState.bpm},\n\tevents = {\n${ev}\n\t},\n}`;
       }
       function parseLuaShow(source) {
         const embeddedProject = embeddedLuaProject(source);

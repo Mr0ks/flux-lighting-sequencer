@@ -230,7 +230,7 @@ local showsPage = create("Frame", {
 }, panel)
 
 local list = create("ScrollingFrame", {
-	Size = UDim2.new(1, 0, 1, -48),
+	Size = UDim2.new(1, 0, 1, -88),
 	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
 	AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -257,6 +257,59 @@ local stop = create("TextButton", {
 }, showsPage)
 round(stop, 13)
 outline(stop)
+
+local openTemporary = create("TextButton", {
+	Size = UDim2.new(1, 0, 0, 32),
+	Position = UDim2.new(0, 0, 1, -80),
+	BackgroundColor3 = COLORS.surface,
+	TextColor3 = COLORS.text,
+	Text = "PASTE TEMPORARY SHOW",
+	TextSize = 11,
+	Font = Enum.Font.GothamBold,
+}, showsPage)
+round(openTemporary, 10)
+outline(openTemporary)
+
+local temporaryPage = create("Frame", {
+	Size = showsPage.Size,
+	Position = showsPage.Position,
+	BackgroundTransparency = 1,
+	Visible = false,
+}, panel)
+local temporaryHint = create("TextLabel", {
+	Size = UDim2.new(1, 0, 0, 34),
+	BackgroundTransparency = 1,
+	TextColor3 = COLORS.text,
+	TextWrapped = true,
+	TextSize = 12,
+	Text = "Paste a fresh Lua export from Flux Sequencer.",
+}, temporaryPage)
+local temporaryInput = create("TextBox", {
+	Position = UDim2.fromOffset(0, 38),
+	Size = UDim2.new(1, 0, 1, -79),
+	BackgroundColor3 = COLORS.surface,
+	TextColor3 = COLORS.text,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextYAlignment = Enum.TextYAlignment.Top,
+	TextTruncate = Enum.TextTruncate.AtEnd,
+	TextWrapped = true,
+	ClearTextOnFocus = false,
+	MultiLine = true,
+	TextSize = 12,
+	Text = "",
+	PlaceholderText = "Paste exported Lua here",
+}, temporaryPage)
+round(temporaryInput, 10)
+local playTemporary = create("TextButton", {
+	Position = UDim2.new(0, 0, 1, -34),
+	Size = UDim2.new(1, 0, 0, 34),
+	BackgroundColor3 = COLORS.white,
+	TextColor3 = COLORS.black,
+	Text = "PLAY TEMPORARY SHOW",
+	TextSize = 11,
+	Font = Enum.Font.GothamBold,
+}, temporaryPage)
+round(playTemporary, 10)
 
 local exportPage = create("Frame", {
 	Size = showsPage.Size,
@@ -367,6 +420,7 @@ local function setStatus(text, playing)
 end
 
 local function selectPage(exporting)
+	temporaryPage.Visible = false
 	showsPage.Visible = not exporting
 	exportPage.Visible = exporting
 	tabShows.BackgroundTransparency = exporting and 1 or 0
@@ -445,6 +499,25 @@ end)
 tabShows.Activated:Connect(function() selectPage(false) end)
 tabExport.Activated:Connect(function() selectPage(true) end)
 stop.Activated:Connect(function() remote:FireServer("stop") end)
+openTemporary.Activated:Connect(function()
+	showsPage.Visible = false
+	exportPage.Visible = false
+	temporaryPage.Visible = true
+	title.Text = "Temporary show"
+end)
+playTemporary.Activated:Connect(function()
+	local payload = temporaryInput.Text:match("%-%-%[====%[FLUX_TEMP_SHOW_V1\r?\n(.-)\r?\n%]====%]")
+	if not payload then
+		temporaryHint.Text = "Export the show again from the current sequencer, then paste the new Lua."
+		return
+	end
+	if #payload > 512000 then
+		temporaryHint.Text = "Temporary show data is over 512 KB."
+		return
+	end
+	temporaryHint.Text = "Checking show…"
+	remote:FireServer("playTemporary", payload)
+end)
 exportButton.Activated:Connect(function()
 	exportButton.Text = "EXPORTING…"
 	exportButton.Active = false
@@ -731,7 +804,13 @@ remote.OnClientEvent:Connect(function(action, data)
 			remote:FireServer("audioReady", requestId)
 			if pendingStart and pendingStart.requestId == requestId then syncLocalAudio(pendingStart) end
 		end)
+	elseif action == "temporaryError" then
+		temporaryHint.Text = tostring(data)
 	elseif action == "playing" then
+		if data.id == "temporary" and temporaryPage.Visible then
+			temporaryInput.Text = ""
+			selectPage(false)
+		end
 		title.Text = data.name or "Playing"
 		eyebrow.Text = "NOW PLAYING"
 		setStatus("PLAYING", true)

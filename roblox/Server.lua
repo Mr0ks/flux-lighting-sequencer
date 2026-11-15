@@ -446,14 +446,18 @@ local function stop()
 	remote:FireAllClients("stopped")
 end
 
-local function play(player, id)
+local function play(player, id, temporaryShow)
 	if not allowed(player) then return end
 	playRequest += 1
 	local request = playRequest
-	local module = Shows:FindFirstChild(id)
-	if not module or not module:IsA("ModuleScript") then return end
-	local ok, show = pcall(require, module)
-	if not ok or type(show) ~= "table" or type(show.events) ~= "table" then return end
+	local show = temporaryShow
+	if not show then
+		local module = Shows:FindFirstChild(id)
+		if not module or not module:IsA("ModuleScript") then return end
+		local ok
+		ok, show = pcall(require, module)
+		if not ok or type(show) ~= "table" or type(show.events) ~= "table" then return end
+	end
 	if #show.events > math.max(1, tonumber(Config.MaxShowEvents) or 10000) then
 		warn(("Fluxline refused %s: %d events exceeds the configured limit"):format(id, #show.events))
 		return
@@ -541,6 +545,36 @@ local function play(player, id)
 	end)
 end
 
+local function decodeTemporaryShow(payload)
+	assert(type(payload) == "string" and #payload <= 512000, "Temporary show data must be under 512 KB.")
+	local show = HttpService:JSONDecode(payload)
+	assert(type(show) == "table" and type(show.events) == "table", "Invalid show data.")
+	assert(type(show.duration) == "number" and show.duration > 0 and show.duration <= 14400, "Invalid show duration.")
+	assert(show.songId == nil or show.songId == "" or (type(show.songId) == "string" and show.songId:match("^%d+$")), "Invalid Roblox audio ID.")
+	show.name = type(show.name) == "string" and show.name:sub(1, 80) or "Temporary show"
+	local remaining = tonumber(Config.MaxShowEvents) or 10000
+	local function check(cue, depth, nested)
+		remaining -= 1
+		assert(remaining >= 0 and depth <= 8, "Temporary show has too many cue actions.")
+		assert(type(cue) == "table" and type(cue.action) == "string", "Invalid cue action.")
+		if not nested then
+			assert(type(cue.t) == "number" and cue.t >= 0 and cue.t <= show.duration, "Cue is outside the show duration.")
+			assert(type(cue.target) == "string", "Cue target is missing.")
+		end
+		local seconds = cue.duration or 0
+		assert(type(seconds) == "number" and seconds >= 0 and seconds <= 14400, "Invalid cue duration.")
+		if cue.action == "block" then
+			assert(type(cue.actions) == "table", "Invalid cue block.")
+			for _, child in ipairs(cue.actions) do check(child, depth + 1, true) end
+		end
+	end
+	for i, cue in pairs(show.events) do
+		assert(type(i) == "number" and i >= 1 and i <= #show.events, "Invalid cue list.")
+		check(cue, 0, false)
+	end
+	return show
+end
+
 remote.OnServerEvent:Connect(function(player, action, value)
 	if type(action) ~= "string" then return end
 	if action == "audioFailed" then
@@ -572,6 +606,13 @@ remote.OnServerEvent:Connect(function(player, action, value)
 	lastRequest[player] = now
 	if action == "list" then remote:FireClient(player, "shows", listShows())
 	elseif action == "play" then play(player, tostring(value))
+	elseif action == "playTemporary" then
+		local ok, show = pcall(decodeTemporaryShow, value)
+		if ok then
+			play(player, "temporary", show)
+		else
+			remote:FireClient(player, "temporaryError", tostring(show))
+		end
 	elseif action == "stop" then stop()
 	elseif action == "export" then
 		local ok, result = exportFlux()

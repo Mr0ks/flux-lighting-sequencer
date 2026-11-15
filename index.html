@@ -634,6 +634,7 @@
         position: relative;
         isolation: isolate;
         contain: paint;
+        overflow-anchor: none;
       }
       .timeline {
         position: relative;
@@ -642,8 +643,13 @@
       }
       .lane {
         height: 56px;
-        transition: height 150ms var(--md-emphasized, ease);
+        grid-template-rows: minmax(0, 1fr);
       }
+      .lane > .lane-label, .lane > .track { min-height: 0; }
+      .lane > .lane-label { overflow: hidden; }
+      .lane-label:has(.automation-picker) { padding-block: 4px; }
+      .lane-label:has(.automation-picker) b,
+      .lane-label:has(.automation-picker) small { line-height: 13px; }
       .lane.packing-preview .track {
         background-color: #202023;
       }
@@ -2005,12 +2011,15 @@
         background: #263e4c; color: #c2ebff; border-color: #527b90;
       }
       #automationToggle kbd { opacity: .7; font-size: 10px; }
-      .automation-lane { border-top: 1px solid #393239; }
+      .automation-lane {
+        height: 46px;
+        border-bottom: 1px solid #3c313a;
+      }
       .automation-lane .lane-label {
         background: #211d24; box-shadow: inset 3px 0 #c685a4;
-        position: relative;
+        padding: 5px 26px 4px 20px;
       }
-      .automation-lane .lane-label b { color: #f2d9e5; padding-right: 20px; }
+      .automation-lane .lane-label b { color: #f2d9e5; font-size: 11px; }
       .automation-remove {
         position: absolute; top: 8px; right: 8px;
         border: 0; border-radius: 4px; background: transparent;
@@ -2018,7 +2027,9 @@
       }
       .automation-remove:hover { background: #40343f; color: white; }
       .automation-graph {
-        flex: none;
+        display: block;
+        min-height: 0;
+        height: 100%;
         touch-action: none;
         cursor: crosshair;
         background-color: #1b191e;
@@ -2045,7 +2056,6 @@
         font-size: 10px;
         cursor: pointer;
       }
-      .automation-lane { border-bottom: 1px solid #51404c; }
       .automation-lane .lane-label { border-right: 1px solid #51404c; }
       .automation-graph { box-shadow: inset 0 1px #302831, inset 0 -1px #302831; }
     </style>
@@ -4069,8 +4079,8 @@
         let html = "";
         for (const [attribute, points] of Object.entries(curves)) {
           const [low, high] = automationRanges[attribute];
-          const y = (value) => 64 - 56 * (value - low) / (high - low);
-          html += `<div class="lane automation-lane" style="height:72px"><div class="lane-label"><b>${automationLabel(attribute)}</b><small data-auto-readout>${automationValue(attribute, low)} – ${automationValue(attribute, high)}</small><button type="button" class="automation-remove" title="Remove lane" aria-label="Remove ${automationLabel(attribute)} automation" data-auto-remove="${esc(attribute)}" data-auto-key="${key}">×</button></div><svg width="${width}" height="72" class="automation-graph" data-auto-key="${key}" data-auto-curve="${esc(attribute)}"><polyline fill="none" stroke="#ff763f" stroke-width="2" points="${points.map(p => [p.time * px, y(p.value)].join(",")).join(" ")}"/>${points.map((p, i) => `<circle cx="${p.time * px}" cy="${y(p.value)}" r="4" fill="#ff763f" data-point="${i}"><title>${p.time}s · ${automationValue(attribute, p.value)}</title></circle>`).join("")}</svg></div>`;
+          const y = (value) => 39 - 33 * (value - low) / (high - low);
+          html += `<div class="lane automation-lane"><div class="lane-label"><b>${automationLabel(attribute)}</b><small data-auto-readout>${automationValue(attribute, low)} – ${automationValue(attribute, high)}</small><button type="button" class="automation-remove" title="Remove lane" aria-label="Remove ${automationLabel(attribute)} automation" data-auto-remove="${esc(attribute)}" data-auto-key="${key}">×</button></div><svg width="${width}" height="45" class="automation-graph" data-auto-key="${key}" data-auto-curve="${esc(attribute)}"><polyline fill="none" stroke="#ff763f" stroke-width="2" points="${points.map(p => [p.time * px, y(p.value)].join(",")).join(" ")}"/>${points.map((p, i) => `<circle cx="${p.time * px}" cy="${y(p.value)}" r="4" fill="#ff763f" data-point="${i}"><title>${p.time}s · ${automationValue(attribute, p.value)}</title></circle>`).join("")}</svg></div>`;
         }
         return html;
       }
@@ -4115,7 +4125,7 @@
               const rect = svg.getBoundingClientRect();
               const time = clamp((e.clientX - rect.left) / px, 0, state.duration);
               point.time = e.altKey ? +time.toFixed(3) : snapTime(time);
-              const ratio = Math.max(0, Math.min(1, (64 - e.clientY + rect.top) / 56));
+              const ratio = Math.max(0, Math.min(1, (39 - e.clientY + rect.top) / 33));
               point.value = +(low + ratio * (high - low)).toFixed(3);
               const marker = svg.querySelector(`[data-point="${points.indexOf(point)}"]`) ||
                 svg.appendChild(document.createElementNS("http://www.w3.org/2000/svg", "circle"));
@@ -4123,11 +4133,11 @@
               marker.setAttribute("r", "5");
               marker.setAttribute("fill", "#ffad85");
               marker.setAttribute("cx", point.time * px);
-              marker.setAttribute("cy", 64 - 56 * ratio);
+              marker.setAttribute("cy", 39 - 33 * ratio);
               svg.parentElement.querySelector("[data-auto-readout]").textContent =
                 `${point.time.toFixed(3)}s · ${automationValue(attribute, point.value)}`;
               const ordered = [...points].sort((a,b) => a.time - b.time);
-              svg.querySelector("polyline").setAttribute("points", ordered.map(p => `${p.time * px},${64 - 56 * (p.value-low)/(high-low)}`).join(" "));
+              svg.querySelector("polyline").setAttribute("points", ordered.map(p => `${p.time * px},${39 - 33 * (p.value-low)/(high-low)}`).join(" "));
             };
             move(event);
             svg.setPointerCapture(event.pointerId);
@@ -4167,18 +4177,23 @@
       };
       function renderTimeline() {
         $("#automationToggle").setAttribute("aria-pressed", String(automationVisible));
+        const scroller = $("#scroller");
+        const top = scroller.getBoundingClientRect().top;
+        const firstTrack = $$("#timeline .track").find(track => track.getBoundingClientRect().bottom > top);
+        const anchorKey = firstTrack?.dataset.lane;
+        const anchorOffset = firstTrack ? firstTrack.getBoundingClientRect().top - top : 0;
         const w = timelineWidth();
         applyGridStyles($("#timeline"));
         let html = `<div class="playhead" id="head"></div>`;
         for (const lane of laneList()) {
           const caps = capabilities(lane.type, lane.module, lane.channel);
-          html += laneMarkup(
+          html += `<div class="track-group">` + laneMarkup(
             lane.key,
             lane.label,
             lane.detail + " · " + caps.join(" · "),
             w,
             automationPicker(lane, caps),
-          ) + automationMarkup(lane, w);
+          ) + automationMarkup(lane, w) + "</div>";
         }
         html += laneMarkup(
           "pyrotechnics",
@@ -4188,7 +4203,9 @@
         );
         $("#timeline").style.width = 210 + w + "px";
         $("#timeline").innerHTML = html;
-        $$(".lane-label").forEach(
+        const anchor = anchorKey && $$("#timeline .track").find(track => track.dataset.lane === anchorKey);
+        if (anchor) scroller.scrollTop += anchor.getBoundingClientRect().top - top - anchorOffset;
+        $$(".lane-label[data-lane]").forEach(
           (x) =>
             (x.onclick = () => {
               selectedLane = x.dataset.lane;

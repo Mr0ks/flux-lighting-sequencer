@@ -5142,8 +5142,7 @@
           node: event.target,
           edge: event.edges?.left ? "left" : "right",
           startTime: item.time,
-          startWidth: event.rect?.width || eventWidth(item),
-          startRight: item.time * px + (event.rect?.width || eventWidth(item)),
+          startDuration: Number(item.duration) || 0,
           deltaLeft: 0,
           deltaWidth: 0,
           nextTime: item.time,
@@ -5157,7 +5156,7 @@
         s.deltaLeft += event.deltaRect?.left || 0;
         s.deltaWidth += event.deltaRect?.width || 0;
         const minimum = Math.max(0.05, gridMetrics().snapSeconds, minimumCueDuration(s.item, s.edge)),
-          startRightTime = s.startRight / px;
+          startRightTime = s.startTime + s.startDuration;
         if (s.edge === "left") {
           s.nextTime = clamp(
             snapTime(s.startTime + s.deltaLeft / px),
@@ -5167,10 +5166,10 @@
           s.next = Math.max(minimum, startRightTime - s.nextTime);
         } else {
           s.nextTime = s.startTime;
-          const visualWidth = Math.max(24, s.startWidth + s.deltaWidth);
+          const requestedEnd = startRightTime + s.deltaWidth / px;
           s.next = Math.max(
             minimum,
-            snapTime(s.startTime + visualWidth / px) - s.startTime,
+            snapTime(requestedEnd) - s.startTime,
           );
           s.next = Math.min(s.next, Math.max(minimum, state.duration - s.startTime));
         }

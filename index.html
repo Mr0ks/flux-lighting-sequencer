@@ -2384,6 +2384,14 @@
             aria-label="Save project in this browser"
             style="--expanded-width: 104px"
           ></button>
+          <button class="icon expandable-icon" id="copyLuaQuick" type="button"
+            title="Copy Lua show" aria-label="Copy Lua show" style="--expanded-width: 108px">
+            <svg class="icon-symbol" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/>
+            </svg>
+            <span class="icon-label">Copy Lua</span>
+          </button>
         </div>
         <span class="topbar-status-divider" aria-hidden="true"></span>
         <div class="brand">
@@ -4739,6 +4747,7 @@
         const scroller = $("#scroller"),
           startScrollX = scroller.scrollLeft,
           startX = ev.clientX,
+          startY = ev.clientY,
           anchorTime = item.time,
           moving = selectedList(),
           starts = moving.map((e) => ({
@@ -4764,7 +4773,7 @@
           highlight = null;
         };
         const move = (e) => {
-          if (!moved && Math.abs(e.clientX - startX) < 4) return;
+          if (!moved && Math.hypot(e.clientX - startX, e.clientY - startY) < 4) return;
           if (!moved) {
             moved = true;
             document.body.classList.add("timeline-dragging", "event-dragging");
@@ -4807,13 +4816,11 @@
           }
           starts.forEach((s) => {
             if (!s.node) return;
-            const dy =
-              target && s.track
-                ? track.getBoundingClientRect().top -
-                  s.track.getBoundingClientRect().top
-                : 0;
-            s.node.style.transform = `translate(${shift * px}px,${dy}px)`;
-            s.node.classList.add("dragging");
+            const source = s.node.getBoundingClientRect();
+            const top = target && track
+              ? track.getBoundingClientRect().top + 9
+              : source.top + e.clientY - startY;
+            showCueDragPreview(s, source.left + shift * px, top);
           });
         };
         const up = () => {
@@ -4822,6 +4829,7 @@
           document.body.classList.remove("timeline-dragging", "event-dragging");
           trash.classList.remove("hot");
           clear();
+          clearCueDragPreviews(starts);
           if (moved) {
             commit();
             if (overTrash) {
@@ -4923,6 +4931,32 @@
         window.addEventListener("pointermove", move);
         window.addEventListener("pointerup", up);
       }
+      function showCueDragPreview(start, left, top) {
+        if (!start.node) return;
+        if (!start.ghost) {
+          const rect = start.node.getBoundingClientRect();
+          const ghost = start.node.cloneNode(true);
+          ghost.removeAttribute("data-id");
+          ghost.classList.remove("dragging");
+          ghost.classList.add("dragghost");
+          ghost.setAttribute("aria-hidden", "true");
+          ghost.style.width = rect.width + "px";
+          ghost.style.height = rect.height + "px";
+          start.node.style.opacity = "0";
+          document.body.appendChild(ghost);
+          start.ghost = ghost;
+        }
+        start.ghost.style.left = left + "px";
+        start.ghost.style.top = top + "px";
+      }
+
+      function clearCueDragPreviews(starts) {
+        for (const start of starts) {
+          start.ghost?.remove();
+          if (start.node) start.node.style.opacity = "";
+        }
+      }
+
       let interactSession = null,
         interactFrame = 0;
       function paintInteractSession() {
@@ -4964,11 +4998,11 @@
         const targetTop =
           s.target && track ? track.getBoundingClientRect().top : 0;
         s.starts.forEach((x) => {
-          const dy =
-            s.target && x.track
-              ? targetTop + 9 + (rows.get(x.e.id) || 0) * 42 - x.startTop
-              : s.dy;
-          x.node.style.transform = `translate3d(${s.shift * px}px,${dy}px,0)`;
+          const source = x.node.getBoundingClientRect();
+          const top = s.target
+            ? targetTop + 9 + (rows.get(x.e.id) || 0) * 42
+            : source.top + s.dy;
+          showCueDragPreview(x, source.left + s.shift * px, top);
         });
       }
       function scheduleInteractPaint() {
@@ -5000,9 +5034,6 @@
             track: $$(".track").find((t) => t.dataset.lane === e.target),
           }))
           .filter((x) => x.node && x.track);
-        starts.forEach(
-          (start) => (start.startTop = start.node.getBoundingClientRect().top),
-        );
         interactSession = {
           starts,
           scroller,
@@ -5023,7 +5054,6 @@
           overTrash: false,
           previewLane: null,
         };
-        starts.forEach((x) => x.node.classList.add("dragging"));
         document.body.classList.add("timeline-dragging", "event-dragging");
       }
       function moveEventInteraction(event) {
@@ -5067,6 +5097,7 @@
         } else if (s.invalid) toast("That cue is not supported on this lane");
         s.highlight?.classList.remove("drop-ok", "drop-bad");
         clearPackingPreview(s.previewLane);
+        clearCueDragPreviews(s.starts);
         $("#dragTrash").classList.remove("hot");
         document.body.classList.remove("timeline-dragging", "event-dragging");
         interactSession = null;
@@ -6996,6 +7027,14 @@
         e.target.value = "";
       };
       $("#quickSave").onclick = cacheProject;
+      $("#copyLuaQuick").onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(exportLua());
+          toast("Lua show copied");
+        } catch {
+          toast("Could not copy Lua. Open Project → Export Lua show to download it.");
+        }
+      };
       $("#releaseStatus").onclick = showUpdatePrompt;
       $("#cancelUpdate").onclick = () =>
         $("#updateModal").classList.remove("open");

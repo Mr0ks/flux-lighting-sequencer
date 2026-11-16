@@ -4198,13 +4198,28 @@
             const selection = Object.values(record?.meta || {})
               .map((x) => (Array.isArray(x) ? x[0] : x?.[1]))
               .filter(Number.isFinite);
+            const groupKey = f.type + ":group:" + encodeURIComponent(name);
+            const detail = "Flux group · " + selection.length + " fixtures";
             lanes.push({
-              key: f.type + ":group:" + encodeURIComponent(name),
+              key: groupKey,
               type: f.type,
               label: name.trim(),
-              detail: "Flux group · " + selection.length + " fixtures",
+              detail,
               selection,
             });
+            for (const channel of f.channels || []) {
+              // An independently addressed module has its own numeric channel key.
+              if (channel.module == null || String(channel.module) !== String(channel.key)) continue;
+              lanes.push({
+                key: groupKey + ":channel:" + encodeURIComponent(channel.key),
+                type: f.type,
+                label: name.trim() + " · " + channel.label,
+                detail: detail + " · module " + channel.module,
+                selection,
+                module: channel.module,
+                channel: channel.key,
+              });
+            }
           }
         }
         const known = new Set(lanes.map((lane) => lane.key));
@@ -4664,7 +4679,7 @@
         if (!fixture || fixture.count <= 0) return false;
         if (action === "beam-mode") {
           const supported = ["wash", "profile", "follow spotlight", "par", "magic blade"];
-          return supported.includes(type) && (target === type + ":all" || target.startsWith(type + ":group:"));
+          return supported.includes(type) && (target === type + ":all" || (target.startsWith(type + ":group:") && !target.includes(":channel:")));
         }
         if (action === "reset-position") {
           return capabilities(type, module, channel).some(attribute => ["pan", "tilt", "spin", "pitch"].includes(attribute));

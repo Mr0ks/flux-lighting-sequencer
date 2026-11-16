@@ -96,7 +96,7 @@ end
 
 local effectSerial = 0
 local function effectGroup(target)
-	local encoded = tostring(target):match("^[^:]+:group:(.+)$")
+	local encoded = tostring(target):match("^[^:]+:group:([^:]+)")
 	if not encoded then return nil end
 	return (encoded:gsub("%%(%x%x)", function(hex) return string.char(tonumber(hex, 16)) end))
 end

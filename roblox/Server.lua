@@ -141,14 +141,29 @@ local function checkPyro(kind)
 	assert(definition and definition.forms.on and definition.forms.off,"No native on/off control for pyro type: "..kind)
 end
 
-local function stopNativeEffects(kind, attributes)
+local function fixtureSelectionsOverlap(left, right)
+	if type(left) ~= "table" or #left == 0 or type(right) ~= "table" or #right == 0 then
+		return true
+	end
+	local selected = {}
+	local function fixtureId(item)
+		return tostring(type(item) == "table" and (item[1] or item.fixture or item.index) or item)
+	end
+	for _, item in left do selected[fixtureId(item)] = true end
+	for _, item in right do
+		if selected[fixtureId(item)] then return true end
+	end
+	return false
+end
+
+local function stopNativeEffects(kind, attributes, selection)
 	local off, released={}, {}
 	for key,effect in pairs(nativeEffects) do
 		local overlaps=not attributes
 		if attributes then
 			for _,meta in effect.metas do if attributes[meta.attribute] then overlaps=true end end
 		end
-		if (not kind or kind==effect.fixture) and overlaps then
+		if (not kind or kind==effect.fixture) and overlaps and fixtureSelectionsOverlap(selection, effect.selection) then
 			table.insert(off,{effect.fixture,effect.name})
 			table.insert(released,effect)
 			nativeEffects[key]=nil
@@ -226,6 +241,14 @@ local function validateNativeShow(events)
 					local groups = scopes.groups[fixture]
 					assert(groups and groups[group] and type(groups[group].meta) == "table" and next(groups[group].meta),
 						"Flux group is missing or empty: " .. fixture .. " / " .. group .. ". Refresh the sequencer's Flux import.")
+					-- Native effects resolve their group in the game. Use that same membership for conflict checks.
+					event.fluxEffectSelection = {}
+					for _, member in pairs(groups[group].meta) do
+						if type(member) == "table" and member[1] then
+							table.insert(event.fluxEffectSelection, member[1])
+						end
+					end
+					assert(#event.fluxEffectSelection > 0, "Flux group has no fixture IDs: " .. group)
 					local functions = findKit().components.scripts["flux kit client"].modules.functions
 					assert(functions:GetAttribute("FluxShowsGroupEffectsVersion") == 1, "Install the Flux group effect adapter before playing a group effect.")
 				end
@@ -271,9 +294,10 @@ local function apply(event, token, started)
 		local metas=nativeMetas(native.payload)
 		local attributes={}
 		for _,meta in metas do attributes[meta.attribute]=true end
-		stopNativeEffects(fixture,attributes)
-		remote:FireAllClients("nativeCancel",{kind=fixture,attributes=attributes})
 		local group = effectGroup(event.target)
+		local selection = group and event.fluxEffectSelection or nil
+		stopNativeEffects(fixture,attributes,selection)
+		remote:FireAllClients("nativeCancel",{kind=fixture,attributes=attributes,selection=selection})
 		local name = native.name
 		if group then
 			local kit = findKit()
@@ -284,7 +308,7 @@ local function apply(event, token, started)
 			kit.components.remotes.call.functions:FireAllClients("FluxShowsScopeEffect", fixture, native.name, name, group)
 		end
 		local key=fixture.."\0"..name
-		local effect={fixture=fixture,name=name,metas=metas,scoped=group~=nil}
+		local effect={fixture=fixture,name=name,metas=metas,scoped=group~=nil,selection=selection}
 		nativeEffects[key]=effect
 		local ramp, curve = event.speedRamp, event.speedCurve
 		local supported = {dim=true, strobe=true, color=true, iris=true, width=true, movement=true, spin=true}
@@ -362,7 +386,7 @@ local function apply(event, token, started)
 	elseif tostring(event.action):sub(1,5)=="flux-" then
 		error("Native dispatch is not verified for "..tostring(event.action).."; cue was not approximated")
 	else
-		stopNativeEffects(kind,eventAttributes(event))
+		stopNativeEffects(kind,eventAttributes(event),event.selection)
 		remote:FireAllClients("nativeCue",{event=event,kitName=Config.KitName,started=started,token=token})
 	end
 end

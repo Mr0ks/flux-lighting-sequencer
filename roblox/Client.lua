@@ -645,10 +645,13 @@ local function nativeAttributes(event, definition)
 	return values
 end
 
-function NativePlayback.cancel(kind, attributes)
+function NativePlayback.cancel(kind, attributes, selection)
+	local selected = {}
+	for _, index in selection or {} do selected[tostring(index)] = true end
+	local scoped = next(selected) ~= nil
 	for target, jobs in pairs(nativeJobs) do
 		for attribute, job in pairs(jobs) do
-			if job.kind==kind and (not attributes or attributes[attribute]) then jobs[attribute]=nil end
+			if job.kind==kind and (not scoped or selected[tostring(job.fixtureIndex)]) and (not attributes or attributes[attribute]) then jobs[attribute]=nil end
 		end
 		if next(jobs)==nil then nativeJobs[target]=nil end
 	end
@@ -737,7 +740,7 @@ function NativePlayback.cue(data)
 						from=nativeRead(target,definition,attribute,fixture)
 					end
 					if duration>0 then assert(from~=nil,"Flux does not expose a numeric start value for "..attribute) end
-					jobs[attribute]={kind=kind,definition=definition,attribute=attribute,from=from or value,value=value,
+					jobs[attribute]={kind=kind,fixtureIndex=index,definition=definition,attribute=attribute,from=from or value,value=value,
 						start=started,duration=duration,easeHome=reset and duration>0,flashTiming=event.flashTiming,action=event.action,mode=event.value,generation=nativeGeneration}
 				end
 			end
@@ -804,7 +807,7 @@ remote.OnClientEvent:Connect(function(action, data)
 		end
 		return
 	elseif action == "nativeCancel" then
-		NativePlayback.cancel(data.kind, data.attributes)
+		NativePlayback.cancel(data.kind, data.attributes, data.selection)
 		return
 	elseif action == "playbackError" then
 		NativePlayback.stop()

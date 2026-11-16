@@ -2321,6 +2321,9 @@
         position: relative; z-index: 1; padding: 8px 10px; display: block;
         pointer-events: none; color: #121212;
       }
+      .event.pulse-sections > .resize-handle { height: 11px; bottom: auto; opacity: 1; }
+      .event.pulse-sections .phase-handle { top: 12px; }
+      .event.pulse-sections .cue-phase small { color: #303030; }
       .cue-pulse-envelope {
         position: absolute; inset: 3px 0; width: 100%; height: calc(100% - 6px);
         pointer-events: none;
@@ -4532,20 +4535,24 @@
         drawHead();
         checks();
       }
+      function pulseEnvelopePath(phases) {
+        const total = phases.reduce((sum, length) => sum + length, 0);
+        if (!total) return "";
+        const rise = 100 * phases[0] / total;
+        const fall = 100 * (phases[0] + phases[1]) / total;
+        return `M0 29 L${rise} 4 H${fall} L100 29`;
+      }
+
       function cuePhaseMarkup(cue) {
         const pulse = isPulse(cue);
         const phases = pulse ? pulsePhases(cue) : fadePhases(cue);
         const total = phases.reduce((sum, length) => sum + length, 0);
         if (!total) return "";
-        if (pulse) {
-          const rise = 100 * phases[0] / total;
-          const fall = 100 * (phases[0] + phases[1]) / total;
-          return `<svg class="cue-pulse-envelope" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true"><path d="M0 29 L${rise} 4 H${fall} L100 29" fill="none" stroke="#555" stroke-opacity=".7" vector-effect="non-scaling-stroke"/></svg>`;
-        }
+        const envelope = pulse ? `<svg class="cue-pulse-envelope" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true"><path d="${pulseEnvelopePath(phases)}" fill="none" stroke="#555" stroke-opacity=".7" vector-effect="non-scaling-stroke"/></svg>` : "";
         const labels = ["Fade in", "Hold", "Fade out"];
         return `<div class="cue-phases">${phases.map((length, index) => length > 0
           ? `<span class="cue-phase cue-phase-${["in", "hold", "out"][index]}" style="flex:${length} 1 0"><small>${labels[index]}</small><span class="resize-handle phase-handle" data-phase="${index}" title="Resize ${labels[index]} · ${length.toFixed(3)}s"></span></span>`
-          : "").join("")}</div>`;
+          : "").join("")}</div>${envelope}`;
       }
 
       function bindFadePhaseHandles() {
@@ -4558,16 +4565,24 @@
             const cue = state.events.find(item => item.id === node.dataset.id);
             if (!cue) return;
             const index = Number(handle.dataset.phase);
-            const original = [...fadePhases(cue)];
-            const fixed = original.reduce((sum, value, i) => i === index ? sum : sum + value, 0);
+            const pulse = isPulse(cue);
+            const original = pulse ? pulsePhases(cue) : fadePhases(cue);
+            const linked = pulse && cue.value === "pulse-fade" && index !== 1;
+            const affected = linked ? [0, 2] : [index];
+            const fixed = original.reduce((sum, value, i) => affected.includes(i) ? sum : sum + value, 0);
+            const preview = [...original];
             const x = event.clientX, scroll = $("#scroller").scrollLeft, zoom = px;
             let next = original[index];
             const move = pointer => {
               const delta = (pointer.clientX - x + $("#scroller").scrollLeft - scroll) / zoom;
-              next = +clamp(original[index] + delta, 0, Math.max(original[index], state.duration - cue.time - fixed)).toFixed(3);
-              const phase = handle.parentElement;
-              phase.style.flexGrow = next;
-              node.style.width = eventWidth({ ...cue, duration: fixed + next }) + "px";
+              next = +clamp(original[index] + delta, 0, Math.max(original[index], (state.duration - cue.time - fixed) / affected.length)).toFixed(3);
+              for (const phaseIndex of affected) {
+                preview[phaseIndex] = next;
+                const phase = node.querySelector(`[data-phase="${phaseIndex}"]`)?.parentElement;
+                if (phase) phase.style.flexGrow = next;
+              }
+              node.style.width = eventWidth({ ...cue, duration: fixed + next * affected.length }) + "px";
+              node.querySelector(".cue-pulse-envelope path")?.setAttribute("d", pulseEnvelopePath(preview));
             };
             const finish = pointer => {
               node.removeEventListener("pointermove", move);
@@ -4575,9 +4590,12 @@
               node.removeEventListener("pointercancel", finish);
               if (pointer.type === "pointerup" && next !== original[index]) {
                 commit();
-                original[index] = next;
-                cue.flashTiming = original;
-                cue.duration = fixed + next;
+                if (pulse) {
+                  if (cue.value === "pulse-fade") cue.pulseFade = preview[0];
+                } else {
+                  cue.flashTiming = preview;
+                }
+                cue.duration = fixed + next * affected.length;
                 autosave();
               }
               selectedEvents = new Set([cue.id]);
@@ -4606,7 +4624,7 @@
           '<span class="resize-handle resize-left" title="Drag the start"></span>',
           '<span class="resize-handle resize-right" title="Drag the end"></span>',
         ];
-        return `<div class="event ${phases ? "has-phases" : ""} ${selectedEvent?.id === e.id ? "selected" : selectedEvents.has(e.id) ? "multi" : ""}" data-id="${e.id}" data-kind="${e.kind}" aria-label="${esc(title)}" title="${esc(title)}" style="top:${9 + row * 42}px;left:${e.time * px}px;width:${width}px">${content}${handles.join("")}</div>`;
+        return `<div class="event ${phases ? "has-phases" : ""} ${isPulse(e) ? "pulse-sections" : ""} ${selectedEvent?.id === e.id ? "selected" : selectedEvents.has(e.id) ? "multi" : ""}" data-id="${e.id}" data-kind="${e.kind}" aria-label="${esc(title)}" title="${esc(title)}" style="top:${9 + row * 42}px;left:${e.time * px}px;width:${width}px">${content}${handles.join("")}</div>`;
       }
       const RUNTIME_NATIVE_ATTRIBUTES = new Set([
         "intensity",
@@ -5273,8 +5291,8 @@
         if (isPulse(s.item)) {
           const preview = { ...s.item };
           resizeCue(preview, s.next, s.edge);
-          const envelope = s.node.querySelector(".cue-pulse-envelope");
-          if (envelope) envelope.outerHTML = cuePhaseMarkup(preview);
+          const phases = pulsePhases(preview);
+          s.node.querySelector(".cue-pulse-envelope path")?.setAttribute("d", pulseEnvelopePath(phases));
         }
         const timeField = $("#evTime");
         if (timeField) timeField.value = +s.nextTime.toFixed(3);

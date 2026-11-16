@@ -2056,6 +2056,8 @@
       }
       .automation-graph circle { cursor: grab; stroke: #141414; stroke-width: 1.5px; }
       .automation-graph circle:hover { fill: #ffd0b8; }
+      .automation-graph circle.automation-selected { fill: #fff1cf; stroke: #fa9747; stroke-width: 2px; }
+      .automation-range-selection { fill: #ffa66a33; stroke: #ffa66a; pointer-events: none; }
       .automation-picker {
         display: block;
         width: max-content;
@@ -4369,9 +4371,66 @@
         window.addEventListener("blur", cleanup);
       }
       let automationVisible = false;
+      let automationSelection = null;
+      let automationClipboard = null;
+      function activeAutomation() {
+        const lane = automationSelection;
+        return automationVisible && lane &&
+          state.automation?.[lane.target]?.[lane.attribute] === lane.points ? lane : null;
+      }
+      function automationShortcut(key, mod) {
+        const lane = activeAutomation();
+        if (!lane) return false;
+        const selected = lane.points.filter(point => lane.selected.has(point));
+        if (mod && key === "a") {
+          lane.selected = new Set(lane.points);
+        } else if (mod && key === "c") {
+          if (!selected.length) return true;
+          const start = Math.min(...selected.map(point => point.time));
+          automationClipboard = {
+            attribute: lane.attribute,
+            points: selected.map(point => ({time: point.time - start, value: point.value})),
+          };
+          toast(selected.length + " automation points copied");
+        } else if (mod && key === "v") {
+          if (!automationClipboard) return true;
+          if (automationClipboard.attribute !== lane.attribute) {
+            toast("Select a lane with the same automation control");
+            return true;
+          }
+          const start = snapTime(position);
+          const pasted = automationClipboard.points.map(point => ({
+            time: +(point.time + start).toFixed(6), value: point.value,
+          }));
+          if (pasted.some(point => point.time > state.duration)) {
+            toast("Pasted points would extend beyond the show");
+            return true;
+          }
+          commit();
+          for (let i = lane.points.length - 1; i >= 0; i--)
+            if (pasted.some(point => Math.abs(point.time - lane.points[i].time) < .0005))
+              lane.points.splice(i, 1);
+          lane.points.push(...pasted);
+          lane.points.sort((a, b) => a.time - b.time);
+          lane.selected = new Set(pasted);
+          autosave();
+        } else if (key === "delete" || key === "backspace") {
+          if (!selected.length) return true;
+          commit();
+          for (let i = lane.points.length - 1; i >= 0; i--)
+            if (lane.selected.has(lane.points[i])) lane.points.splice(i, 1);
+          lane.selected.clear();
+          autosave();
+        } else if (key === "escape") {
+          automationSelection = null;
+        } else return false;
+        renderTimeline();
+        return true;
+      }
       const collapsedTracks = new Set();
       function toggleAutomation() {
         automationVisible = !automationVisible;
+        if (!automationVisible) automationSelection = null;
         renderTimeline();
       }
       const automationRanges = {
@@ -4404,7 +4463,7 @@
         for (const [attribute, points] of Object.entries(curves)) {
           const [low, high] = automationRanges[attribute];
           const y = (value) => 39 - 33 * (value - low) / (high - low);
-          html += `<div class="lane automation-lane"><div class="lane-label"><b>${automationLabel(attribute)}</b><small data-auto-readout>${automationValue(attribute, low)} – ${automationValue(attribute, high)}</small><button type="button" class="automation-remove" title="Remove lane" aria-label="Remove ${automationLabel(attribute)} automation" data-auto-remove="${esc(attribute)}" data-auto-key="${key}">×</button></div><svg height="45" class="automation-graph" data-auto-key="${key}" data-auto-curve="${esc(attribute)}"><polyline fill="none" stroke="#ff763f" stroke-width="2" points="${points.map(p => [p.time * px, y(p.value)].join(",")).join(" ")}"/>${points.map((p, i) => `<circle cx="${p.time * px}" cy="${y(p.value)}" r="4" fill="#ff763f" data-point="${i}"><title>${p.time}s · ${automationValue(attribute, p.value)}</title></circle>`).join("")}</svg></div>`;
+          html += `<div class="lane automation-lane"><div class="lane-label"><b>${automationLabel(attribute)}</b><small data-auto-readout>${automationValue(attribute, low)} – ${automationValue(attribute, high)}</small><button type="button" class="automation-remove" title="Remove lane" aria-label="Remove ${automationLabel(attribute)} automation" data-auto-remove="${esc(attribute)}" data-auto-key="${key}">×</button></div><svg height="45" class="automation-graph" data-auto-key="${key}" data-auto-curve="${esc(attribute)}"><polyline fill="none" stroke="#ff763f" stroke-width="2" points="${points.map(p => [p.time * px, y(p.value)].join(",")).join(" ")}"/>${points.map((p, i) => `<circle cx="${p.time * px}" cy="${y(p.value)}" r="4" fill="#ff763f" class="${activeAutomation()?.points === points && automationSelection.selected.has(p) ? "automation-selected" : ""}" data-point="${i}"><title>${p.time}s · ${automationValue(attribute, p.value)}</title></circle>`).join("")}</svg></div>`;
         }
         return html;
       }
@@ -4438,14 +4497,63 @@
             autosave();
           };
           svg.onpointerdown = (event) => {
-            if (event.button !== 0) return;
+            if (event.button !== 0 || !event.isPrimary) return;
             event.preventDefault();
-            commit();
             const index = event.target.dataset.point;
-            const point = index == null ? {} : points[+index];
-            if (index == null) points.push(point);
+            const existing = index == null ? null : points[+index];
+            if (activeAutomation()?.points !== points)
+              automationSelection = {target: svg.dataset.autoKey, attribute, points, selected: new Set()};
+            const selected = automationSelection.selected;
+            const additive = event.ctrlKey || event.metaKey;
+            if (event.shiftKey && !existing) {
+              const box = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+              box.setAttribute("class", "automation-range-selection");
+              box.setAttribute("height", "45");
+              svg.appendChild(box);
+              const x = pointer => pointer.clientX - svg.getBoundingClientRect().left;
+              const start = x(event);
+              let end = start;
+              svg.onpointermove = pointer => {
+                end = x(pointer);
+                box.setAttribute("x", Math.min(start, end));
+                box.setAttribute("width", Math.abs(start - end));
+              };
+              svg.onlostpointercapture = () => {
+                if (!additive) selected.clear();
+                for (const point of points) {
+                  const left = point.time * px;
+                  if (left >= Math.min(start, end) && left <= Math.max(start, end)) selected.add(point);
+                }
+                renderTimeline();
+              };
+              svg.setPointerCapture(event.pointerId);
+              return;
+            }
+            if (existing && (additive || event.shiftKey)) {
+              if (selected.has(existing)) selected.delete(existing);
+              else selected.add(existing);
+              renderTimeline();
+              return;
+            }
+            if (!existing && additive) {
+              renderTimeline();
+              return;
+            }
+            const point = existing || {};
+            selected.clear();
+            selected.add(point);
+            let edited = !existing;
+            if (edited) {
+              commit();
+              points.push(point);
+            }
             const [low, high] = automationRanges[attribute];
             const move = (e) => {
+              if (!edited) {
+                if (Math.hypot(e.clientX - event.clientX, e.clientY - event.clientY) < 3) return;
+                commit();
+                edited = true;
+              }
               const rect = svg.getBoundingClientRect();
               const time = clamp((e.clientX - rect.left) / px, 0, state.duration);
               point.time = e.altKey ? +time.toFixed(3) : snapTime(time);
@@ -4463,10 +4571,11 @@
               const ordered = [...points].sort((a,b) => a.time - b.time);
               svg.querySelector("polyline").setAttribute("points", ordered.map(p => `${p.time * px},${39 - 33 * (p.value-low)/(high-low)}`).join(" "));
             };
-            move(event);
+            if (edited) move(event);
             svg.setPointerCapture(event.pointerId);
             svg.onpointermove = move;
             svg.onlostpointercapture = () => {
+              if (!edited) { renderTimeline(); return; }
               const duplicate = points.findIndex(other => other !== point && Math.abs(other.time - point.time) < .0005);
               if (duplicate >= 0) points.splice(duplicate, 1);
               points.sort((a,b) => a.time - b.time);
@@ -7336,10 +7445,17 @@
         },
         true,
       );
+      document.addEventListener("pointerdown", event => {
+        if (event.target.closest(".track,.event,.lane-label[data-lane]")) automationSelection = null;
+      }, true);
       document.addEventListener("keydown", (e) => {
         if (isTextControl(e.target)) return;
         const mod = e.ctrlKey || e.metaKey,
           key = e.key.toLowerCase();
+        if (automationShortcut(key, mod)) {
+          e.preventDefault();
+          return;
+        }
         if (!mod && key === "a" && !e.altKey && !e.repeat) {
           e.preventDefault();
           toggleAutomation();

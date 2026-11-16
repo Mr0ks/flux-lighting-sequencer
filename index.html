@@ -2993,7 +2993,7 @@
             ["On", "level", 1],
             ["Off", "level", 0],
             ["Fade", "flash", "fade-out", 1],
-            ["Pulse", "flash", "pulse-snap", 1],
+            ["Pulse", "flash", "pulse-snap", 0.125],
             ["Reset fixture", "reset", 0],
           ],
         ],
@@ -3795,6 +3795,10 @@
             actions: custom?.actions || null,
             fixedColour: b.dataset.fixedColour === "1",
           };
+        if (isPulse(cue)) {
+          const bpm = Number($("#bpm").value) || state.bpm || 128;
+          cue.duration = +(15 / bpm).toFixed(3);
+        }
         if (cue.action === "color" && b.dataset.fixedColour !== "1")
           cue.value = activeColour;
         return cue;
@@ -4537,7 +4541,7 @@
         if (!total) return "";
         const labels = ["Fade in", "Hold", "Fade out"];
         return `<div class="cue-phases">${phases.map((length, index) => length > 0
-          ? `<span class="cue-phase cue-phase-${["in", "hold", "out"][index]}" style="flex:${length} 1 0"><small>${labels[index]}</small>${cue.value === "pulse-snap" ? "" : `<span class="resize-handle phase-handle" data-phase="${index}" title="Resize ${labels[index]} · ${length.toFixed(3)}s"></span>`}</span>`
+          ? `<span class="cue-phase cue-phase-${["in", "hold", "out"][index]}" style="flex:0 0 ${100 * length / total}%"><small>${labels[index]}</small>${cue.value === "pulse-snap" ? "" : `<span class="resize-handle phase-handle" data-phase="${index}" title="Resize ${labels[index]} · ${length.toFixed(3)}s"></span>`}</span>`
           : "").join("")}</div>`;
       }
 
@@ -4562,12 +4566,13 @@
             const move = pointer => {
               const delta = (pointer.clientX - x + $("#scroller").scrollLeft - scroll) / zoom;
               next = +clamp(original[index] + delta, 0, Math.max(original[index], (state.duration - cue.time - fixed) / affected.length)).toFixed(3);
-              for (const phaseIndex of affected) {
-                preview[phaseIndex] = next;
-                const phase = node.querySelector(`[data-phase="${phaseIndex}"]`)?.parentElement;
-                if (phase) phase.style.flexGrow = next;
-              }
-              node.style.width = eventWidth({ ...cue, duration: fixed + next * affected.length }) + "px";
+              for (const phaseIndex of affected) preview[phaseIndex] = next;
+              const total = fixed + next * affected.length;
+              node.querySelectorAll("[data-phase]").forEach(grip => {
+                const length = preview[Number(grip.dataset.phase)];
+                grip.parentElement.style.flexBasis = total ? (100 * length / total) + "%" : "0%";
+              });
+              node.style.width = eventWidth({ ...cue, duration: total }) + "px";
             };
             const finish = pointer => {
               node.removeEventListener("pointermove", move);

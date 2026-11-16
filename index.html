@@ -5326,12 +5326,14 @@
         ).join("")}</div>`;
       }
       function isPulse(e) {
-        return e.action === "flash" && (e.value === "pulse-snap" || e.value === "pulse-fade");
+        return e.action === "flash" && ["pulse-snap", "pulse-fade", "pulse-fade-in", "pulse-fade-out"].includes(e.value);
       }
 
       function pulsePhases(e) {
         const duration = Math.max(0, Number(e.duration) || 0);
         if (e.value === "pulse-snap") return [0, duration, 0];
+        if (e.value === "pulse-fade-in") return [duration, 0, 0];
+        if (e.value === "pulse-fade-out") return [0, 0, duration];
         const fade = Math.min(duration / 2, Math.max(0, e.pulseFade ?? duration / 2));
         return [fade, Math.max(0, duration - 2 * fade), fade];
       }
@@ -5468,7 +5470,7 @@
             : `<div class="field"><label>${esc(valueInfo.label)}</label><input id="evValue" type="number" step=".01" value="${e.value}"><small class="field-hint">${esc(valueInfo.hint)}</small></div>`;
         const pulse = isPulse(e);
         const phases = pulse ? pulsePhases(e) : fadePhases(e);
-        const pulseEditor = pulse ? `<div class="field"><label for="pulseMode">Pulse mode</label><select id="pulseMode"><option value="pulse-snap" ${e.value === "pulse-snap" ? "selected" : ""}>Snap</option><option value="pulse-fade" ${e.value === "pulse-fade" ? "selected" : ""}>Fade</option></select></div>${e.value === "pulse-fade" ? `<div class="field"><label for="pulseFadeTime">Each fade (seconds)</label><input id="pulseFadeTime" type="number" min="0" max="${(e.duration || 0) / 2}" step=".001" value="${+phases[0].toFixed(3)}"><small class="field-hint">Fade in and out take equal time. Any time left in the block is a hold.</small></div>` : ""}` : "";
+        const pulseEditor = pulse ? `<div class="field"><label for="pulseMode">Pulse mode</label><select id="pulseMode"><option value="pulse-snap" ${e.value === "pulse-snap" ? "selected" : ""}>Snap</option><option value="pulse-fade" ${e.value === "pulse-fade" ? "selected" : ""}>Fade</option><option value="pulse-fade-in" ${e.value === "pulse-fade-in" ? "selected" : ""}>Fade on</option><option value="pulse-fade-out" ${e.value === "pulse-fade-out" ? "selected" : ""}>Fade off</option></select></div>${e.value === "pulse-fade" ? `<div class="field"><label for="pulseFadeTime">Each fade (seconds)</label><input id="pulseFadeTime" type="number" min="0" max="${(e.duration || 0) / 2}" step=".001" value="${+phases[0].toFixed(3)}"><small class="field-hint">Fade in and out take equal time. Any time left in the block is a hold.</small></div>` : ""}` : "";
         const flashEditor = isFlash && !pulse ? ["Fade in", "Hold", "Fade out"].map((name, index) =>
           `<div class="field"><label for="flashPhase${index}">${name} (seconds)</label><input id="flashPhase${index}" type="number" min="0" step=".001" value="${+phases[index].toFixed(3)}"></div>`
         ).join("") : "";

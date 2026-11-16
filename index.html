@@ -2300,6 +2300,31 @@
         text-overflow: ellipsis;
       }
       .event .resize-handle { width: min(10px, 25%); }
+      .event.has-phases { padding: 0; }
+      .cue-phases { position: absolute; inset: 0; display: flex; }
+      .cue-phase { position: relative; min-width: 0; }
+      .cue-phase-in { background: linear-gradient(90deg, #aaa, #f7f7f7); }
+      .cue-phase-hold { background: #f7f7f7; }
+      .cue-phase-out { background: linear-gradient(90deg, #f7f7f7, #aaa); }
+      .cue-phase + .cue-phase { border-left: 1px solid #888; }
+      .cue-phase small {
+        position: absolute; inset: auto 9px 2px 5px; overflow: hidden;
+        color: #444; font-size: 8px; text-overflow: ellipsis;
+        pointer-events: none;
+      }
+      .event.has-phases .cue-phase-label { padding-top: 4px; }
+      .event .phase-handle {
+        inset: 0 0 0 auto; width: min(8px, 60%); opacity: 1;
+        background: linear-gradient(90deg, transparent, #26262655);
+      }
+      .cue-phase-label {
+        position: relative; z-index: 1; padding: 8px 10px; display: block;
+        pointer-events: none; color: #121212;
+      }
+      .cue-pulse-envelope {
+        position: absolute; inset: 3px 0; width: 100%; height: calc(100% - 6px);
+        pointer-events: none;
+      }
     </style>
   </head>
   <body>
@@ -4501,18 +4526,87 @@
           };
         });
         bindAutomation();
+        bindFadePhaseHandles();
         initEventInteractions();
         $("#timeline").onpointerdown = startMarquee;
         drawHead();
         checks();
       }
+      function cuePhaseMarkup(cue) {
+        const pulse = isPulse(cue);
+        const phases = pulse ? pulsePhases(cue) : fadePhases(cue);
+        const total = phases.reduce((sum, length) => sum + length, 0);
+        if (!total) return "";
+        if (pulse) {
+          const rise = 100 * phases[0] / total;
+          const fall = 100 * (phases[0] + phases[1]) / total;
+          return `<svg class="cue-pulse-envelope" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true"><path d="M0 29 L${rise} 4 H${fall} L100 29" fill="none" stroke="#555" stroke-opacity=".7" vector-effect="non-scaling-stroke"/></svg>`;
+        }
+        const labels = ["Fade in", "Hold", "Fade out"];
+        return `<div class="cue-phases">${phases.map((length, index) => length > 0
+          ? `<span class="cue-phase cue-phase-${["in", "hold", "out"][index]}" style="flex:${length} 1 0"><small>${labels[index]}</small><span class="resize-handle phase-handle" data-phase="${index}" title="Resize ${labels[index]} · ${length.toFixed(3)}s"></span></span>`
+          : "").join("")}</div>`;
+      }
+
+      function bindFadePhaseHandles() {
+        $$(".event [data-phase]").forEach(handle => {
+          handle.onpointerdown = event => {
+            if (event.button !== 0 || !event.isPrimary) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const node = handle.closest(".event");
+            const cue = state.events.find(item => item.id === node.dataset.id);
+            if (!cue) return;
+            const index = Number(handle.dataset.phase);
+            const original = [...fadePhases(cue)];
+            const fixed = original.reduce((sum, value, i) => i === index ? sum : sum + value, 0);
+            const x = event.clientX, scroll = $("#scroller").scrollLeft, zoom = px;
+            let next = original[index];
+            const move = pointer => {
+              const delta = (pointer.clientX - x + $("#scroller").scrollLeft - scroll) / zoom;
+              next = +clamp(original[index] + delta, 0, Math.max(original[index], state.duration - cue.time - fixed)).toFixed(3);
+              const phase = handle.parentElement;
+              phase.style.flexGrow = next;
+              node.style.width = eventWidth({ ...cue, duration: fixed + next }) + "px";
+            };
+            const finish = pointer => {
+              node.removeEventListener("pointermove", move);
+              node.removeEventListener("pointerup", finish);
+              node.removeEventListener("pointercancel", finish);
+              if (pointer.type === "pointerup" && next !== original[index]) {
+                commit();
+                original[index] = next;
+                cue.flashTiming = original;
+                cue.duration = fixed + next;
+                autosave();
+              }
+              selectedEvents = new Set([cue.id]);
+              selectedEvent = cue;
+              renderTimeline();
+              renderInspector();
+            };
+            node.setPointerCapture(event.pointerId);
+            node.addEventListener("pointermove", move);
+            node.addEventListener("pointerup", finish);
+            node.addEventListener("pointercancel", finish);
+          };
+        });
+      }
+
       function eventHtml(e, row = 0) {
         const width = eventWidth(e);
         const label = String(e.label || e.action || "Cue");
         const visibleLabel = width < 52 ? (label === "Fade" ? "F" : [...label][0] || "•") : label;
         const duration = Number(e.duration) || 0;
         const title = `${label}${duration ? ` · ${duration.toFixed(2)}s` : ""}`;
-        return `<div class="event ${selectedEvent?.id === e.id ? "selected" : selectedEvents.has(e.id) ? "multi" : ""}" data-id="${e.id}" data-kind="${e.kind}" aria-label="${esc(title)}" title="${esc(title)}" style="top:${9 + row * 42}px;left:${e.time * px}px;width:${width}px"><span class="resize-handle resize-left" title="Drag the start"></span>${esc(visibleLabel)}<span class="resize-handle resize-right" title="Drag the end"></span></div>`;
+        const phases = e.action === "flash" ? cuePhaseMarkup(e) : "";
+        const segmented = phases && !isPulse(e);
+        const content = phases ? `${phases}<span class="cue-phase-label">${esc(visibleLabel)}</span>` : esc(visibleLabel);
+        const handles = segmented ? ["", ""] : [
+          '<span class="resize-handle resize-left" title="Drag the start"></span>',
+          '<span class="resize-handle resize-right" title="Drag the end"></span>',
+        ];
+        return `<div class="event ${phases ? "has-phases" : ""} ${selectedEvent?.id === e.id ? "selected" : selectedEvents.has(e.id) ? "multi" : ""}" data-id="${e.id}" data-kind="${e.kind}" aria-label="${esc(title)}" title="${esc(title)}" style="top:${9 + row * 42}px;left:${e.time * px}px;width:${width}px">${content}${handles.join("")}</div>`;
       }
       const RUNTIME_NATIVE_ATTRIBUTES = new Set([
         "intensity",
@@ -5176,6 +5270,12 @@
         s.node.style.left = s.nextTime * px + "px";
         s.node.style.width =
           eventWidth({ ...s.item, time: s.nextTime, duration: s.next }) + "px";
+        if (isPulse(s.item)) {
+          const preview = { ...s.item };
+          resizeCue(preview, s.next, s.edge);
+          const envelope = s.node.querySelector(".cue-pulse-envelope");
+          if (envelope) envelope.outerHTML = cuePhaseMarkup(preview);
+        }
         const timeField = $("#evTime");
         if (timeField) timeField.value = +s.nextTime.toFixed(3);
         const field = $("#evDuration");
@@ -5357,7 +5457,9 @@
         return hold + (resizeFadeIn(attack, release, edge) ? release : attack);
       }
       function resizeCue(e, duration, edge) {
-        if (e.action === "flash" && !isPulse(e)) {
+        if (isPulse(e) && e.value === "pulse-fade" && e.pulseFade != null && e.duration > 0) {
+          e.pulseFade = pulsePhases(e)[0] * duration / e.duration;
+        } else if (e.action === "flash" && !isPulse(e)) {
           const [attack, hold, release] = fadePhases(e);
           const adjustAttack = resizeFadeIn(attack, release, edge);
           const fixed = hold + (adjustAttack ? release : attack);

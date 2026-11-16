@@ -2301,6 +2301,7 @@
       }
       .event .resize-handle { width: min(10px, 25%); }
       .event.has-phases { padding: 0; }
+      .event.resizable-phases { min-width: 0; }
       .cue-phases { position: absolute; inset: 0; display: flex; }
       .cue-phase { position: relative; min-width: 0; }
       .cue-phase-in { background: linear-gradient(90deg, #aaa, #f7f7f7); }
@@ -4233,6 +4234,7 @@
       }
       function eventWidth(e) {
         const duration = Number(e.duration) || 0;
+        if (duration > 0 && e.action === "flash" && e.value !== "pulse-snap") return duration * px;
         if (duration > 0) return Math.max(24, duration * px);
         return Math.max(
           48,
@@ -4561,11 +4563,16 @@
             const affected = linked ? [0, 2] : [index];
             const fixed = original.reduce((sum, value, i) => affected.includes(i) ? sum : sum + value, 0);
             const preview = [...original];
+            const boundary = cue.time + original.slice(0, index + 1).reduce((sum, length) => sum + length, 0);
+            // The last handle of a linked Pulse moves two equal phases.
+            const scale = affected.filter(phase => phase <= index).length;
             const x = event.clientX, scroll = $("#scroller").scrollLeft, zoom = px;
             let next = original[index];
             const move = pointer => {
               const delta = (pointer.clientX - x + $("#scroller").scrollLeft - scroll) / zoom;
-              next = +clamp(original[index] + delta, 0, Math.max(original[index], (state.duration - cue.time - fixed) / affected.length)).toFixed(3);
+              const snappedBoundary = snapTime(boundary + delta);
+              const proposed = original[index] + (snappedBoundary - boundary) / scale;
+              next = clamp(proposed, 0, Math.max(0, (state.duration - cue.time - fixed) / affected.length));
               for (const phaseIndex of affected) preview[phaseIndex] = next;
               const total = fixed + next * affected.length;
               node.querySelectorAll("[data-phase]").forEach(grip => {
@@ -4614,7 +4621,7 @@
           '<span class="resize-handle resize-left" title="Drag the start"></span>',
           '<span class="resize-handle resize-right" title="Drag the end"></span>',
         ];
-        return `<div class="event ${phases ? "has-phases" : ""} ${isPulse(e) ? "pulse-sections" : ""} ${selectedEvent?.id === e.id ? "selected" : selectedEvents.has(e.id) ? "multi" : ""}" data-id="${e.id}" data-kind="${e.kind}" aria-label="${esc(title)}" title="${esc(title)}" style="top:${9 + row * 42}px;left:${e.time * px}px;width:${width}px">${content}${handles.join("")}</div>`;
+        return `<div class="event ${phases ? "has-phases" : ""} ${phases && e.value !== "pulse-snap" ? "resizable-phases" : ""} ${isPulse(e) ? "pulse-sections" : ""} ${selectedEvent?.id === e.id ? "selected" : selectedEvents.has(e.id) ? "multi" : ""}" data-id="${e.id}" data-kind="${e.kind}" aria-label="${esc(title)}" title="${esc(title)}" style="top:${9 + row * 42}px;left:${e.time * px}px;width:${width}px">${content}${handles.join("")}</div>`;
       }
       const RUNTIME_NATIVE_ATTRIBUTES = new Set([
         "intensity",

@@ -543,7 +543,7 @@ local function stop()
 	remote:FireAllClients("stopped")
 end
 
-local function play(player, id, temporaryShow)
+local function play(player, id, temporaryShow, startOffset)
 	if not allowed(player) then return end
 	playRequest += 1
 	local request = playRequest
@@ -554,6 +554,12 @@ local function play(player, id, temporaryShow)
 		local ok
 		ok, show = pcall(require, module)
 		if not ok or type(show) ~= "table" or type(show.events) ~= "table" then return end
+	end
+	startOffset = startOffset or 0
+	if type(startOffset) ~= "number" or startOffset ~= startOffset or startOffset < 0
+		or (startOffset > 0 and startOffset >= (tonumber(show.duration) or 0)) then
+		remote:FireClient(player, "startTimeError", "Choose a start time before the show ends.")
+		return
 	end
 	if #show.events > math.max(1, tonumber(Config.MaxShowEvents) or 10000) then
 		warn(("Fluxline refused %s: %d events exceeds the configured limit"):format(id, #show.events))
@@ -605,21 +611,26 @@ local function play(player, id, temporaryShow)
 		return aTime < bTime
 	end)
 
-	local started = workspace:GetServerTimeNow() + math.max(.05, tonumber(Config.AudioStartLeadTime) or .2)
+	local launchAt = workspace:GetServerTimeNow() + math.max(.05, tonumber(Config.AudioStartLeadTime) or .2)
+	local started = launchAt - startOffset
 	remote:FireAllClients("playing", {
 		id = id,
 		name = show.name or id,
 		started = started,
+		launchAt = launchAt,
 		duration = show.duration or 0,
 		songId = songId,
 		requestId = requestId,
 	})
 
 	task.spawn(function()
-		while activeToken == token and workspace:GetServerTimeNow() < started do
+		while activeToken == token and workspace:GetServerTimeNow() < launchAt do
 			RunService.Heartbeat:Wait()
 		end
 		local nextEvent = 1
+		while nextEvent <= #events and (tonumber(events[nextEvent].t) or 0) < startOffset do
+			nextEvent += 1
+		end
 		while activeToken == token and nextEvent <= #events do
 			local showTime = math.max(0, workspace:GetServerTimeNow() - started)
 			while nextEvent <= #events and (tonumber(events[nextEvent].t) or 0) <= showTime do
@@ -741,11 +752,18 @@ remote.OnServerEvent:Connect(function(player, action, value)
 	if lastRequest[player] and now - lastRequest[player] < cooldown then return end
 	lastRequest[player] = now
 	if action == "list" then remote:FireClient(player, "shows", listShows())
-	elseif action == "play" then play(player, tostring(value))
+	elseif action == "play" then
+		if type(value) == "table" then
+			play(player, tostring(value.id), nil, value.offset)
+		else
+			play(player, tostring(value))
+		end
 	elseif action == "playTemporary" then
-		local ok, show = pcall(decodeTemporaryShow, value)
+		local payload = type(value) == "table" and value.payload or value
+		local offset = type(value) == "table" and value.offset or nil
+		local ok, show = pcall(decodeTemporaryShow, payload)
 		if ok then
-			play(player, "temporary", show)
+			play(player, "temporary", show, offset)
 		else
 			remote:FireClient(player, "temporaryError", tostring(show))
 		end

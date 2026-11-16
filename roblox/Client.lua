@@ -22,7 +22,7 @@ local function syncLocalAudio(data)
 	audioGeneration += 1
 	local generation = audioGeneration
 	task.spawn(function()
-		while generation == audioGeneration and workspace:GetServerTimeNow() < data.started do
+		while generation == audioGeneration and workspace:GetServerTimeNow() < (data.launchAt or data.started) do
 			task.wait()
 		end
 		if generation ~= audioGeneration then return end
@@ -229,8 +229,46 @@ local showsPage = create("Frame", {
 	BackgroundTransparency = 1,
 }, panel)
 
+local function createStartTimeInput(parent, y)
+	create("TextLabel", {
+		Position = UDim2.fromOffset(0, y),
+		Size = UDim2.fromOffset(66, 25),
+		BackgroundTransparency = 1,
+		Text = "Start at",
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = COLORS.muted,
+		TextSize = 12,
+	}, parent)
+	local field = create("TextBox", {
+		Position = UDim2.fromOffset(68, y),
+		Size = UDim2.fromOffset(88, 25),
+		BackgroundColor3 = COLORS.surface,
+		TextColor3 = COLORS.text,
+		TextSize = 12,
+		Text = "0:00",
+		PlaceholderText = "1:23",
+		ClearTextOnFocus = false,
+	}, parent)
+	round(field, 6)
+	return field
+end
+
+local function readStartTime(field)
+	local text = field.Text:match("^%s*(.-)%s*$")
+	if text == "" then return 0 end
+	local minutes, seconds = text:match("^(%d+):(%d%d%.?%d*)$")
+	if minutes then
+		if tonumber(seconds) < 60 then return tonumber(minutes) * 60 + tonumber(seconds) end
+	elseif text:match("^%d+%.?%d*$") then
+		return tonumber(text)
+	end
+	return nil
+end
+
+local savedStartTime = createStartTimeInput(showsPage, 0)
 local list = create("ScrollingFrame", {
-	Size = UDim2.new(1, 0, 1, -88),
+	Position = UDim2.fromOffset(0, 32),
+	Size = UDim2.new(1, 0, 1, -120),
 	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
 	AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -297,9 +335,10 @@ local temporaryHint = create("TextLabel", {
 	TextSize = 12,
 	Text = "Paste the full Lua export from Flux Sequencer.",
 }, temporaryPage)
+local temporaryStartTime = createStartTimeInput(temporaryPage, 36)
 local temporaryInput = create("TextBox", {
-	Position = UDim2.fromOffset(0, 38),
-	Size = UDim2.new(1, 0, 1, -79),
+	Position = UDim2.fromOffset(0, 67),
+	Size = UDim2.new(1, 0, 1, -108),
 	BackgroundColor3 = COLORS.surface,
 	TextColor3 = COLORS.text,
 	TextXAlignment = Enum.TextXAlignment.Left,
@@ -494,8 +533,10 @@ local function render(shows)
 		button.MouseEnter:Connect(function() button.BackgroundColor3 = COLORS.surfaceHigh end)
 		button.MouseLeave:Connect(function() button.BackgroundColor3 = COLORS.surface end)
 		button.Activated:Connect(function()
+			local offset = readStartTime(savedStartTime)
+			if not offset then setStatus("USE M:SS", false); return end
 			setStatus("LOADING", true)
-			remote:FireServer("play", show.id)
+			remote:FireServer("play", {id=show.id, offset=offset})
 		end)
 	end
 end
@@ -528,8 +569,13 @@ playTemporary.Activated:Connect(function()
 		temporaryHint.Text = "Temporary show data is over 512 KB."
 		return
 	end
+	local offset = readStartTime(temporaryStartTime)
+	if not offset then
+		temporaryHint.Text = "Enter a start time like 1:23."
+		return
+	end
 	temporaryHint.Text = "Checking show…"
-	remote:FireServer("playTemporary", payload)
+	remote:FireServer("playTemporary", {payload=payload, offset=offset})
 end)
 exportButton.Activated:Connect(function()
 	exportButton.Text = "EXPORTING…"
@@ -845,6 +891,9 @@ remote.OnClientEvent:Connect(function(action, data)
 			remote:FireServer("audioReady", requestId)
 			if pendingStart and pendingStart.requestId == requestId then syncLocalAudio(pendingStart) end
 		end)
+	elseif action == "startTimeError" then
+		if temporaryPage.Visible then temporaryHint.Text = tostring(data) end
+		setStatus("BAD START TIME", false)
 	elseif action == "temporaryError" then
 		temporaryHint.Text = tostring(data)
 	elseif action == "playing" then

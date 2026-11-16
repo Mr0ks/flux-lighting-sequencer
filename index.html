@@ -2321,13 +2321,8 @@
         position: relative; z-index: 1; padding: 8px 10px; display: block;
         pointer-events: none; color: #121212;
       }
-      .event.pulse-sections > .resize-handle { height: 11px; bottom: auto; opacity: 1; }
-      .event.pulse-sections .phase-handle { top: 12px; }
-      .event.pulse-sections .cue-phase small { color: #303030; }
-      .cue-pulse-envelope {
-        position: absolute; inset: 3px 0; width: 100%; height: calc(100% - 6px);
-        pointer-events: none;
-      }
+      .pulse-sections .cue-phase-out { border-left-color: #555; }
+      .pulse-sections .cue-phase-in + .cue-phase-out { border-left: 2px solid #242424; }
     </style>
   </head>
   <body>
@@ -4535,24 +4530,15 @@
         drawHead();
         checks();
       }
-      function pulseEnvelopePath(phases) {
-        const total = phases.reduce((sum, length) => sum + length, 0);
-        if (!total) return "";
-        const rise = 100 * phases[0] / total;
-        const fall = 100 * (phases[0] + phases[1]) / total;
-        return `M0 29 L${rise} 4 H${fall} L100 29`;
-      }
-
       function cuePhaseMarkup(cue) {
         const pulse = isPulse(cue);
         const phases = pulse ? pulsePhases(cue) : fadePhases(cue);
         const total = phases.reduce((sum, length) => sum + length, 0);
         if (!total) return "";
-        const envelope = pulse ? `<svg class="cue-pulse-envelope" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true"><path d="${pulseEnvelopePath(phases)}" fill="none" stroke="#555" stroke-opacity=".7" vector-effect="non-scaling-stroke"/></svg>` : "";
         const labels = ["Fade in", "Hold", "Fade out"];
         return `<div class="cue-phases">${phases.map((length, index) => length > 0
-          ? `<span class="cue-phase cue-phase-${["in", "hold", "out"][index]}" style="flex:${length} 1 0"><small>${labels[index]}</small><span class="resize-handle phase-handle" data-phase="${index}" title="Resize ${labels[index]} · ${length.toFixed(3)}s"></span></span>`
-          : "").join("")}</div>${envelope}`;
+          ? `<span class="cue-phase cue-phase-${["in", "hold", "out"][index]}" style="flex:${length} 1 0"><small>${labels[index]}</small>${cue.value === "pulse-snap" ? "" : `<span class="resize-handle phase-handle" data-phase="${index}" title="Resize ${labels[index]} · ${length.toFixed(3)}s"></span>`}</span>`
+          : "").join("")}</div>`;
       }
 
       function bindFadePhaseHandles() {
@@ -4582,7 +4568,6 @@
                 if (phase) phase.style.flexGrow = next;
               }
               node.style.width = eventWidth({ ...cue, duration: fixed + next * affected.length }) + "px";
-              node.querySelector(".cue-pulse-envelope path")?.setAttribute("d", pulseEnvelopePath(preview));
             };
             const finish = pointer => {
               node.removeEventListener("pointermove", move);
@@ -4591,7 +4576,7 @@
               if (pointer.type === "pointerup" && next !== original[index]) {
                 commit();
                 if (pulse) {
-                  if (cue.value === "pulse-fade") cue.pulseFade = preview[0];
+                  if (cue.value !== "pulse-fade") cue.pulseHold = preview[1];
                 } else {
                   cue.flashTiming = preview;
                 }
@@ -4618,7 +4603,7 @@
         const duration = Number(e.duration) || 0;
         const title = `${label}${duration ? ` · ${duration.toFixed(2)}s` : ""}`;
         const phases = e.action === "flash" ? cuePhaseMarkup(e) : "";
-        const segmented = phases && !isPulse(e);
+        const segmented = phases || isPulse(e);
         const content = phases ? `${phases}<span class="cue-phase-label">${esc(visibleLabel)}</span>` : esc(visibleLabel);
         const handles = segmented ? ["", ""] : [
           '<span class="resize-handle resize-left" title="Drag the start"></span>',
@@ -5288,12 +5273,6 @@
         s.node.style.left = s.nextTime * px + "px";
         s.node.style.width =
           eventWidth({ ...s.item, time: s.nextTime, duration: s.next }) + "px";
-        if (isPulse(s.item)) {
-          const preview = { ...s.item };
-          resizeCue(preview, s.next, s.edge);
-          const phases = pulsePhases(preview);
-          s.node.querySelector(".cue-pulse-envelope path")?.setAttribute("d", pulseEnvelopePath(phases));
-        }
         const timeField = $("#evTime");
         if (timeField) timeField.value = +s.nextTime.toFixed(3);
         const field = $("#evDuration");
@@ -5450,10 +5429,10 @@
       function pulsePhases(e) {
         const duration = Math.max(0, Number(e.duration) || 0);
         if (e.value === "pulse-snap") return [0, duration, 0];
-        if (e.value === "pulse-fade-in") return [duration, 0, 0];
-        if (e.value === "pulse-fade-out") return [0, 0, duration];
-        const fade = Math.min(duration / 2, Math.max(0, e.pulseFade ?? duration / 2));
-        return [fade, Math.max(0, duration - 2 * fade), fade];
+        const hold = Math.min(duration, Math.max(0, Number(e.pulseHold) || 0));
+        if (e.value === "pulse-fade-in") return [duration - hold, hold, 0];
+        if (e.value === "pulse-fade-out") return [0, hold, duration - hold];
+        return [duration / 2, 0, duration / 2];
       }
 
       function fadePhases(e) {
@@ -5475,9 +5454,7 @@
         return hold + (resizeFadeIn(attack, release, edge) ? release : attack);
       }
       function resizeCue(e, duration, edge) {
-        if (isPulse(e) && e.value === "pulse-fade" && e.pulseFade != null && e.duration > 0) {
-          e.pulseFade = pulsePhases(e)[0] * duration / e.duration;
-        } else if (e.action === "flash" && !isPulse(e)) {
+        if (e.action === "flash" && !isPulse(e)) {
           const [attack, hold, release] = fadePhases(e);
           const adjustAttack = resizeFadeIn(attack, release, edge);
           const fixed = hold + (adjustAttack ? release : attack);
@@ -5590,7 +5567,15 @@
             : `<div class="field"><label>${esc(valueInfo.label)}</label><input id="evValue" type="number" step=".01" value="${e.value}"><small class="field-hint">${esc(valueInfo.hint)}</small></div>`;
         const pulse = isPulse(e);
         const phases = pulse ? pulsePhases(e) : fadePhases(e);
-        const pulseEditor = pulse ? `<div class="field"><label for="pulseMode">Pulse mode</label><select id="pulseMode"><option value="pulse-snap" ${e.value === "pulse-snap" ? "selected" : ""}>Snap</option><option value="pulse-fade" ${e.value === "pulse-fade" ? "selected" : ""}>Fade</option><option value="pulse-fade-in" ${e.value === "pulse-fade-in" ? "selected" : ""}>Fade on</option><option value="pulse-fade-out" ${e.value === "pulse-fade-out" ? "selected" : ""}>Fade off</option></select></div>${e.value === "pulse-fade" ? `<div class="field"><label for="pulseFadeTime">Each fade (seconds)</label><input id="pulseFadeTime" type="number" min="0" max="${(e.duration || 0) / 2}" step=".001" value="${+phases[0].toFixed(3)}"><small class="field-hint">Fade in and out take equal time. Any time left in the block is a hold.</small></div>` : ""}` : "";
+        const pulseModes = [["pulse-snap", "Snap"], ["pulse-fade", "Fade"],
+          ["pulse-fade-in", "Fade on"], ["pulse-fade-out", "Fade off"]];
+        const pulseMenu = pulseModes.map(([value, label]) =>
+          `<option value="${value}" ${e.value === value ? "selected" : ""}>${label}</option>`
+        ).join("");
+        const pulseTiming = e.value === "pulse-snap"
+          ? '<small class="field-hint">Set the hit length with Duration.</small>'
+          : `<div class="field"><label for="pulseFadeTime">${e.value === "pulse-fade" ? "Each fade" : "Fade length"} (seconds)</label><input id="pulseFadeTime" type="number" min="0" step=".001" value="${+(phases[0] || phases[2]).toFixed(3)}"></div>${e.value === "pulse-fade" ? "" : `<div class="field"><label for="pulseHoldTime">Full brightness (seconds)</label><input id="pulseHoldTime" type="number" min="0" step=".001" value="${+phases[1].toFixed(3)}"></div>`}`;
+        const pulseEditor = pulse ? `<div class="field"><label for="pulseMode">Pulse mode</label><select id="pulseMode">${pulseMenu}</select></div>${pulseTiming}` : "";
         const flashEditor = isFlash && !pulse ? ["Fade in", "Hold", "Fade out"].map((name, index) =>
           `<div class="field"><label for="flashPhase${index}">${name} (seconds)</label><input id="flashPhase${index}" type="number" min="0" step=".001" value="${+phases[index].toFixed(3)}"></div>`
         ).join("") : "";
@@ -5621,13 +5606,19 @@
             renderInspector();
             autosave();
           };
-          const input = $("#pulseFadeTime");
-          if (input) input.onchange = () => {
+          const updatePulseTiming = () => {
             commit();
-            e.pulseFade = clamp(input.valueAsNumber || 0, 0, (e.duration || 0) / 2);
+            const fade = Math.max(0, $("#pulseFadeTime").valueAsNumber || 0);
+            e.pulseHold = Math.max(0, $("#pulseHoldTime")?.valueAsNumber || 0);
+            e.duration = e.value === "pulse-fade" ? fade * 2 : fade + e.pulseHold;
+            renderTimeline();
             renderInspector();
             autosave();
           };
+          for (const id of ["pulseFadeTime", "pulseHoldTime"]) {
+            const input = $("#" + id);
+            if (input) input.onchange = updatePulseTiming;
+          }
         } else if (isFlash) {
           for (let index = 0; index < 3; index++) {
             $("#flashPhase" + index).onchange = () => {
@@ -6042,7 +6033,7 @@
           }).replaceAll("]====]", "\\u005d====]"),
           ev = events.map(
             (e) =>
-              `\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration || 0}, flashTiming = ${lua(e.flashTiming)}, pulseFade = ${lua(e.pulseFade)}, automationFrom = ${lua(e.automationFrom)}, speedRamp = ${lua(e.speedRamp)}, speedCurve = ${lua(e.speedCurve)}, label = ${JSON.stringify(e.label || e.action)}, kind = ${JSON.stringify(e.kind || "output")}, selection = ${lua(e.selection)}, module = ${lua(e.module)}, channel = ${lua(e.channel)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`,
+              `\t\t{ t = ${e.time}, target = ${JSON.stringify(e.target)}, action = ${JSON.stringify(e.action)}, value = ${lua(e.value)}, duration = ${e.duration || 0}, flashTiming = ${lua(e.flashTiming)}, pulseHold = ${lua(e.pulseHold)}, automationFrom = ${lua(e.automationFrom)}, speedRamp = ${lua(e.speedRamp)}, speedCurve = ${lua(e.speedCurve)}, label = ${JSON.stringify(e.label || e.action)}, kind = ${JSON.stringify(e.kind || "output")}, selection = ${lua(e.selection)}, module = ${lua(e.module)}, channel = ${lua(e.channel)}, native = ${lua(e.native)}, actions = ${lua(e.actions)} },`,
           )
           .join("\n");
         return `--[[FLUX_SEQUENCER_PROJECT_V1\n${metadata}\nFLUX_SEQUENCER_PROJECT_END]]\n--[====[FLUX_TEMP_SHOW_V1\n${temporary}\n]====]\n-- Roblox ignores the project backup above and runs the show below.\n-- Exported by Flux Sequencer\nreturn {\n\tversion = 4,\n\tname = ${JSON.stringify(projectState.name)},\n\tsongId = ${JSON.stringify(projectState.songId)},\n\tduration = ${projectState.duration},\n\tbpm = ${projectState.bpm},\n\tevents = {\n${ev}\n\t},\n}`;
@@ -6170,7 +6161,7 @@
             value: raw.value,
             duration: Math.max(0, +raw.duration || 0),
             flashTiming: raw.flashTiming,
-            pulseFade: raw.pulseFade,
+            pulseHold: raw.pulseHold,
             speedRamp: raw.speedRamp,
             speedCurve: raw.speedCurve,
             label: String(raw.label || raw.action || "Cue"),
